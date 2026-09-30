@@ -1,0 +1,16 @@
+{
+  "site_id": "hackrf-validation",
+  "scenario": "field_validation",
+  "cellular": {"enabled": false},
+  "starlink": {"enabled": false},
+  "sdr": {
+    "enabled": true,
+    "ranges": [{"label": "wifi24", "min_mhz": 2400, "max_mhz": 2500}],
+    "bin_width_hz": 1000000,
+    "sweeps": 3,
+    "lna_gain_db": 16,
+    "vga_gain_db": 20,
+    "amp_enable": false,
+    "antenna_power": false
+  }
+}

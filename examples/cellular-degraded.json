@@ -1,0 +1,13 @@
+{
+  "rsrp": -112,
+  "rsrq": -12,
+  "sinr": 16,
+  "download_mbps": 5,
+  "upload_mbps": 3,
+  "latency_ms": 120,
+  "gateway_latency_ms": 2,
+  "packet_loss_pct": 2,
+  "gateway_reachable": true,
+  "internet_reachable": true,
+  "dns_success": true
+}

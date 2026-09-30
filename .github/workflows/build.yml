@@ -1,0 +1,46 @@
+name: Build and verify desktop releases
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Linux Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0
+      - run: python -m pip install -e ".[desktop,build]"
+      - run: python tools/build_release.py
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
+          ./build-installer.ps1 -SkipBuild -Python python
+          ./tools/test-installer.ps1
+      - name: Debian install and uninstall
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ./dist/*.deb
+          /usr/bin/veilbreaker selftest
+          sudo apt-get remove -y veilbreaker-desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Veilbreaker-${{ runner.os }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*-Setup-*.exe
+            dist/*.sha256
+            test-artifacts/packaged-gui/
+            test-artifacts/*installer-report.json

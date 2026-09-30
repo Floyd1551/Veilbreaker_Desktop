@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Veilbreaker emblem">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.45" stop-color="#AEB9BE"/>
+      <stop offset="1" stop-color="#E8EEF0"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11D7E8"/>
+      <stop offset="1" stop-color="#058B9A"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="92" fill="#071014"/>
+  <path d="M256 58 L415 116 L391 358 L256 452 L121 358 L97 116 Z" fill="#0B171D" stroke="url(#silver)" stroke-width="18"/>
+  <path d="M148 143 L226 342 L256 393 L286 342 L364 143 L314 163 L256 300 L198 163 Z" fill="url(#silver)"/>
+  <path d="M105 265 H153 L173 231 L199 300 L224 265 H288 L313 300 L339 231 L359 265 H407" fill="none" stroke="url(#cyan)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  <path d="M256 126 A64 64 0 0 1 320 190 M256 100 A90 90 0 0 1 346 190 M256 75 A115 115 0 0 1 371 190" fill="none" stroke="#11D7E8" stroke-width="8" stroke-linecap="round" opacity=".9"/>
+  <circle cx="256" cy="190" r="14" fill="url(#cyan)" filter="url(#glow)"/>
+  <path d="M256 205 V280" stroke="url(#cyan)" stroke-width="8" stroke-linecap="round" stroke-dasharray="2 16" filter="url(#glow)"/>
+  <path d="M198 388 V334 H174 M314 388 V334 H338 M232 397 V346 M280 397 V346" fill="none" stroke="url(#cyan)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+</svg>
