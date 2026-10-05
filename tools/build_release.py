@@ -20,10 +20,23 @@ def run(*args, **kwargs):
     return subprocess.run(list(map(str, args)), check=True, **kwargs)
 
 
+def freezer_environment():
+    env = os.environ.copy()
+    if os.name == "nt":
+        # Native dependency discovery must not collect unrelated application DLLs
+        # from PATH (for example an incompatible ICU from a PDF tool runtime).
+        windows = Path(env.get("SystemRoot", env.get("WINDIR", "C:/Windows")))
+        env["PATH"] = os.pathsep.join(str(p) for p in (
+            Path(sys.executable).parent, Path(sys.base_prefix), windows / "System32", windows))
+        for key in ("QT_PLUGIN_PATH", "QT_QPA_PLATFORM_PLUGIN_PATH"):
+            env.pop(key, None)
+    return env
+
+
 def main():
     run(sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v")
     run(sys.executable, "tools/make_icon.py")
-    run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "Veilbreaker.spec")
+    run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "Veilbreaker.spec", env=freezer_environment())
     bundle = ROOT / "dist/Veilbreaker"
     exe = bundle / ("veilbreaker.exe" if os.name == "nt" else "veilbreaker")
     gui = bundle / ("VeilbreakerDesktop.exe" if os.name == "nt" else "VeilbreakerDesktop")
@@ -36,10 +49,17 @@ def main():
         response = folder / "result.json"
         request.write_text(json.dumps({"action": "analyze", "config": {"data_dir": str(folder / "Büro"), "site_id": "東京"},
                                        "input": str(ROOT / "examples/cellular-degraded.json")}), encoding="utf-8")
-        run(exe, "--desktop-job", request, response, timeout=60)
+        worker = run(exe, "--desktop-job", request, response, timeout=60, capture_output=True, text=True)
         result = json.loads(response.read_text(encoding="utf-8"))
         if not result.get("ok") or not Path(result["result"]["evidence_zip"]).exists():
             raise RuntimeError("Frozen analysis worker failed")
+        events = [json.loads(line) for line in worker.stdout.splitlines()]
+        if [event.get("status") for event in events] != ["running", "collected"]:
+            raise RuntimeError("Frozen worker collection progress failed")
+        if result["result"]["collection"]["metric_sources"].get("rsrp") != ["imported_metrics"]:
+            raise RuntimeError("Frozen worker import provenance failed")
+        run(exe, "verify", result["result"]["evidence_zip"], timeout=30)
+    run(exe, "--gui-smoke", ROOT / "test-artifacts/packaged-gui-console", timeout=60)
     run(gui, "--smoke-test", ROOT / "test-artifacts/packaged-gui", timeout=60)
     report = json.loads((ROOT / "test-artifacts/packaged-gui/gui-smoke.json").read_text(encoding="utf-8"))
     if not report.get("passed") or report["version"] != __version__:
@@ -63,7 +83,7 @@ def main():
         shutil.copy2(ROOT / "installer/uninstall-linux.sh", bundle / "installer/uninstall-linux.sh")
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
-                "passed": True, "checks": ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI five pages"]}
+                "passed": True, "checks": ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages"]}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"
     archive = Path(shutil.make_archive(str(ROOT / "dist" / name), "zip" if os.name == "nt" else "gztar", ROOT / "dist", "Veilbreaker"))

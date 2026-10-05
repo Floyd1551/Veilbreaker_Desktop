@@ -1,7 +1,7 @@
 param([string]$Installer = '', [switch]$IsolatedIdentity)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist/Veilbreaker-0.10.1rc1-Setup-x64.exe' }
+if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist/Veilbreaker-0.19.0rc1-Setup-x64.exe' }
 $artifactRoot = Join-Path $projectRoot 'test-artifacts'
 $testRoot = Join-Path $artifactRoot ('installer-' + [Guid]::NewGuid().ToString('N').Substring(0,8))
 $installRoot = [IO.Path]::GetFullPath((Join-Path $testRoot 'installer-check'))
@@ -24,7 +24,7 @@ if ($IsolatedIdentity) {
     } finally {
         if (Test-Path -LiteralPath $validationSource) { Remove-Item -LiteralPath $validationSource }
     }
-    $Installer = Join-Path $projectRoot 'dist/VeilbreakerValidation-0.10.1rc1-Setup-x64.exe'
+    $Installer = Join-Path $projectRoot 'dist/VeilbreakerValidation-0.19.0rc1-Setup-x64.exe'
 }
 $registryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$testAppId}_is1"
 $menuLink = Join-Path ([Environment]::GetFolderPath('Programs')) "$testAppName.lnk"
@@ -59,7 +59,7 @@ try {
     if ($process.ExitCode -ne 0) { throw 'Installed CLI init failed.' }
     $process = Start-Process -FilePath $exe -ArgumentList @('--smoke-test', "`"$testRoot\installed-gui`"") -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -ne 0 -or -not (Get-Content -LiteralPath (Join-Path $testRoot 'installed-gui/gui-smoke.json') -Raw | ConvertFrom-Json).passed) { throw 'Installed GUI smoke failed.' }
-    $checks.Add('Installed CLI and five GUI pages')
+    $checks.Add('Installed CLI and six GUI pages')
     $configHash = (Get-FileHash -LiteralPath (Join-Path $dataRoot 'config.json')).Hash
     $process = Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$installRoot`"", '/TASKS=desktopicon') -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -ne 0) { throw 'Reinstall failed.' }

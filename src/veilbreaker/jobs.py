@@ -21,9 +21,19 @@ def demo_payload():
             "run_id": "demo", "evidence_zip": None, "site_id": "Demonstration"}
 
 
-def execute(request):
+def execute(request, progress=None):
     cfg = core.AppConfig.from_dict(request["config"])
     action = request["action"]
+    if action == "survey":
+        from .survey import execute_survey
+        return execute_survey(cfg, request["name"], request["steps"], progress, manual=request.get("manual", False))
+    if action == "survey_resume":
+        from .survey import resume_survey
+        return resume_survey(cfg, request["survey_path"], progress)
+    if action == "recover":
+        from .recovery import recover_runs
+        result = recover_runs(cfg)
+        return {"text": json.dumps(result, indent=2), "returncode": bool(result["notes"])}
     if action == "verify":
         from .evidence import verify_bundle
         result = verify_bundle(request["input"])
@@ -44,14 +54,14 @@ def execute(request):
         return {"text": output, "returncode": rc}
     if action not in {"run", "analyze"}:
         raise ValueError(f"Unknown task: {action}")
-    app = core.VeilbreakerApplication(cfg)
+    app = core.VeilbreakerApplication(cfg, progress=progress)
     try:
         result = (app.analyze_file(request["input"]) if action == "analyze"
                   else app.run(**request.get("options", {})))
         return {"report": result.report.to_dict(), "metrics": result.metrics,
                 "notes": result.notes, "run_id": result.run_id,
                 "site_id": cfg.site_id, "evidence_zip": str(result.evidence_zip),
-                "sweeps": [core.asdict(s) for s in result.sweep_summaries]}
+                "sweeps": [core.asdict(s) for s in result.sweep_summaries], "collection": result.collection}
     finally:
         app.close()
 
@@ -63,7 +73,8 @@ def worker_main(args):
         os.setsid()  # Give cancellation its own process group, including collector children.
     source, destination = map(Path, args)
     try:
-        payload = {"ok": True, "result": execute(json.loads(source.read_text(encoding="utf-8")))}
+        payload = {"ok": True, "result": execute(json.loads(source.read_text(encoding="utf-8")),
+                    progress=lambda event: print(json.dumps(event, ensure_ascii=True), flush=True))}
         rc = 0
     except Exception as exc:
         payload = {"ok": False, "error": str(exc), "detail": traceback.format_exc()}

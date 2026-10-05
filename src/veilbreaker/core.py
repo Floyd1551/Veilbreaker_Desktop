@@ -1090,7 +1090,7 @@ from typing import Callable, Iterable, Iterator, Tuple
 APP_NAME = "Veilbreaker"
 from . import __version__ as APP_VERSION
 from .paths import data_root
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def utcnow_iso() -> str:
@@ -1512,6 +1512,14 @@ class VeilbreakerStore:
                 confirmed INTEGER NOT NULL DEFAULT 1
             );
             CREATE INDEX IF NOT EXISTS idx_cases_site ON cases(site_id);
+            CREATE TABLE IF NOT EXISTS case_events (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                case_id TEXT NOT NULL,
+                timestamp_utc TEXT NOT NULL,
+                action TEXT NOT NULL,
+                details_json TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_case_events_case ON case_events(case_id, event_id);
             """
         )
         self.db.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('schema_version',?)", (str(SCHEMA_VERSION),))
@@ -1534,6 +1542,21 @@ class VeilbreakerStore:
         if site_id:
             return list(self.db.execute("SELECT * FROM runs WHERE site_id=? ORDER BY ts_utc DESC LIMIT ?", (site_id, limit)))
         return list(self.db.execute("SELECT * FROM runs ORDER BY ts_utc DESC LIMIT ?", (limit,)))
+
+    def search_runs(self, query="", limit=200, offset=0):
+        if not 1 <= limit <= 200 or offset < 0:
+            raise ValueError("Invalid history page")
+        # Literal substring matching: %, _ and quotes are not SQL operators.
+        where = "instr(lower(run_id || ' ' || ts_utc || ' ' || site_id || ' ' || scenario || ' ' || coalesce(note, '')), lower(?)) > 0"
+        total = self.db.execute("SELECT count(*) FROM runs WHERE " + where, (query.strip(),)).fetchone()[0]
+        rows = self.db.execute("SELECT * FROM runs WHERE " + where + " ORDER BY ts_utc DESC, run_id DESC LIMIT ? OFFSET ?",
+                               (query.strip(), limit, offset)).fetchall()
+        return rows, total
+
+    def preceding_run(self, row):
+        return self.db.execute(
+            "SELECT * FROM runs WHERE site_id=? AND scenario=? AND (ts_utc < ? OR (ts_utc = ? AND run_id < ?)) ORDER BY ts_utc DESC, run_id DESC LIMIT 1",
+            (row["site_id"], row["scenario"], row["ts_utc"], row["ts_utc"], row["run_id"])).fetchone()
 
     def recent_metric_sets(self, site_id: str, scenario: Optional[str], limit: int) -> List[Dict[str, Any]]:
         if scenario:
@@ -1595,22 +1618,72 @@ class VeilbreakerStore:
 
     def add_case(self, source_run_id: str, cause: str, resolution: str = "", hypothesis_id: Optional[str] = None,
                  tags: Optional[List[str]] = None) -> str:
+        if not isinstance(cause, str) or not cause.strip() or len(cause) > 2000:
+            raise ValueError("Describe the confirmed cause using 1–2000 characters")
+        if not isinstance(resolution, str) or len(resolution) > 4000:
+            raise ValueError("Resolution must be text up to 4000 characters")
+        cause = cause.strip()
         row = self.get_run(source_run_id)
         if not row:
             raise KeyError(f"Unknown run id: {source_run_id}")
         metrics = json.loads(row["metrics_json"])
         case_id = "case-" + uuid.uuid4().hex[:10]
-        self.db.execute(
-            """INSERT INTO cases(case_id,created_utc,site_id,source_run_id,scenario,hypothesis_id,cause,resolution,signature_json,tags_json,confirmed)
-               VALUES(?,?,?,?,?,?,?,?,?,?,1)""",
-            (case_id, utcnow_iso(), row["site_id"], source_run_id, row["scenario"], hypothesis_id, cause, resolution,
-             json.dumps(self.case_signature(metrics)), json.dumps(tags or [])),
-        )
-        self.db.commit()
+        with self.db:
+            self.db.execute(
+                """INSERT INTO cases(case_id,created_utc,site_id,source_run_id,scenario,hypothesis_id,cause,resolution,signature_json,tags_json,confirmed)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,1)""",
+                (case_id, utcnow_iso(), row["site_id"], source_run_id, row["scenario"], hypothesis_id, cause, resolution,
+                 json.dumps(self.case_signature(metrics)), json.dumps(tags or [])),
+            )
+            self.db.execute("INSERT INTO case_events(case_id,timestamp_utc,action,details_json) VALUES(?,?,?,?)",
+                            (case_id, utcnow_iso(), "confirmed", json.dumps({"cause": cause, "resolution": resolution})))
         return case_id
 
     def list_cases(self, limit: int = 50) -> List[sqlite3.Row]:
         return list(self.db.execute("SELECT * FROM cases ORDER BY created_utc DESC LIMIT ?", (limit,)))
+
+    def search_cases(self, query="", state="All states", limit=200, offset=0):
+        if state not in ("All states", "Confirmed", "Withdrawn") or not 1 <= limit <= 200 or offset < 0:
+            raise ValueError("Invalid case search")
+        where = "instr(lower(case_id || ' ' || coalesce(site_id,'') || ' ' || coalesce(source_run_id,'') || ' ' || cause || ' ' || coalesce(resolution,'')),lower(?)) > 0"
+        params = [query.strip()]
+        if state != "All states":
+            where += " AND confirmed=?"
+            params.append(1 if state == "Confirmed" else 0)
+        total = self.db.execute("SELECT count(*) FROM cases WHERE " + where, params).fetchone()[0]
+        rows = self.db.execute("SELECT * FROM cases WHERE " + where + " ORDER BY created_utc DESC, case_id DESC LIMIT ? OFFSET ?", [*params,limit,offset]).fetchall()
+        return rows,total
+
+    def case_record(self, case_id):
+        row = self.db.execute("SELECT * FROM cases WHERE case_id=?", (case_id,)).fetchone()
+        if row is None:
+            raise KeyError("Unknown case")
+        case = dict(row)
+        case["signature"] = json.loads(case.pop("signature_json"))
+        case["tags"] = json.loads(case.pop("tags_json"))
+        events = []
+        for event in self.db.execute("SELECT * FROM case_events WHERE case_id=? ORDER BY event_id", (case_id,)):
+            item = dict(event)
+            item["details"] = json.loads(item.pop("details_json"))
+            events.append(item)
+        source = self.get_run(case["source_run_id"])
+        return {"schema_version": 1, "case": case, "events": events,
+                "source": {k: source[k] for k in ("run_id","ts_utc","site_id","scenario")} if source else None,
+                "history_note": "Events recorded since case audit support was introduced; earlier changes are unavailable. This is an operator record, not independent proof of cause."}
+
+    def withdraw_case(self, case_id, reason=""):
+        if not isinstance(reason,str) or len(reason) > 2000:
+            raise ValueError("Withdrawal reason must be text up to 2000 characters")
+        with self.db:
+            row = self.db.execute("SELECT confirmed FROM cases WHERE case_id=?",(case_id,)).fetchone()
+            if row is None:
+                raise KeyError("Unknown case")
+            if not row["confirmed"]:
+                return False
+            self.db.execute("UPDATE cases SET confirmed=0 WHERE case_id=?", (case_id,))
+            self.db.execute("INSERT INTO case_events(case_id,timestamp_utc,action,details_json) VALUES(?,?,?,?)",
+                            (case_id,utcnow_iso(),"withdrawn",json.dumps({"reason":reason.strip()})))
+        return True
 
     @staticmethod
     def _case_similarity(a: Mapping[str, Any], b: Mapping[str, Any]) -> Tuple[float, int]:
@@ -3394,6 +3467,7 @@ class HackRFCollector:
         version = re.search(r"hackrf_info version:\s*(.+)", text)
         if version:
             m["sdr_host_version"] = version.group(1).strip()
+        self.device_serial = m.get("sdr_serial")
         notes = []
         if "unknown" in str(m.get("sdr_board_id", "")).lower() or "unknown" in str(m.get("sdr_firmware", "")).lower():
             notes.append("Installed host tools do not identify this board/firmware version. Capture compatibility must be verified separately.")
@@ -3510,9 +3584,13 @@ class HackRFCollector:
             argv[1:1] = ["-d", str(self.config.serial)]
         span = max(1.0, r.max_mhz - r.min_mhz)
         timeout = max(10.0, min(120.0, 10.0 + span / 75.0 * max(1, self.config.sweeps)))
+        from .recovery import atomic_json
+        capture = {"timestamp": utcnow_iso(), "command": argv, "settings": asdict(self.config), "range": asdict(r), "device_serial": getattr(self, "device_serial", None), "state": "running"}
+        atomic_json(out.with_suffix(".capture.json"), capture)
         res = run_command(argv, timeout)
         out.with_suffix(".log.txt").write_text(res.stdout + "\n" + res.stderr, encoding="utf-8")
-        out.with_suffix(".capture.json").write_text(json.dumps({"timestamp": utcnow_iso(), "command": argv, "settings": asdict(self.config), "returncode": res.returncode}, indent=2), encoding="utf-8")
+        capture.update(returncode=res.returncode, state="finished")
+        atomic_json(out.with_suffix(".capture.json"), capture)
         if res.returncode != 0 or not out.exists():
             raise RuntimeError(f"hackrf_sweep failed rc={res.returncode}: {res.stderr.strip() or res.stdout.strip()}")
         bins = [b for b in self.parse_sweep_csv(out) if r.min_mhz * 1e6 <= b.hz < r.max_mhz * 1e6]
@@ -4416,7 +4494,7 @@ def report_to_html(report: DiagnosticReport, metadata: Mapping[str, Any]) -> str
 
 
 def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, Any], report: DiagnosticReport,
-                        notes: Sequence[str], sweep_summaries: Sequence[SweepSummary]) -> Path:
+                        notes: Sequence[str], sweep_summaries: Sequence[SweepSummary], collection=None) -> Path:
     run_dir = config.artifacts_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     metadata = {"run_id": run_id, "site_id": config.site_id, "scenario": config.scenario, "timestamp": utcnow_iso()}
@@ -4435,6 +4513,8 @@ def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, An
                     shutil.copy2(p, run_dir / p.name)
                 except Exception:
                     pass
+    if collection is not None:
+        (run_dir / "collection.json").write_text(json.dumps(collection, indent=2) + "\n", encoding="utf-8")
     from .evidence import write_manifest
     write_manifest(run_dir, metadata)
     zip_path = config.reports_dir / f"{run_id}_evidence.zip"
@@ -4458,10 +4538,14 @@ class RunResult:
     notes: List[str]
     evidence_zip: Path
     sweep_summaries: List[SweepSummary]
+    collection: Dict[str, Any] = field(default_factory=dict)
 
 
 class VeilbreakerApplication:
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig, progress=None):
+        from .acquisition import Acquisition
+        self.progress = progress
+        self.acquisition = Acquisition(progress)
         self.config = config
         self.config.root.mkdir(parents=True, exist_ok=True)
         self.config.reports_dir.mkdir(parents=True, exist_ok=True)
@@ -4483,12 +4567,19 @@ class VeilbreakerApplication:
         if include_starlink or self.config.starlink.enabled:
             collectors.append(StarlinkCollector(self.config.starlink))
         for collector in collectors:
-            try:
-                part, n = collector.collect()
-                metrics.update(part)
-                notes.extend(f"{collector.name}: {x}" for x in n)
-            except Exception as exc:
-                notes.append(f"{collector.name}: unexpected collector error: {exc}")
+            required = not isinstance(collector, (GPSDCollector, LinuxWiFiCollector, WindowsWiFiCollector))
+            complete = None
+            expected = ()
+            if isinstance(collector, CellularModemCollector):
+                expected = (("modem_registered",), ("rsrp", "rssi"))
+                complete = lambda result: any(result[0].get(k) is not None for k in
+                    ("rsrp", "rsrq", "sinr", "rssi", "modem_registered", "apn_attached", "rat", "operator"))
+            if isinstance(collector, StarlinkCollector):
+                expected = (("starlink_state",), ("satellite_latency_ms",), ("satellite_packet_loss_pct",))
+                complete = lambda result: any(k not in {"satellite_provider", "starlink_target", "starlink_management_reachable"} for k in result[0])
+            part, n = self.acquisition.collect(collector.name, collector.collect, required=required, complete=complete, expected=expected)[:2]
+            metrics.update(part)
+            notes.extend(f"{collector.name}: {x}" for x in n)
         return metrics, notes
 
     @staticmethod
@@ -4506,28 +4597,52 @@ class VeilbreakerApplication:
 
     def run(self, *, active: bool = False, sdr: bool = False, throughput: bool = False,
             guided: bool = False, starlink: bool = False, cellular: bool = False,
-            metrics_file: Optional[str] = None, note: Optional[str] = None) -> RunResult:
-        run_id = _dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
+            metrics_file: Optional[str] = None, note: Optional[str] = None, run_id: Optional[str] = None) -> RunResult:
+        from .acquisition import Acquisition, collection_summary
+        self.acquisition = Acquisition(self.progress)
+        run_id = run_id or (_dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", run_id):
+            raise ValueError("Invalid run identifier")
+        if self.store.get_run(run_id):
+            raise ValueError("Run identifier already exists")
         artifact_dir = self.config.artifacts_dir / run_id
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        from .recovery import checkpoint_writer
+        self.acquisition.checkpoint = checkpoint_writer(artifact_dir / "recovery.json", self.config, run_id)
+        self.acquisition.persist()
 
         metrics, notes = self.collect_passive(include_starlink=starlink, include_cellular=cellular)
-        metrics.update(self.load_metrics_file(metrics_file))
+        if metrics_file:
+            imported = self.load_metrics_file(metrics_file)
+            part, _ = self.acquisition.collect("imported_metrics", lambda: (imported, []))
+            metrics.update(part)
         sweep_summaries: List[SweepSummary] = []
 
         if active:
-            part, n = ActiveNetworkCollector(self.config, metrics).collect()
+            expected = []
+            if metrics.get("gateway_ip") or metrics.get("gateway"):
+                expected.append(("gateway_reachable",))
+            if self.config.public_ping_target:
+                expected.extend([("internet_reachable",), ("packet_loss_pct",)])
+            if self.config.dns_test_host:
+                expected.append(("dns_success",))
+            part, n = self.acquisition.collect("active_network", ActiveNetworkCollector(self.config, metrics).collect, expected=expected)
             metrics.update(part)
             notes.extend(f"active_network: {x}" for x in n)
 
         if throughput:
-            part, n = ActiveTestExecutor(self.config).iperf3()
+            part, n = self.acquisition.collect("iperf3", ActiveTestExecutor(self.config).iperf3,
+                                               expected=(("download_mbps",), ("upload_mbps",)))
             metrics.update(part)
             notes.extend(f"iperf3: {x}" for x in n)
 
         if sdr or self.config.sdr.enabled:
             hc = HackRFCollector(self.config.sdr, artifact_dir)
-            part, n, summaries = hc.collect()
+            captured = self.acquisition.collect("hackrf", hc.collect,
+                complete=lambda result: bool(self.config.sdr.ranges) and len(result[2]) == len(self.config.sdr.ranges),
+                expected=[(f"sdr_{re.sub(r'[^a-z0-9]+', '_', r.label.lower()).strip('_')}_median_db",) for r in self.config.sdr.ranges])
+            part, n = captured[:2]
+            summaries = captured[2] if len(captured) > 2 else []
             metrics.update(part)
             notes.extend(f"hackrf: {x}" for x in n)
             sweep_summaries.extend(summaries)
@@ -4547,12 +4662,13 @@ class VeilbreakerApplication:
             executed = False
             top_test_ids = [t.test_id for t in report.next_tests[:3]]
             if "TEST-PATH-STAGES" in top_test_ids or "TEST-STARLINK-PATH" in top_test_ids:
-                part, n = executor.path_stages(metrics)
+                part, n = self.acquisition.collect("guided_path", lambda: executor.path_stages(metrics))
                 metrics.update(part)
                 notes.extend(f"guided_path: {x}" for x in n)
                 executed = True
             if "TEST-PMTU" in top_test_ids and self.config.public_ping_target:
-                part, n = executor.path_mtu(self.config.public_ping_target)
+                part, n = self.acquisition.collect("guided_pmtu", lambda: executor.path_mtu(self.config.public_ping_target),
+                                                   complete=lambda result: result[0].get("pmtu_test_success") is True)
                 metrics.update(part)
                 notes.extend(f"guided_pmtu: {x}" for x in n)
                 executed = True
@@ -4562,22 +4678,27 @@ class VeilbreakerApplication:
                 report = self.engine.analyze(metrics, context)
                 report.summary.append("Guided diagnostics executed one bounded follow-up test cycle and re-ranked the hypotheses.")
 
-        evidence_zip = write_evidence_pack(self.config, run_id, metrics, report, notes, sweep_summaries)
+        collection = self.acquisition.to_dict()
+        report.summary.append(collection_summary(collection))
+        evidence_zip = write_evidence_pack(self.config, run_id, metrics, report, notes, sweep_summaries, collection)
         self.store.save_run(run_id, self.config.site_id, self.config.scenario, metrics, report,
                             artifact_dir=str(artifact_dir), note=note)
-        return RunResult(run_id, metrics, report, notes, evidence_zip, sweep_summaries)
+        return RunResult(run_id, metrics, report, notes, evidence_zip, sweep_summaries, collection)
 
     def analyze_file(self, path: str) -> RunResult:
-        metrics = self.load_metrics_file(path)
+        from .acquisition import Acquisition
+        self.acquisition = Acquisition(self.progress)
+        imported = self.load_metrics_file(path)
+        metrics, _ = self.acquisition.collect("imported_metrics", lambda: (imported, []))
         run_id = "analysis-" + _dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         baseline = self.store.baseline(self.config.site_id, self.config.scenario,
                                        self.config.baseline_run_count, self.config.baseline_min_samples)
         cases = self.store.match_cases(metrics)
         report = self.engine.analyze(metrics, {"baseline": baseline, "case_matches": cases})
-        zip_path = write_evidence_pack(self.config, run_id, metrics, report, [], [])
+        zip_path = write_evidence_pack(self.config, run_id, metrics, report, [], [], self.acquisition.to_dict())
         self.store.save_run(run_id, self.config.site_id, self.config.scenario, metrics, report,
                             artifact_dir=str(self.config.artifacts_dir / run_id))
-        return RunResult(run_id, metrics, report, [], zip_path, [])
+        return RunResult(run_id, metrics, report, [], zip_path, [], self.acquisition.to_dict())
 
 
 # =============================================================================
@@ -4854,6 +4975,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", help="Config JSON path (default: per-user Veilbreaker data directory)")
     p.add_argument("--version", action="version", version=f"%(prog)s {APP_VERSION}")
     sub = p.add_subparsers(dest="command", required=True)
+    survey = sub.add_parser("survey", help="Run or reopen a grouped session of up to 20 diagnostics")
+    survey.add_argument("--name", default="Site survey")
+    survey.add_argument("--point", help="Exact point label for --trend")
+    survey.add_argument("--metric", help="Numeric metric for --trend")
+    survey.add_argument("--manual", action="store_true", help="Pause after each test")
+    actions = survey.add_mutually_exclusive_group(required=True)
+    actions.add_argument("--plan", help="JSON array of named test steps and boolean options")
+    actions.add_argument("--show", help="Saved survey JSON path")
+    actions.add_argument("--resume", help="Explicitly continue unrun tests in a saved session")
+    actions.add_argument("--export", help="Saved survey JSON path to export as an evidence ZIP")
+    actions.add_argument("--trend", help="Baseline survey JSON path for multi-visit trends")
+    actions.add_argument("--list", action="store_true")
+    verify = sub.add_parser("verify", help="Verify evidence bundle integrity")
+    verify.add_argument("bundle")
+    recovery = sub.add_parser("recover", help="Recover interrupted acquisitions without contacting hardware")
+    recovery.add_argument("--config", default=argparse.SUPPRESS)
 
     init = sub.add_parser("init", help="Write a starter configuration")
     init.add_argument("--path", help="Output path (default: per-user Veilbreaker data directory)")
@@ -4945,6 +5082,17 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
 
+    if args.command == "verify":
+        from .evidence import verify_bundle
+        result = verify_bundle(args.bundle)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return {"verified": 0, "failed": 1, "unverified": 2}[result["status"]]
+    if args.command == "recover":
+        from .recovery import recover_runs
+        result = recover_runs(load_config(args.config))
+        print(json.dumps(result, indent=2))
+        return 1 if result["notes"] else 0
+
     if args.command == "init":
         path = Path(args.path).expanduser() if args.path else default_config_path()
         try:
@@ -4962,6 +5110,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if getattr(args, "scenario", None):
         cfg.scenario = args.scenario
 
+    if args.command == "survey":
+        from .survey import execute_survey, resume_survey, read_session, export_session, list_sessions
+        if args.trend:
+            from .survey_trends import saved_trend
+            if not args.point or not args.metric:
+                raise ValueError("--trend requires --point and --metric")
+            print(json.dumps(saved_trend(cfg,args.trend,args.point,args.metric),indent=2))
+            return 0
+        if args.plan:
+            result = execute_survey(cfg, args.name, json.loads(Path(args.plan).read_text(encoding="utf-8")), manual=args.manual)
+            print(json.dumps(result, indent=2))
+            return 0 if result["survey"]["status"] in ("complete", "paused") else 3
+        if args.resume:
+            result = resume_survey(cfg, args.resume)
+            print(json.dumps(result, indent=2))
+            return 0 if result["survey"]["status"] in ("complete", "paused") else 3
+        if args.show:
+            print(json.dumps(read_session(cfg, args.show), indent=2))
+        elif args.export:
+            print(export_session(cfg, args.export))
+        else:
+            print(json.dumps([{ "path": str(path), "name": session["name"], "status": session["status"]} for path, session in list_sessions(cfg)], indent=2))
+        return 0
     if args.command == "doctor":
         rc, text = doctor(cfg)
         print(text)
@@ -5093,7 +5264,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 print(f"\nEvidence pack: {result.evidence_zip}")
                 if result.notes:
                     print(f"Collector notes: {len(result.notes)} (included in evidence pack)")
-            return 0
+            return 3 if result.collection.get("status") == "partial" else 0
 
         if args.command == "analyze":
             result = app.analyze_file(args.input)
