@@ -1,0 +1,1239 @@
+{
+  "name": "U.S. survey bands (supplied reference)",
+  "region": "US",
+  "version": "2026-10-06; supplied annotations, not independently verified",
+  "bands": [
+    {
+      "min_mhz": 88.0,
+      "max_mhz": 108.0,
+      "kind": "band",
+      "label": "FM broadcast",
+      "service": "Wide-area FM broadcast. Useful as an SDR sanity/reference range; not cellular or Wi-Fi.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-C/part-73"
+    },
+    {
+      "min_mhz": 118.0,
+      "max_mhz": 136.975,
+      "kind": "band",
+      "label": "VHF aeronautical band",
+      "service": "Civil aviation voice/navigation services; voice is typically AM. Useful to avoid mistaking strong local aviation signals for other services.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-D/part-87"
+    },
+    {
+      "min_mhz": 162.3875,
+      "max_mhz": 162.4125,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX2 (162.400 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 162.4125,
+      "max_mhz": 162.4375,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX4 (162.425 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 162.4375,
+      "max_mhz": 162.4625,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX5 (162.450 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 162.4625,
+      "max_mhz": 162.4875,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX3 (162.475 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 162.4875,
+      "max_mhz": 162.5125,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX6 (162.500 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 162.5125,
+      "max_mhz": 162.5375,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX7 (162.525 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 162.5375,
+      "max_mhz": 162.5625,
+      "kind": "band",
+      "label": "NOAA Weather Radio WX1 (162.550 MHz)",
+      "service": "NOAA Weather Radio narrowband FM channel. Receive-only reference / severe-weather monitoring.",
+      "source": "https://www.weather.gov/nwr/station_listing"
+    },
+    {
+      "min_mhz": 617.0,
+      "max_mhz": 652.0,
+      "kind": "band",
+      "label": "LTE B71 / NR n71 - Downlink (BS->UE)",
+      "service": "600 MHz mobile broadband downlink. Common low-band deployment: T-Mobile; Boost/EchoStar n71 use is legacy/transitioning. FDD pair uplink: 663-698 MHz. Carrier attribution is not unique.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 663.0,
+      "max_mhz": 698.0,
+      "kind": "band",
+      "label": "LTE B71 / NR n71 - Uplink (UE->BS)",
+      "service": "600 MHz mobile broadband uplink. Common low-band deployment: T-Mobile; Boost/EchoStar n71 use is legacy/transitioning. FDD pair downlink: 617-652 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 698.0,
+      "max_mhz": 716.0,
+      "kind": "band",
+      "label": "LTE B12 - Uplink (UE->BS)",
+      "service": "Lower 700 MHz LTE uplink. Commonly associated with AT&T and some T-Mobile/regional holdings. Pair downlink: 728-746 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 704.0,
+      "max_mhz": 716.0,
+      "kind": "band",
+      "label": "LTE B17 - Uplink (UE->BS)",
+      "service": "Legacy Lower 700 MHz LTE Band 17 subset, historically AT&T. Pair downlink: 734-746 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 717.0,
+      "max_mhz": 728.0,
+      "kind": "band",
+      "label": "LTE B29 / NR n29 - Supplemental downlink",
+      "service": "700 MHz supplemental downlink only (no paired uplink). Historically/commonly associated with AT&T; also part of Boost/EchoStar native-band planning.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 728.0,
+      "max_mhz": 746.0,
+      "kind": "band",
+      "label": "LTE B12 - Downlink (BS->UE)",
+      "service": "Lower 700 MHz LTE downlink. Commonly associated with AT&T and some T-Mobile/regional holdings. Pair uplink: 698-716 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 734.0,
+      "max_mhz": 746.0,
+      "kind": "band",
+      "label": "LTE B17 - Downlink (BS->UE)",
+      "service": "Legacy Lower 700 MHz LTE Band 17 subset, historically AT&T. Pair uplink: 704-716 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 746.0,
+      "max_mhz": 756.0,
+      "kind": "band",
+      "label": "LTE B13 - Downlink (BS->UE)",
+      "service": "Upper 700 MHz LTE downlink; strongly associated with Verizon nationwide LTE coverage. Pair uplink: 777-787 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 758.0,
+      "max_mhz": 768.0,
+      "kind": "band",
+      "label": "LTE B14 / NR n14 - Downlink (BS->UE)",
+      "service": "FirstNet / AT&T public-safety broadband downlink. Pair uplink: 788-798 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 777.0,
+      "max_mhz": 787.0,
+      "kind": "band",
+      "label": "LTE B13 - Uplink (UE->BS)",
+      "service": "Upper 700 MHz LTE uplink; strongly associated with Verizon. Pair downlink: 746-756 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 788.0,
+      "max_mhz": 798.0,
+      "kind": "band",
+      "label": "LTE B14 / NR n14 - Uplink (UE->BS)",
+      "service": "FirstNet / AT&T public-safety broadband uplink. Pair downlink: 758-768 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 814.0,
+      "max_mhz": 849.0,
+      "kind": "band",
+      "label": "LTE B26 / NR n26 - Uplink (UE->BS)",
+      "service": "Extended 800 MHz cellular/SMR uplink. Legacy Sprint/T-Mobile and roaming/industrial relevance; overlaps B5 uplink 824-849 MHz. Pair downlink: 859-894 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 824.0,
+      "max_mhz": 849.0,
+      "kind": "band",
+      "label": "LTE B5 / NR n5 - Uplink (UE->BS)",
+      "service": "850 MHz cellular uplink. AT&T/Verizon and regional use varies by market. Pair downlink: 869-894 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 859.0,
+      "max_mhz": 894.0,
+      "kind": "band",
+      "label": "LTE B26 / NR n26 - Downlink (BS->UE)",
+      "service": "Extended 800 MHz cellular/SMR downlink. Legacy Sprint/T-Mobile and roaming/industrial relevance; overlaps B5 downlink 869-894 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 869.0,
+      "max_mhz": 894.0,
+      "kind": "band",
+      "label": "LTE B5 / NR n5 - Downlink (BS->UE)",
+      "service": "850 MHz cellular downlink. AT&T/Verizon and regional use varies by market. Pair uplink: 824-849 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 902.0,
+      "max_mhz": 928.0,
+      "kind": "band",
+      "label": "902-928 MHz ISM / Part 15",
+      "service": "Unlicensed ISM/Part 15 band used by LoRa, FHSS, telemetry, RFID and many proprietary IoT systems.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 902.3,
+      "max_mhz": 914.9,
+      "kind": "band",
+      "label": "LoRaWAN US915 - Uplink",
+      "service": "Typical US915 LoRaWAN uplink channel region (125 kHz channels plus 500 kHz uplink channels). Also useful for Mesh/LoRa survey work.",
+      "source": "https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters"
+    },
+    {
+      "min_mhz": 923.3,
+      "max_mhz": 927.5,
+      "kind": "band",
+      "label": "LoRaWAN US915 - Downlink",
+      "service": "Typical US915 LoRaWAN downlink channel region (500 kHz channels).",
+      "source": "https://resources.lora-alliance.org/technical-specifications/rp002-1-0-5-lorawan-regional-parameters"
+    },
+    {
+      "min_mhz": 1176.45,
+      "max_mhz": 1176.45,
+      "kind": "marker",
+      "label": "GNSS L5 / GPS L5",
+      "service": "GNSS center-frequency reference. Very weak spread-spectrum signals; not expected to appear as a strong narrow peak.",
+      "source": "https://www.gps.gov/technical/"
+    },
+    {
+      "min_mhz": 1227.6,
+      "max_mhz": 1227.6,
+      "kind": "marker",
+      "label": "GPS L2",
+      "service": "GNSS center-frequency reference. Very weak spread-spectrum signals; not expected to appear as a strong narrow peak.",
+      "source": "https://www.gps.gov/technical/"
+    },
+    {
+      "min_mhz": 1575.42,
+      "max_mhz": 1575.42,
+      "kind": "marker",
+      "label": "GNSS L1 / GPS L1 / Galileo E1",
+      "service": "GNSS center-frequency reference. Very weak spread-spectrum signals; not expected to appear as a strong narrow peak.",
+      "source": "https://www.gps.gov/technical/"
+    },
+    {
+      "min_mhz": 1695.0,
+      "max_mhz": 1710.0,
+      "kind": "band",
+      "label": "NR n70 - Uplink (UE->BS)",
+      "service": "AWS/H-block 5G uplink used by the Boost/EchoStar native network design; current ownership/deployment is in transition. Pair downlink: 1995-2020 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 1710.0,
+      "max_mhz": 1755.0,
+      "kind": "band",
+      "label": "LTE B4 (AWS-1) - Uplink (UE->BS)",
+      "service": "AWS-1 LTE uplink. Widely used historically by AT&T, Verizon and T-Mobile. B66/n66 is the wider superset.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 1710.0,
+      "max_mhz": 1780.0,
+      "kind": "band",
+      "label": "LTE B66 / NR n66 - Uplink (UE->BS)",
+      "service": "Extended AWS uplink. Common across AT&T, Verizon and T-Mobile; also part of Boost/EchoStar native-band planning. Pair downlink: 2110-2200 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 1850.0,
+      "max_mhz": 1910.0,
+      "kind": "band",
+      "label": "LTE B2 / NR n2 - Uplink (UE->BS)",
+      "service": "PCS 1900 uplink. Common across AT&T, T-Mobile and Verizon depending on market. Pair downlink: 1930-1990 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 1850.0,
+      "max_mhz": 1915.0,
+      "kind": "band",
+      "label": "LTE B25 / NR n25 - Uplink (UE->BS)",
+      "service": "Extended PCS uplink. Important T-Mobile 5G/LTE band (includes B2 spectrum plus extension). Pair downlink: 1930-1995 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 1920.0,
+      "max_mhz": 1930.0,
+      "kind": "band",
+      "label": "DECT 6.0 / UPCS",
+      "service": "Unlicensed Personal Communications Service used by DECT cordless phones. Can appear near PCS cellular spectrum.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-D/section-15.323"
+    },
+    {
+      "min_mhz": 1930.0,
+      "max_mhz": 1990.0,
+      "kind": "band",
+      "label": "LTE B2 / NR n2 - Downlink (BS->UE)",
+      "service": "PCS 1900 downlink. Common across AT&T, T-Mobile and Verizon depending on market. Pair uplink: 1850-1910 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 1930.0,
+      "max_mhz": 1995.0,
+      "kind": "band",
+      "label": "LTE B25 / NR n25 - Downlink (BS->UE)",
+      "service": "Extended PCS downlink. Important T-Mobile 5G/LTE band. Pair uplink: 1850-1915 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 1995.0,
+      "max_mhz": 2020.0,
+      "kind": "band",
+      "label": "NR n70 - Downlink (BS->UE)",
+      "service": "AWS/H-block 5G downlink used by the Boost/EchoStar native network design; current ownership/deployment is in transition. Pair uplink: 1695-1710 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 2110.0,
+      "max_mhz": 2155.0,
+      "kind": "band",
+      "label": "LTE B4 (AWS-1) - Downlink (BS->UE)",
+      "service": "AWS-1 LTE downlink. Widely used historically by AT&T, Verizon and T-Mobile. B66/n66 is the wider superset.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.11.00_60/ts_136101v181100p.pdf"
+    },
+    {
+      "min_mhz": 2110.0,
+      "max_mhz": 2200.0,
+      "kind": "band",
+      "label": "LTE B66 / NR n66 - Downlink (BS->UE)",
+      "service": "Extended AWS downlink. Common across AT&T, Verizon and T-Mobile; also part of Boost/EchoStar native-band planning. Pair uplink: 1710-1780 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 2305.0,
+      "max_mhz": 2315.0,
+      "kind": "band",
+      "label": "LTE B30 / NR n30 - Uplink (UE->BS)",
+      "service": "WCS 2.3 GHz uplink. Commonly associated with AT&T. Pair downlink: 2350-2360 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 2350.0,
+      "max_mhz": 2360.0,
+      "kind": "band",
+      "label": "LTE B30 / NR n30 - Downlink (BS->UE)",
+      "service": "WCS 2.3 GHz downlink. Commonly associated with AT&T. Pair uplink: 2305-2315 MHz.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 2402.0,
+      "max_mhz": 2422.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 1 (center 2412 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2402.0,
+      "max_mhz": 2480.0,
+      "kind": "band",
+      "label": "Bluetooth / BLE 2.4 GHz",
+      "service": "Bluetooth Classic frequency hopping and BLE advertising/data channels across the 2.4 GHz ISM band. Expect bursty, hopping energy rather than one fixed Wi-Fi-like carrier.",
+      "source": "https://www.bluetooth.com/learn-about-bluetooth/tech-overview/"
+    },
+    {
+      "min_mhz": 2405.0,
+      "max_mhz": 2480.0,
+      "kind": "band",
+      "label": "IEEE 802.15.4 / Zigbee 2.4 GHz Channels 11-26",
+      "service": "Low-power 802.15.4/Zigbee channel centers run from 2405 to 2480 MHz in 5 MHz steps. Narrower than Wi-Fi and often low duty cycle.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2407.0,
+      "max_mhz": 2427.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 2 (center 2417 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2412.0,
+      "max_mhz": 2432.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 3 (center 2422 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2417.0,
+      "max_mhz": 2437.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 4 (center 2427 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2422.0,
+      "max_mhz": 2442.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 5 (center 2432 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2427.0,
+      "max_mhz": 2447.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 6 (center 2437 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2432.0,
+      "max_mhz": 2452.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 7 (center 2442 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2437.0,
+      "max_mhz": 2457.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 8 (center 2447 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2442.0,
+      "max_mhz": 2462.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 9 (center 2452 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2447.0,
+      "max_mhz": 2467.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 10 (center 2457 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2452.0,
+      "max_mhz": 2472.0,
+      "kind": "band",
+      "label": "Wi-Fi 2.4 GHz Channel 11 (center 2462 MHz)",
+      "service": "802.11b/g/n/ax. Nominal 20 MHz OFDM channel; overlapping-channel environment. Bidirectional unlicensed Part 15 use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2483.5,
+      "max_mhz": 2495.0,
+      "kind": "band",
+      "label": "LTE B53 / NR n53 - TDD",
+      "service": "2.4 GHz adjacent licensed/shared terrestrial mobile spectrum associated with Globalstar terrestrial operations; useful interference/reference marker next to Wi-Fi/Bluetooth.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 2496.0,
+      "max_mhz": 2690.0,
+      "kind": "band",
+      "label": "LTE B41 / NR n41 - TDD (UL+DL)",
+      "service": "2.5 GHz TDD mobile broadband. Core T-Mobile mid-band 5G capacity layer; LTE B41 may still be observed.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 3450.0,
+      "max_mhz": 3550.0,
+      "kind": "band",
+      "label": "NR n77 - U.S. 3.45 GHz service - TDD (UL+DL)",
+      "service": "3.45 GHz flexible-use 5G spectrum. Major-carrier holdings/deployments vary by market; AT&T and T-Mobile are notable participants. Do not treat energy here as carrier-unique.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27"
+    },
+    {
+      "min_mhz": 3550.0,
+      "max_mhz": 3700.0,
+      "kind": "band",
+      "label": "LTE B48 / NR n48 - CBRS - TDD (UL+DL)",
+      "service": "Citizens Broadband Radio Service. Used by public mobile networks, private LTE/5G, neutral-host systems and fixed wireless. PAL/GAA access; not carrier-unique.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 3700.0,
+      "max_mhz": 3980.0,
+      "kind": "band",
+      "label": "NR n77 - U.S. C-band - TDD (UL+DL)",
+      "service": "C-band 5G. Major deployments include Verizon and AT&T, with T-Mobile also holding/deploying some n77. Exact block ownership varies by market.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27"
+    },
+    {
+      "min_mhz": 4940.0,
+      "max_mhz": 4990.0,
+      "kind": "band",
+      "label": "4.9 GHz Public Safety Band",
+      "service": "Public-safety broadband spectrum; may contain fixed/mobile broadband links and newer 5G-compatible systems. Secondary non-public-safety access may exist under FCC framework.",
+      "source": "https://docs.fcc.gov/public/attachments/FCC-23-3A1.pdf"
+    },
+    {
+      "min_mhz": 5150.0,
+      "max_mhz": 5925.0,
+      "kind": "band",
+      "label": "LTE B46 / NR n46 - Unlicensed 5 GHz - TDD",
+      "service": "LTE-LAA / NR-U operating in unlicensed 5 GHz. Overlaps Wi-Fi and DFS/radar environments; useful when cellular supplemental carriers may be present.",
+      "source": "https://www.etsi.org/deliver/etsi_ts/138100_138199/13810101/18.08.00_60/ts_13810101v180800p.pdf"
+    },
+    {
+      "min_mhz": 5170.0,
+      "max_mhz": 5190.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 36 (center 5180 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-1. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5190.0,
+      "max_mhz": 5210.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 40 (center 5200 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-1. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5210.0,
+      "max_mhz": 5230.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 44 (center 5220 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-1. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5230.0,
+      "max_mhz": 5250.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 48 (center 5240 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-1. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5250.0,
+      "max_mhz": 5270.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 52 (center 5260 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2A. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5270.0,
+      "max_mhz": 5290.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 56 (center 5280 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2A. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5290.0,
+      "max_mhz": 5310.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 60 (center 5300 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2A. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5310.0,
+      "max_mhz": 5330.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 64 (center 5320 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2A. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5490.0,
+      "max_mhz": 5510.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 100 (center 5500 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5510.0,
+      "max_mhz": 5530.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 104 (center 5520 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5530.0,
+      "max_mhz": 5550.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 108 (center 5540 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5550.0,
+      "max_mhz": 5570.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 112 (center 5560 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5570.0,
+      "max_mhz": 5590.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 116 (center 5580 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5590.0,
+      "max_mhz": 5610.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 120 (center 5600 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5610.0,
+      "max_mhz": 5630.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 124 (center 5620 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5630.0,
+      "max_mhz": 5650.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 128 (center 5640 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5650.0,
+      "max_mhz": 5670.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 132 (center 5660 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5670.0,
+      "max_mhz": 5690.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 136 (center 5680 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5690.0,
+      "max_mhz": 5710.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 140 (center 5700 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5710.0,
+      "max_mhz": 5730.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 144 (center 5720 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-2C / DFS. DFS/radar detection applies. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5735.0,
+      "max_mhz": 5755.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 149 (center 5745 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-3. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5755.0,
+      "max_mhz": 5775.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 153 (center 5765 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-3. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5775.0,
+      "max_mhz": 5795.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 157 (center 5785 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-3. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5795.0,
+      "max_mhz": 5815.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 161 (center 5805 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-3. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5815.0,
+      "max_mhz": 5835.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 165 (center 5825 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-3. Bidirectional unlicensed use.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5835.0,
+      "max_mhz": 5855.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 169 (center 5845 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-4 (5.9 GHz extension). U-NII-4 client/AP support is device/firmware dependent. Bidirectional unlicensed use.",
+      "source": "https://docs.fcc.gov/public/attachments/FCC-20-164A1.pdf"
+    },
+    {
+      "min_mhz": 5855.0,
+      "max_mhz": 5875.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 173 (center 5865 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-4 (5.9 GHz extension). U-NII-4 client/AP support is device/firmware dependent. Bidirectional unlicensed use.",
+      "source": "https://docs.fcc.gov/public/attachments/FCC-20-164A1.pdf"
+    },
+    {
+      "min_mhz": 5875.0,
+      "max_mhz": 5895.0,
+      "kind": "band",
+      "label": "Wi-Fi 5 GHz Channel 177 (center 5885 MHz)",
+      "service": "802.11a/n/ac/ax/be 20 MHz channel, U-NII-4 (5.9 GHz extension). U-NII-4 client/AP support is device/firmware dependent. Bidirectional unlicensed use.",
+      "source": "https://docs.fcc.gov/public/attachments/FCC-20-164A1.pdf"
+    },
+    {
+      "min_mhz": 5895.0,
+      "max_mhz": 5925.0,
+      "kind": "band",
+      "label": "5.9 GHz ITS / C-V2X",
+      "service": "Intelligent Transportation Systems / C-V2X allocation. Adjacent to U-NII-4 Wi-Fi below 5895 MHz and 6 GHz unlicensed above 5925 MHz.",
+      "source": "https://docs.fcc.gov/public/attachments/FCC-20-164A1.pdf"
+    },
+    {
+      "min_mhz": 5945.0,
+      "max_mhz": 5965.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 1 (center 5955 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5965.0,
+      "max_mhz": 5985.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 5 (center 5975 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5985.0,
+      "max_mhz": 6005.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 9 (center 5995 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6005.0,
+      "max_mhz": 6025.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 13 (center 6015 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6025.0,
+      "max_mhz": 6045.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 17 (center 6035 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6045.0,
+      "max_mhz": 6065.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 21 (center 6055 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6065.0,
+      "max_mhz": 6085.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 25 (center 6075 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6085.0,
+      "max_mhz": 6105.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 29 (center 6095 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6105.0,
+      "max_mhz": 6125.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 33 (center 6115 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6125.0,
+      "max_mhz": 6145.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 37 (center 6135 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6145.0,
+      "max_mhz": 6165.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 41 (center 6155 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6165.0,
+      "max_mhz": 6185.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 45 (center 6175 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6185.0,
+      "max_mhz": 6205.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 49 (center 6195 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6205.0,
+      "max_mhz": 6225.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 53 (center 6215 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6225.0,
+      "max_mhz": 6245.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 57 (center 6235 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6245.0,
+      "max_mhz": 6265.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 61 (center 6255 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6265.0,
+      "max_mhz": 6285.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 65 (center 6275 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6285.0,
+      "max_mhz": 6305.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 69 (center 6295 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6305.0,
+      "max_mhz": 6325.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 73 (center 6315 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6325.0,
+      "max_mhz": 6345.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 77 (center 6335 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6345.0,
+      "max_mhz": 6365.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 81 (center 6355 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6365.0,
+      "max_mhz": 6385.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 85 (center 6375 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6385.0,
+      "max_mhz": 6405.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 89 (center 6395 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6405.0,
+      "max_mhz": 6425.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 93 (center 6415 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6425.0,
+      "max_mhz": 6445.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 97 (center 6435 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6445.0,
+      "max_mhz": 6465.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 101 (center 6455 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6465.0,
+      "max_mhz": 6485.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 105 (center 6475 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6485.0,
+      "max_mhz": 6505.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 109 (center 6495 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6505.0,
+      "max_mhz": 6525.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 113 (center 6515 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6525.0,
+      "max_mhz": 6545.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 117 (center 6535 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6545.0,
+      "max_mhz": 6565.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 121 (center 6555 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6565.0,
+      "max_mhz": 6585.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 125 (center 6575 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6585.0,
+      "max_mhz": 6605.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 129 (center 6595 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6605.0,
+      "max_mhz": 6625.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 133 (center 6615 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6625.0,
+      "max_mhz": 6645.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 137 (center 6635 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6645.0,
+      "max_mhz": 6665.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 141 (center 6655 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6665.0,
+      "max_mhz": 6685.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 145 (center 6675 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6685.0,
+      "max_mhz": 6705.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 149 (center 6695 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6705.0,
+      "max_mhz": 6725.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 153 (center 6715 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6725.0,
+      "max_mhz": 6745.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 157 (center 6735 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6745.0,
+      "max_mhz": 6765.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 161 (center 6755 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6765.0,
+      "max_mhz": 6785.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 165 (center 6775 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6785.0,
+      "max_mhz": 6805.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 169 (center 6795 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6805.0,
+      "max_mhz": 6825.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 173 (center 6815 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6825.0,
+      "max_mhz": 6845.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 177 (center 6835 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6845.0,
+      "max_mhz": 6865.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 181 (center 6855 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6865.0,
+      "max_mhz": 6885.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 185 (center 6875 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6885.0,
+      "max_mhz": 6905.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 189 (center 6895 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6905.0,
+      "max_mhz": 6925.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 193 (center 6915 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6925.0,
+      "max_mhz": 6945.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 197 (center 6935 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6945.0,
+      "max_mhz": 6965.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 201 (center 6955 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6965.0,
+      "max_mhz": 6985.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 205 (center 6975 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 6985.0,
+      "max_mhz": 7005.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 209 (center 6995 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 7005.0,
+      "max_mhz": 7025.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 213 (center 7015 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 7025.0,
+      "max_mhz": 7045.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 217 (center 7035 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 7045.0,
+      "max_mhz": 7065.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 221 (center 7055 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 7065.0,
+      "max_mhz": 7085.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 225 (center 7075 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 7085.0,
+      "max_mhz": 7105.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 229 (center 7095 MHz) - PSC",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). Preferred Scanning Channel (PSC). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 7105.0,
+      "max_mhz": 7125.0,
+      "kind": "band",
+      "label": "Wi-Fi 6 GHz Channel 233 (center 7115 MHz)",
+      "service": "802.11ax/be 20 MHz channel (Wi-Fi 6E / Wi-Fi 7). No DFS; standard-power operation uses AFC, while LPI/VLP rules differ. Licensed fixed microwave incumbents also exist in 6 GHz.",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 24250.0,
+      "max_mhz": 27500.0,
+      "kind": "band",
+      "label": "NR n258 - mmWave - TDD (UL+DL)",
+      "service": "24 GHz-class 5G NR band. U.S. usable/licensed portions are narrower than the full 3GPP band; deployment is limited/market-specific.",
+      "source": "https://www.etsi.org/deliver/etsi_TS/138100_138199/13810102/18.10.00_60/ts_13810102v181000p.pdf"
+    },
+    {
+      "min_mhz": 27500.0,
+      "max_mhz": 28350.0,
+      "kind": "band",
+      "label": "NR n261 - 28 GHz mmWave - TDD (UL+DL)",
+      "service": "28 GHz 5G mmWave. Historically deployed by Verizon and AT&T in selected dense/venue markets.",
+      "source": "https://www.etsi.org/deliver/etsi_TS/138100_138199/13810102/18.10.00_60/ts_13810102v181000p.pdf"
+    },
+    {
+      "min_mhz": 37000.0,
+      "max_mhz": 40000.0,
+      "kind": "band",
+      "label": "NR n260 - 39 GHz mmWave - TDD (UL+DL)",
+      "service": "39 GHz 5G mmWave. Used/licensed by major U.S. operators in selected markets; not receivable with typical sub-6 GHz SDR hardware.",
+      "source": "https://www.etsi.org/deliver/etsi_TS/138100_138199/13810102/18.10.00_60/ts_13810102v181000p.pdf"
+    }
+  ]
+}

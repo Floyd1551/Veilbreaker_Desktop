@@ -35,6 +35,13 @@ class EvidenceTests(unittest.TestCase):
         with patch("sys.stdout", io.StringIO()):
             self.assertEqual(main(["verify", str(self.pack)]), 0)
 
+    def test_bundle_contains_separate_sdr_report(self):
+        with zipfile.ZipFile(self.pack) as archive:
+            report = json.loads(archive.read('sdr_report.json'))
+            self.assertEqual(report['ranges'], [])
+            self.assertIn(b'No SDR capture', archive.read('sdr_report.html'))
+        self.assertEqual(verify_bundle(self.pack)['status'], 'verified')
+
     def test_modified_missing_and_extra_files_fail(self):
         original = self.pack.read_bytes()
         for mutate in (lambda c: c.update({"metrics.json": b"{}"}), lambda c: c.pop("report.txt"), lambda c: c.update({"extra.txt": b"extra"})):

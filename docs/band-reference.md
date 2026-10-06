@@ -1,0 +1,32 @@
+# Offline spectrum reference
+
+The default U.S. reference contains the 154 entries supplied by the project owner on October 6, 2026. The supplied CSV and JSON were checked for equivalent content. Descriptions, carrier associations, and source URLs are preserved as supplied annotations, not independently verified facts. Three GNSS center-frequency entries are rendered as markers, without invented bandwidth. Entries beyond the connected receiver’s frequency range remain reference information and do not expand hardware capabilities. A separate basic FCC reference is available in the legend; its selected ranges were checked against eCFR on October 6, 2026. Neither is a complete allocation table. Each entry carries its source. Frequencies may have additional users; labels are expected uses, never detected protocol identities.
+
+Basic reference sources: [47 CFR 15.247](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247), [15.407](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407), [22.905](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-22/subpart-H/section-22.905), [24.229](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-24/subpart-E/section-24.229), and [27.5](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27/subpart-A/section-27.5).
+
+Use **Diagnostics → Spectrum → Band legend / import**. Imports replace the selected reference after validation; they do not modify recorded measurements. Restore supplied U.S. reference returns to the full supplied plan; Use basic FCC reference selects the smaller eCFR-sourced reference. Selection persists as `band-plan.json` inside the application data folder. Reports embed the selected reference so an exported interpretation can be traced later.
+
+CSV (UTF-8, MHz):
+
+```csv
+min_mhz,max_mhz,label,service,source
+2400,2483.5,Site reference,Expected use,Your reference citation
+```
+
+JSON:
+
+```json
+{
+  "name": "Site reference",
+  "region": "US",
+  "version": "2026-10-06",
+  "bands": [
+    {"min_mhz": 2400, "max_mhz": 2483.5, "label": "Site reference",
+     "service": "Expected use", "source": "Your reference citation"}
+  ]
+}
+```
+
+Required row fields: `min_mhz`, `max_mhz`, `label` (or `band`). `expected_use` is accepted as an alias for `service`. A top-level JSON array of rows is also accepted, matching the supplied files. Optional service/source defaults clearly identify user-supplied information. JSON metadata is optional; CSV uses the filename as the reference name and marks its region Custom. Sources are shown as text, never executed or fetched. Up to 1000 bands and 1 MiB per file. Limits must be finite numbers with `0 <= min <= max <= 1000000`. Labels allow 120 characters; other text allows 500. Overlaps are allowed. Range lookup includes the lower bound and excludes the upper bound. Equal bounds define a center-frequency marker, matched at that frequency only. Narrow labels are elided on the chart; the legend retains full details.
+
+SDR reports use actual CSV bin intervals for coverage, not spacing inferred from surviving bins. Coverage means frequency coverage across the capture; it does not verify every requested sweep completed. Recorded success means the acquisition metadata records exit code zero. The estimated floor is the median of the lowest 20% of bin medians (at least one); activity is the fraction of observed bin medians above that estimate plus 10 dB. These are uncalibrated descriptive statistics and can be biased by wideband signals. They do not identify interference or measure time occupancy.

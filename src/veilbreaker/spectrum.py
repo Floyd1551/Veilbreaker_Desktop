@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget, QSizePolicy
 from .core import HackRFCollector
+from .bandplan import default_plan, bands_at
 
 
 class SpectrumView(QWidget):
@@ -21,6 +22,8 @@ class SpectrumView(QWidget):
         self.full_bounds = (0, 1)
         self.cursor = None
         self.drag = None
+        self.band_plan = default_plan()
+        self.show_bands = True
         self.setMinimumSize(360, 320)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMouseTracking(True)
@@ -51,6 +54,11 @@ class SpectrumView(QWidget):
         from .rf_workflow import read_trace
         self.reference_points = read_trace(summary) if summary else []
         self.inspected.emit("Hover to inspect before/after median power and change in relative dB")
+        self.update()
+
+    def set_band_plan(self, plan, visible=True):
+        self.band_plan = plan
+        self.show_bands = visible
         self.update()
 
     def plot_rect(self):
@@ -108,10 +116,11 @@ class SpectrumView(QWidget):
             low, high = self.bounds
             frequency = low + (event.position().x() - plot.left()) / plot.width() * (high - low)
             self.cursor = min(self.points, key=lambda p: abs(p[0] - frequency))
-            self.inspected.emit(f"{self.cursor[0]:.3f} MHz • Median {self.cursor[1]:.1f} dB • Maximum {self.cursor[2]:.1f} dB (relative, uncalibrated)")
+            context = (' • Expected uses: ' + ('; '.join(b['label'] for b in bands_at(self.band_plan, self.cursor[0])) or 'No reference entry')) if self.show_bands else ''
+            self.inspected.emit(f"{self.cursor[0]:.3f} MHz • Median {self.cursor[1]:.1f} dB • Maximum {self.cursor[2]:.1f} dB (relative, uncalibrated)" + context)
             if self.reference_points:
                 before = min(self.reference_points, key=lambda p: abs(p[0] - self.cursor[0]))
-                self.inspected.emit(f"{self.cursor[0]:.3f} MHz • Before {before[1]:.1f} dB • After {self.cursor[1]:.1f} dB • Change {self.cursor[1]-before[1]:+.1f} dB (relative)")
+                self.inspected.emit(f"{self.cursor[0]:.3f} MHz • Before {before[1]:.1f} dB • After {self.cursor[1]:.1f} dB • Change {self.cursor[1]-before[1]:+.1f} dB (relative)" + context)
             self.update()
 
     def keyPressEvent(self, event):
@@ -163,6 +172,26 @@ class SpectrumView(QWidget):
             painter.drawText(QRectF(xcoord(frequency) - 40, plot.bottom() + 7, 80, 20), Qt.AlignmentFlag.AlignCenter, f"{frequency:.2f}")
         painter.save()
         painter.setClipRect(plot)
+        if self.show_bands:
+            label_ends = [-1.0, -1.0, -1.0]
+            for index, band in enumerate(self.band_plan['bands']):
+                left, right = max(xlow, band['min_mhz']), min(xhigh, band['max_mhz'])
+                if band.get('kind') == 'marker' and xlow <= band['min_mhz'] <= xhigh:
+                    painter.setPen(QPen(QColor('#a9bee0'), 1, Qt.PenStyle.DotLine))
+                    painter.drawLine(xcoord(left), plot.top(), xcoord(left), plot.bottom())
+                    right = min(xhigh, left + (xhigh-xlow)*0.18)
+                if right <= left:
+                    continue
+                rect = QRectF(xcoord(left), plot.top(), xcoord(right)-xcoord(left), plot.height())
+                if band.get('kind') != 'marker':
+                    painter.fillRect(rect, QColor(88, 130, 200, 12))
+                painter.setPen(QColor('#a9bee0'))
+                painter.drawLine(rect.left(), plot.top(), rect.left(), plot.bottom())
+                lane = next((i for i, end in enumerate(label_ends) if rect.left() >= end+4), None)
+                if rect.width() > 45 and lane is not None:
+                    text = painter.fontMetrics().elidedText(band['label'], Qt.TextElideMode.ElideRight, int(rect.width())-8)
+                    painter.drawText(QRectF(rect.left()+4, plot.top()+3+lane*18, rect.width()-8, 18), Qt.AlignmentFlag.AlignLeft, text)
+                    label_ends[lane] = rect.right()
         series = ((1, "#5bd7bd", 1.8),) if self.reference_points else ((2, "#e9b86e", 1.4), (1, "#5bd7bd", 1.8))
         for index, color, width in series:
             path = QPainterPath()

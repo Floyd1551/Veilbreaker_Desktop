@@ -19,6 +19,48 @@ class SpectrumTests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_scenario_guidance_and_report_tab(self):
+        with tempfile.TemporaryDirectory() as folder:
+            window = MainWindow(core.AppConfig(data_dir=folder))
+            window.scenario.setCurrentIndex(window.scenario.findData('realtime_voice'))
+            self.assertEqual(window.effective_config().scenario, 'realtime_voice')
+            self.assertIn('80', window.scenario_description.text())
+            window.display_payload(demo_payload())
+            self.assertIn('SDR report', [window.tabs.tabText(i) for i in range(window.tabs.count())])
+            self.assertIn('No SDR', window.sdr_report_view.toPlainText())
+            window.tabs.setCurrentIndex(8)
+            self.assertTrue(all(p.isHidden() for p in window.setup_panels))
+            window.close()
+
+    def test_custom_plan_persists_and_expands(self):
+        from veilbreaker.bandplan import validate_plan
+        with tempfile.TemporaryDirectory() as folder:
+            window = MainWindow(core.AppConfig(data_dir=folder))
+            plan = validate_plan({'name': 'Site reference', 'bands': [{'min_mhz': 2400, 'max_mhz': 2500, 'label': 'Test reference'}]})
+            window.apply_band_plan(plan)
+            window.expand_spectrum()
+            self.assertEqual(window.spectrum_dialog.findChild(SpectrumView).band_plan, plan)
+            window.spectrum_dialog.close()
+            window.close()
+            reopened = MainWindow(core.AppConfig(data_dir=folder))
+            self.assertEqual(reopened.spectrum.band_plan, plan)
+            reopened.close()
+
+    def test_report_export_and_legend_search(self):
+        from PySide6.QtWidgets import QFileDialog
+        with tempfile.TemporaryDirectory() as folder:
+            window = MainWindow(core.AppConfig(data_dir=folder))
+            window.display_payload(demo_payload())
+            path = Path(folder) / 'rf.json'
+            with patch.object(QFileDialog, 'getSaveFileName', return_value=(str(path), 'JSON')):
+                window.export_sdr_report('json')
+            self.assertEqual(json.loads(path.read_text(encoding='utf-8'))['metadata']['run_id'], 'demo')
+            window.open_band_plan()
+            window.band_plan_dialog.search.setText('Wi-Fi 2.4 GHz Channel 1 (')
+            self.assertEqual(window.band_plan_dialog.table.rowCount(), 1)
+            window.band_plan_dialog.close()
+            window.close()
+
     def test_zoom_pan_reset_and_readout(self):
         with tempfile.TemporaryDirectory() as folder:
             csv = Path(folder) / "sweep.csv"

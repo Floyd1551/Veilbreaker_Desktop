@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.19.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.20.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.19.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.20.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -211,3 +211,14 @@ veilbreaker --config config.json survey --trend path/to/baseline-survey.json --p
 Survey organization now includes search by name/site/point/ID/date, a session-state filter, and **Rename point**, **Move up**, and **Move down** controls for draft queues. Renaming enforces unique labels for reliable matching; removing and adding draft steps no longer generates duplicate labels. Draft editing does not change saved sessions or start tests. Save the edited queue as a template for subsequent visits.
 
 Confirmed cases now support search, state filtering and paging across all records. Select a case to inspect its recorded events, open its source diagnostic, or export its record as JSON. New confirmations and withdrawals are recorded atomically with timestamped events; an optional withdrawal reason is retained. Repeated withdrawal does not duplicate events. Older cases remain usable with no fabricated event history. The additive case-event table preserves existing runs and case records. Exported cases are operator records, not independent proof of the diagnosis.
+
+
+## Scenario guidance and SDR context — 0.20.0rc1
+
+Diagnostics now explains each scenario beside the selector, including its actual thresholds and suggested collectors. Scenario names remain stable in saved configuration and history; choosing a scenario does not start tests.
+
+Spectrum includes the supplied 154-entry offline U.S. reference with shaded bands, GNSS frequency markers and hover annotations. A smaller FCC-sourced reference is also selectable. **Band legend / import** searches expected uses and source URLs, imports custom CSV/JSON references, or restores either bundled reference. The selected reference is saved in the user data folder. Expanded and comparison charts use it too. This is a curated selection, not a complete allocation table, protocol detector, or transmit authorization.
+
+The separate **SDR report** tab exports HTML and JSON with capture settings, source hashes, actual frequency coverage, strongest bin, estimated floor and observed-bin activity. New evidence bundles include these reports and the reference snapshot. Missing metadata and incomplete frequency coverage stay explicit. The activity estimate is not time occupancy; receiver settings, antenna and placement affect relative power.
+
+See [band reference formats and sources](docs/band-reference.md). Reports can be generated from saved captures without connecting a receiver.

@@ -1,0 +1,114 @@
+"""Standalone, conservative SDR diagnostics from saved receive-only evidence."""
+import hashlib
+import csv
+from html import escape
+import json
+import math
+from pathlib import Path
+import statistics
+from .bandplan import default_plan, bands_at, NOTICE
+from .rf_workflow import read_trace
+
+
+def observed_intervals(path, low, high):
+    """Actual CSV bin widths, independent of gaps in summary-derived spacing."""
+    intervals = set()
+    widths = set()
+    with path.open(encoding='utf-8', errors='replace', newline='') as stream:
+        for row in csv.reader(stream):
+            if len(row) < 7:
+                continue
+            try:
+                start, width = float(row[2])/1e6, float(row[4])/1e6
+                powers = [float(value) for value in row[6:] if value.strip()]
+            except ValueError:
+                continue
+            if not math.isfinite(start) or not math.isfinite(width) or width <= 0:
+                continue
+            for index, power in enumerate(powers):
+                center = start + (index+0.5)*width
+                if math.isfinite(power) and low <= center < high:
+                    intervals.add((max(low, start+index*width), min(high, start+(index+1)*width)))
+                    widths.add(width*1e6)
+    return sorted(intervals), sorted(widths)
+
+
+def build_sdr_report(summaries, metadata, plan=None):
+    plan = default_plan() if plan is None else plan
+    result = {'schema_version': 1, 'metadata': dict(metadata), 'band_plan': plan, 'ranges': [],
+              'limitations': 'Relative, uncalibrated dB; not dBm or a compliance measurement. A sweep cannot identify a protocol, transmitter, or cause of interference. Frequency-bin activity is not time occupancy. ' + NOTICE}
+    for summary in summaries:
+        row = {'label': summary.get('label', 'Unnamed'), 'requested_min_mhz': summary.get('min_mhz'),
+               'requested_max_mhz': summary.get('max_mhz'), 'bin_width_hz': summary.get('bin_width_hz'),
+               'status': 'unavailable', 'bin_count': 0, 'coverage_pct': None, 'peak': None, 'capture': None,
+               'notes': [], 'csv_path': summary.get('csv_path'), 'sha256': None}
+        result['ranges'].append(row)
+        try:
+            path = Path(summary['csv_path'])
+            with path.open('rb') as stream:
+                row['sha256'] = hashlib.file_digest(stream, 'sha256').hexdigest()
+            points = read_trace(summary)
+            if not points or any(not all(math.isfinite(v) for v in p) for p in points):
+                raise ValueError('No usable finite spectrum samples.')
+            low, high = float(summary['min_mhz']), float(summary['max_mhz'])
+            if not math.isfinite(high-low) or high <= low:
+                raise ValueError('Invalid recorded range.')
+            # Union of bin intervals: overlaps must not inflate frequency coverage.
+            intervals, widths = observed_intervals(path, low, high)
+            row['observed_bin_widths_hz'] = widths
+            covered, end = 0.0, low
+            for start, stop in intervals:
+                covered += max(0, stop-max(start, end))
+                end = max(end, stop)
+            row['coverage_pct'] = round(min(100, covered / (high-low) * 100), 2)
+            row['bin_count'] = len(points)
+            row['observed_min_mhz'], row['observed_max_mhz'] = points[0][0], points[-1][0]
+            row['status'] = 'partial' if row['coverage_pct'] < 99.99 else 'metadata unknown'
+            try:
+                capture = json.loads(path.with_suffix('.capture.json').read_text(encoding='utf-8'))
+                if not isinstance(capture, dict):
+                    raise ValueError('Capture metadata is not an object.')
+                row['capture'] = capture
+                if capture.get('returncode') != 0:
+                    row['status'] = 'partial'
+                    row['notes'].append('Acquisition did not record a successful exit; results may be incomplete.')
+                elif row['status'] != 'partial':
+                    row['status'] = 'recorded success'
+            except (OSError, ValueError):
+                row['notes'].append('Acquisition settings/status unavailable; completion cannot be verified.')
+            peak = max(points, key=lambda p: p[2])
+            row['peak'] = {'frequency_mhz': peak[0], 'median_db': peak[1], 'maximum_db': peak[2],
+                           'expected_uses': [b['label'] for b in bands_at(plan, peak[0])]}
+            medians = sorted(p[1] for p in points)
+            floor = statistics.median(medians[:max(1, len(medians)//5)])
+            row['estimated_floor_db'] = floor
+            row['bins_above_floor_plus_10db_pct'] = round(100 * sum(p[1] > floor+10 for p in points)/len(points), 2)
+            row['notes'].append('Floor estimate: median of lowest 20% of bin medians (at least one). Activity: fraction of observed bin medians > floor + 10 dB; not time occupancy. Strong wideband signals can bias this estimate.')
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            row['notes'].append(f'Saved spectrum unavailable: {exc}')
+    return result
+
+
+def report_html(report):
+    esc = lambda value: escape(str(value))
+    parts = ['<!doctype html><html><head><meta charset="utf-8"><title>SDR diagnostic report</title>',
+             '<style>body{font:15px sans-serif;max-width:1050px;margin:32px auto;padding:16px;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}section{border-top:1px solid #aaa;padding:16px 0}</style></head><body>',
+             '<h1>SDR diagnostic report</h1>', '<p>' + esc(report['limitations']) + '</p>',
+             '<h2>Run context</h2><pre>' + esc(json.dumps(report['metadata'], indent=2, ensure_ascii=False)) + '</pre>',
+             '<p>Band reference: ' + esc(report['band_plan']['name']) + ' / ' + esc(report['band_plan']['version']) + '</p>']
+    if not report['ranges']:
+        parts.append('<p>No SDR capture evidence in this run.</p>')
+    for row in report['ranges']:
+        parts.extend(['<section><h2>' + esc(row['label']) + '</h2>',
+                      '<p>Status: <b>' + esc(row['status']) + '</b> · Observed bins: ' + str(row['bin_count']) + '</p>',
+                      '<p>Requested range: ' + esc(row['requested_min_mhz']) + '–' + esc(row['requested_max_mhz']) + ' MHz. Summary bin spacing: ' + esc(row['bin_width_hz']) + ' Hz. Frequency coverage: ' + (esc(row['coverage_pct']) + '%' if row['coverage_pct'] is not None else 'unavailable') + '.</p>'])
+        if row['peak']:
+            p = row['peak']
+            parts.append('<p>Observed bin widths (Hz): ' + esc(', '.join(f'{w:g}' for w in row['observed_bin_widths_hz'])) + '</p>')
+            parts.append(f"<p>Strongest bin: {p['frequency_mhz']:.3f} MHz · Maximum {p['maximum_db']:.1f} relative dB · Median {p['median_db']:.1f} relative dB.<br>Expected uses: {esc(', '.join(p['expected_uses']) or 'No reference entry')}.</p>")
+            parts.append(f"<p>Estimated floor: {row['estimated_floor_db']:.1f} relative dB. Observed bins above floor + 10 dB: {row['bins_above_floor_plus_10db_pct']:g}%.</p>")
+        parts.extend(['<p>' + '<br>'.join(esc(n) for n in row['notes']) + '</p>',
+                      '<h3>Acquisition metadata</h3><pre>' + (esc(json.dumps(row['capture'], indent=2, ensure_ascii=False)) if row['capture'] is not None else 'Unavailable') + '</pre>',
+                      '<p>Source: ' + esc(row['csv_path']) + '<br>SHA-256: ' + esc(row['sha256']) + '</p></section>'])
+    parts.append('<h2>Reference sources</h2><pre>' + esc('\n'.join(sorted({b['source'] for b in report['band_plan']['bands']}))) + '</pre></body></html>')
+    return ''.join(parts)

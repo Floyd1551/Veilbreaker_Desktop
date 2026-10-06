@@ -21,6 +21,7 @@ from . import __version__, core
 from .jobs import demo_payload
 from .spectrum import SpectrumView
 from .widgets import FlowLayout
+from .scenarios import SCENARIOS, scenario_help
 
 STYLE = """
 QWidget { background: #101722; color: #dee7f2; font-family: 'Segoe UI', 'DejaVu Sans'; font-size: 13px; }
@@ -273,7 +274,7 @@ class MainWindow(QMainWindow):
         self.pages.addWidget(scroll)
 
     def compact_diagnostics(self, index):
-        compact = index == 6
+        compact = index in (6, 8)
         for panel in self.setup_panels:
             panel.setVisible(not compact)
         self.show_setup.setVisible(compact)
@@ -289,6 +290,7 @@ class MainWindow(QMainWindow):
         dialog.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, True)
         layout = QVBoxLayout(dialog)
         view = SpectrumView()
+        view.set_band_plan(self.spectrum.band_plan, self.spectrum.show_bands)
         readout = label("", "muted")
         view.inspected.connect(readout.setText)
         actions = QHBoxLayout()
@@ -316,8 +318,9 @@ class MainWindow(QMainWindow):
         self.site.setAccessibleName("Site identifier")
         self.site.setPlaceholderText("Site identifier")
         self.scenario = QComboBox()
-        self.scenario.addItems(sorted(core.SCENARIO_OVERRIDES))
-        self.scenario.setCurrentText(self.config.scenario)
+        for key in sorted(core.SCENARIO_OVERRIDES):
+            self.scenario.addItem(SCENARIOS[key][0], key)
+        self.scenario.setCurrentIndex(self.scenario.findData(self.config.scenario))
         self.scenario.setAccessibleName("Diagnostic scenario")
         controls.addWidget(label("Site"))
         controls.addWidget(self.site, 1)
@@ -327,6 +330,11 @@ class MainWindow(QMainWindow):
         setup.setLayout(controls)
         self.setup_panels.append(setup)
         layout.addWidget(setup)
+        self.scenario_description = label(scenario_help(self.scenario.currentData()), "muted")
+        self.scenario_description.setWordWrap(True)
+        self.scenario.currentIndexChanged.connect(lambda: self.scenario_description.setText(scenario_help(self.scenario.currentData())))
+        self.setup_panels.append(self.scenario_description)
+        layout.addWidget(self.scenario_description)
         options = FlowLayout()
         self.flags = {}
         for key, title, tip in [
@@ -419,6 +427,13 @@ class MainWindow(QMainWindow):
         self.notes = QPlainTextEdit()
         self.notes.setReadOnly(True)
         self.spectrum = SpectrumView()
+        from .bandplan import load_plan
+        try:
+            self.spectrum.set_band_plan(load_plan(self.config.root / 'band-plan.json'))
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError) as exc:
+            QTimer.singleShot(0, lambda message=str(exc): QMessageBox.warning(self, 'Using built-in U.S. reference', 'Saved band plan could not be loaded: ' + message))
         spectrum_panel = QWidget()
         spectrum_layout = QVBoxLayout(spectrum_panel)
         self.sweep_selector = QComboBox()
@@ -429,6 +444,13 @@ class MainWindow(QMainWindow):
         range_actions.addWidget(self.sweep_selector, 1)
         range_actions.addWidget(button("Compare saved capture…", self.compare_spectrum))
         spectrum_layout.addLayout(range_actions)
+        band_actions = FlowLayout()
+        self.band_overlay = QCheckBox("Show band reference")
+        self.band_overlay.setChecked(True)
+        self.band_overlay.toggled.connect(lambda checked: self.spectrum.set_band_plan(self.spectrum.band_plan, checked))
+        band_actions.addWidget(self.band_overlay)
+        band_actions.addWidget(button("Band legend / import…", self.open_band_plan))
+        spectrum_layout.addLayout(band_actions)
         spectrum_actions.addStretch()
         spectrum_actions.addWidget(button("+", lambda: self.spectrum.zoom(0.75)))
         spectrum_actions.addWidget(button("−", lambda: self.spectrum.zoom(1.333333)))
@@ -447,6 +469,16 @@ class MainWindow(QMainWindow):
                             ("Findings", self.findings), ("Next tests", self.next_tests),
                             ("Metrics", metrics_panel), ("Collector notes", self.notes), ("Spectrum", spectrum_panel), ("Collection", self.collection_table)]:
             self.tabs.addTab(panel, name)
+        sdr_panel = QWidget()
+        sdr_layout = QVBoxLayout(sdr_panel)
+        self.sdr_report_view = QTextBrowser()
+        self.sdr_report_view.setHtml("<p>No SDR capture evidence in this run.</p>")
+        sdr_layout.addWidget(self.sdr_report_view, 1)
+        export_actions = FlowLayout()
+        export_actions.addWidget(button("Export SDR HTML…", lambda: self.export_sdr_report("html")))
+        export_actions.addWidget(button("Export SDR JSON…", lambda: self.export_sdr_report("json")))
+        sdr_layout.addLayout(export_actions)
+        self.tabs.addTab(sdr_panel, "SDR report")
         self.tabs.currentChanged.connect(self.compact_diagnostics)
         layout.addWidget(self.tabs, 1)
         self.add_scroll_page(widget)
@@ -616,7 +648,7 @@ class MainWindow(QMainWindow):
     def effective_config(self):
         cfg = core.AppConfig.from_dict(self.config.to_dict())
         cfg.site_id = self.site.text().strip() or "default"
-        cfg.scenario = self.scenario.currentText()
+        cfg.scenario = self.scenario.currentData()
         return cfg
 
     def run_diagnostic(self):
@@ -846,6 +878,7 @@ class MainWindow(QMainWindow):
             self.sweep_selector.addItem(sweep["label"], sweep)
         self.sweep_selector.blockSignals(False)
         self.select_sweep()
+        self.refresh_sdr_report()
 
     def filter_metrics(self):
         query = self.metric_search.text().strip().casefold()
@@ -909,6 +942,7 @@ class MainWindow(QMainWindow):
         output = label("", "muted")
         body.addWidget(output)
         view = SpectrumView()
+        view.set_band_plan(self.spectrum.band_plan, self.spectrum.show_bands)
         body.addWidget(view, 1)
         readout = label("", "muted")
         view.inspected.connect(readout.setText)
@@ -954,6 +988,46 @@ class MainWindow(QMainWindow):
 
     def select_sweep(self, *_):
         self.spectrum.load_sweep(self.sweep_selector.currentData())
+
+    def open_band_plan(self):
+        from .bandplan_ui import BandPlanDialog
+        self.band_plan_dialog = BandPlanDialog(self)
+        self.band_plan_dialog.show()
+
+    def apply_band_plan(self, plan):
+        from .bandplan import validate_plan
+        from .recovery import atomic_json
+        plan = validate_plan(plan)
+        atomic_json(self.config.root / 'band-plan.json', plan)
+        self.spectrum.set_band_plan(plan, self.band_overlay.isChecked())
+        for dialog_name in ('spectrum_dialog', 'comparison_dialog'):
+            dialog = getattr(self, dialog_name, None)
+            if dialog:
+                for view in dialog.findChildren(SpectrumView):
+                    view.set_band_plan(plan, self.band_overlay.isChecked())
+        self.refresh_sdr_report()
+
+    def refresh_sdr_report(self):
+        from .sdr_report import build_sdr_report, report_html
+        payload = self.payload or {}
+        metadata = {k: payload[k] for k in ('run_id', 'site_id', 'scenario', 'timestamp', 'collection') if k in payload}
+        self.sdr_report_data = build_sdr_report(payload.get('sweeps', []), metadata, self.spectrum.band_plan)
+        self.sdr_report_view.setHtml(report_html(self.sdr_report_data))
+
+    def export_sdr_report(self, format):
+        from .sdr_report import report_html
+        self.refresh_sdr_report()
+        path, _ = QFileDialog.getSaveFileName(self, 'Export SDR diagnostic report', f'sdr-report.{format}', f'{format.upper()} (*.{format})')
+        if not path:
+            return
+        try:
+            target = Path(path)
+            if target.suffix.lower() != '.' + format:
+                target = target.with_suffix('.' + format)
+            content = report_html(self.sdr_report_data) if format == 'html' else json.dumps(self.sdr_report_data, indent=2, ensure_ascii=False, allow_nan=False)
+            target.write_text(content + '\n', encoding='utf-8')
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'SDR report export failed', str(exc))
 
     def search_history(self):
         self.history_timer.stop()
@@ -1112,7 +1186,7 @@ class MainWindow(QMainWindow):
         self.sync_network_settings()
         if update_context:
             self.site.setText(cfg.site_id)
-            self.scenario.setCurrentText(cfg.scenario)
+            self.scenario.setCurrentIndex(self.scenario.findData(cfg.scenario))
         self.update_run_plan()
         self.refresh_history()
         self.survey_page.refresh()
@@ -1136,7 +1210,7 @@ class MainWindow(QMainWindow):
             self.config = core.load_config(None)
             self.sync_network_settings()
             self.site.setText(self.config.site_id)
-            self.scenario.setCurrentText(self.config.scenario)
+            self.scenario.setCurrentIndex(self.scenario.findData(self.config.scenario))
             self.update_run_plan()
             self.refresh_history()
             self.survey_page.refresh()

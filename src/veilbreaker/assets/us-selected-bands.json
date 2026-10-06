@@ -1,0 +1,112 @@
+{
+  "name": "U.S. selected survey bands",
+  "region": "US",
+  "version": "2026-10-06",
+  "bands": [
+    {
+      "min_mhz": 617,
+      "max_mhz": 652,
+      "label": "600 MHz lower paired block",
+      "service": "Mobile broadband",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27/subpart-A/section-27.5"
+    },
+    {
+      "min_mhz": 663,
+      "max_mhz": 698,
+      "label": "600 MHz upper paired block",
+      "service": "Mobile broadband",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27/subpart-A/section-27.5"
+    },
+    {
+      "min_mhz": 824,
+      "max_mhz": 849,
+      "label": "Cellular lower paired block",
+      "service": "Cellular service",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-22/subpart-H/section-22.905"
+    },
+    {
+      "min_mhz": 869,
+      "max_mhz": 894,
+      "label": "Cellular upper paired block",
+      "service": "Cellular service",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-22/subpart-H/section-22.905"
+    },
+    {
+      "min_mhz": 902,
+      "max_mhz": 928,
+      "label": "902 MHz Part 15",
+      "service": "Frequency hopping / digital modulation; shared spectrum",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 1850,
+      "max_mhz": 1910,
+      "label": "PCS lower paired blocks",
+      "service": "Broadband personal communications",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-24/subpart-E/section-24.229"
+    },
+    {
+      "min_mhz": 1930,
+      "max_mhz": 1990,
+      "label": "PCS upper paired blocks",
+      "service": "Broadband personal communications",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-24/subpart-E/section-24.229"
+    },
+    {
+      "min_mhz": 2400,
+      "max_mhz": 2483.5,
+      "label": "2.4 GHz Part 15",
+      "service": "Frequency hopping / digital modulation; shared spectrum",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.247"
+    },
+    {
+      "min_mhz": 2496,
+      "max_mhz": 2690,
+      "label": "BRS / EBS",
+      "service": "Broadband / educational radio services, aggregate band",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27/subpart-A/section-27.5"
+    },
+    {
+      "min_mhz": 3450,
+      "max_mhz": 3550,
+      "label": "3.45 GHz service",
+      "service": "Shared mobile broadband",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-B/part-27/subpart-A/section-27.5"
+    },
+    {
+      "min_mhz": 5150,
+      "max_mhz": 5250,
+      "label": "U-NII 1",
+      "service": "Unlicensed national information infrastructure",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5250,
+      "max_mhz": 5350,
+      "label": "U-NII 2A",
+      "service": "Unlicensed national information infrastructure",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5470,
+      "max_mhz": 5725,
+      "label": "U-NII 2C",
+      "service": "Unlicensed national information infrastructure",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5725,
+      "max_mhz": 5850,
+      "label": "U-NII 3 / Part 15",
+      "service": "Unlicensed national information infrastructure; shared spectrum",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    },
+    {
+      "min_mhz": 5850,
+      "max_mhz": 5895,
+      "label": "U-NII 4",
+      "service": "Unlicensed national information infrastructure; operating restrictions apply",
+      "source": "https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-E/section-15.407"
+    }
+  ]
+}
