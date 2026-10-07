@@ -6,7 +6,7 @@ import json
 import math
 from pathlib import Path
 import statistics
-from .bandplan import default_plan, bands_at, NOTICE
+from .bandplan import default_plan, bands_at, NOTICE, band_description
 from .rf_workflow import read_trace
 
 
@@ -78,7 +78,7 @@ def build_sdr_report(summaries, metadata, plan=None):
                 row['notes'].append('Acquisition settings/status unavailable; completion cannot be verified.')
             peak = max(points, key=lambda p: p[2])
             row['peak'] = {'frequency_mhz': peak[0], 'median_db': peak[1], 'maximum_db': peak[2],
-                           'expected_uses': [b['label'] for b in bands_at(plan, peak[0])]}
+                           'expected_uses': [band_description(b) for b in bands_at(plan, peak[0])]}
             medians = sorted(p[1] for p in points)
             floor = statistics.median(medians[:max(1, len(medians)//5)])
             row['estimated_floor_db'] = floor

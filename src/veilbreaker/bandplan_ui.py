@@ -20,13 +20,13 @@ class BandPlanDialog(QDialog):
         self.search = QLineEdit()
         self.search.setPlaceholderText('Search band name, MHz, use or source')
         layout.addWidget(self.search)
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(['MHz', 'Band', 'Expected use', 'Source'])
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(['MHz', 'Band / direction', 'General carrier association', 'Expected use', 'Source', 'Association limits'])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setWordWrap(True)
         layout.addWidget(self.table, 1)
         actions = FlowLayout()
-        for title, callback in [('Import CSV / JSON…', self.import_plan), ('Restore supplied U.S. reference', lambda: self.apply(default_plan())), ('Use basic FCC reference', lambda: self.apply(load_plan(Path(__file__).parent / 'assets' / 'us-selected-bands.json'))), ('Close', self.close)]:
+        for title, callback in [('Import CSV / JSON…', self.import_plan), ('Apply advanced U.S. plan', lambda: self.apply(default_plan())), ('Use basic FCC reference', lambda: self.apply(load_plan(Path(__file__).parent / 'assets' / 'us-selected-bands.json'))), ('Close', self.close)]:
             button = QPushButton(title)
             button.clicked.connect(callback)
             actions.addWidget(button)
@@ -57,7 +57,7 @@ class BandPlanDialog(QDialog):
         rows = [b for b in plan['bands'] if query in ' '.join(str(v) for v in b.values()).casefold()]
         self.table.setRowCount(len(rows))
         for i, band in enumerate(rows):
-            for j, value in enumerate((f"{band['min_mhz']:g}–{band['max_mhz']:g}", band['label'], band['service'], band['source'])):
+            for j, value in enumerate((f"{band['min_mhz']:g}–{band['max_mhz']:g}", band['label'] + '\n' + band.get('direction', 'Not specified'), band.get('carrier', 'Not specified'), band['service'], band['source'], band.get('association_note', ''))):
                 item = QTableWidgetItem(value)
                 from PySide6.QtCore import Qt
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)

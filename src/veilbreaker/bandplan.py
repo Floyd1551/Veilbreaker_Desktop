@@ -32,7 +32,10 @@ def validate_plan(data):
         rows.append({'min_mhz': low, 'max_mhz': high, 'kind': 'marker' if low == high else 'band',
                      'label': text(row.get('label', row.get('band')), 120),
                      'service': text(row.get('service', row.get('expected_use')) or 'User supplied reference'),
-                     'source': text(row.get('source') or 'User supplied; unverified')})
+                     'source': text(row.get('source') or 'User supplied; unverified'),
+                     'carrier': text(row.get('carrier') or 'Not specified'),
+                     'direction': text(row.get('direction') or 'Not specified'),
+                     'association_note': text(row.get('association_note') or 'Reference association only; not detected identity.')})
     result['bands'] = sorted(rows, key=lambda row: (row['min_mhz'], row['max_mhz'], row['label']))
     return result
 
@@ -65,3 +68,7 @@ def default_plan():
 def bands_at(plan, frequency):
     return [band for band in plan['bands'] if band['min_mhz'] <= frequency < band['max_mhz']
             or frequency == band['min_mhz'] == band['max_mhz']]
+
+
+def band_description(band):
+    return f"{band['label']} | {band.get('carrier', 'Not specified')} | {band.get('direction', 'Not specified')}"

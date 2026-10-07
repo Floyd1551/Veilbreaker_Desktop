@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QRectF, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget, QSizePolicy
 from .core import HackRFCollector
-from .bandplan import default_plan, bands_at
+from .bandplan import default_plan, bands_at, band_description
 
 
 class SpectrumView(QWidget):
@@ -116,7 +116,7 @@ class SpectrumView(QWidget):
             low, high = self.bounds
             frequency = low + (event.position().x() - plot.left()) / plot.width() * (high - low)
             self.cursor = min(self.points, key=lambda p: abs(p[0] - frequency))
-            context = (' • Expected uses: ' + ('; '.join(b['label'] for b in bands_at(self.band_plan, self.cursor[0])) or 'No reference entry')) if self.show_bands else ''
+            context = (' • Expected uses: ' + ('; '.join(band_description(b) for b in bands_at(self.band_plan, self.cursor[0])) or 'No reference entry')) if self.show_bands else ''
             self.inspected.emit(f"{self.cursor[0]:.3f} MHz • Median {self.cursor[1]:.1f} dB • Maximum {self.cursor[2]:.1f} dB (relative, uncalibrated)" + context)
             if self.reference_points:
                 before = min(self.reference_points, key=lambda p: abs(p[0] - self.cursor[0]))

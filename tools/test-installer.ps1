@@ -1,7 +1,7 @@
 param([string]$Installer = '', [switch]$IsolatedIdentity)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist/Veilbreaker-0.20.0rc1-Setup-x64.exe' }
+if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist/Veilbreaker-0.20.1rc1-Setup-x64.exe' }
 $artifactRoot = Join-Path $projectRoot 'test-artifacts'
 $testRoot = Join-Path $artifactRoot ('installer-' + [Guid]::NewGuid().ToString('N').Substring(0,8))
 $installRoot = [IO.Path]::GetFullPath((Join-Path $testRoot 'installer-check'))
@@ -24,7 +24,7 @@ if ($IsolatedIdentity) {
     } finally {
         if (Test-Path -LiteralPath $validationSource) { Remove-Item -LiteralPath $validationSource }
     }
-    $Installer = Join-Path $projectRoot 'dist/VeilbreakerValidation-0.20.0rc1-Setup-x64.exe'
+    $Installer = Join-Path $projectRoot 'dist/VeilbreakerValidation-0.20.1rc1-Setup-x64.exe'
 }
 $registryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$testAppId}_is1"
 $menuLink = Join-Path ([Environment]::GetFolderPath('Programs')) "$testAppName.lnk"

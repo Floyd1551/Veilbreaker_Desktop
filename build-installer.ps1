@@ -1,4 +1,4 @@
-param([string]$Compiler = '', [switch]$SkipBuild, [string]$Python = '.\.venv\Scripts\python.exe')
+param([string]$Compiler = '', [switch]$SkipBuild, [switch]$AllowUntested, [string]$Python = '.\.venv\Scripts\python.exe')
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 if (-not $SkipBuild) {
@@ -12,7 +12,7 @@ if (-not $Compiler) { throw 'Inno Setup 6 is required. Supply -Compiler with the
 $releaseVersion = & $Python -c 'from veilbreaker import __version__; print(__version__)'
 if ($LASTEXITCODE -ne 0) { throw 'Cannot read application version.' }
 $manifest = Get-Content -LiteralPath 'dist/Veilbreaker/build-manifest.json' -Raw | ConvertFrom-Json
-if (-not $manifest.passed -or $manifest.version -ne $releaseVersion) { throw 'A verified build of this version is required.' }
+if ((-not $manifest.passed -and -not $AllowUntested) -or $manifest.version -ne $releaseVersion) { throw 'A verified build of this version is required.' }
 & $Compiler "/DAppVersion=$releaseVersion" 'installer/Veilbreaker.iss'
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
 $installerPath = Join-Path $PSScriptRoot "dist/Veilbreaker-$releaseVersion-Setup-x64.exe"

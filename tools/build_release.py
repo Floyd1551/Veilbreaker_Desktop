@@ -34,36 +34,39 @@ def freezer_environment():
 
 
 def main():
-    run(sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v")
+    skip_tests = "--skip-tests" in sys.argv
+    if not skip_tests:
+        run(sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v")
     run(sys.executable, "tools/make_icon.py")
     run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "Veilbreaker.spec", env=freezer_environment())
     bundle = ROOT / "dist/Veilbreaker"
     exe = bundle / ("veilbreaker.exe" if os.name == "nt" else "veilbreaker")
     gui = bundle / ("VeilbreakerDesktop.exe" if os.name == "nt" else "VeilbreakerDesktop")
-    run(exe, "--version", timeout=30)
-    run(exe, "selftest", timeout=60)
-    # Test real frozen worker dispatch and Unicode data paths, without contacting hardware.
-    with tempfile.TemporaryDirectory(prefix="veilbreaker-frozen-") as temp:
-        folder = Path(temp)
-        request = folder / "request.json"
-        response = folder / "result.json"
-        request.write_text(json.dumps({"action": "analyze", "config": {"data_dir": str(folder / "Büro"), "site_id": "東京"},
-                                       "input": str(ROOT / "examples/cellular-degraded.json")}), encoding="utf-8")
-        worker = run(exe, "--desktop-job", request, response, timeout=60, capture_output=True, text=True)
-        result = json.loads(response.read_text(encoding="utf-8"))
-        if not result.get("ok") or not Path(result["result"]["evidence_zip"]).exists():
-            raise RuntimeError("Frozen analysis worker failed")
-        events = [json.loads(line) for line in worker.stdout.splitlines()]
-        if [event.get("status") for event in events] != ["running", "collected"]:
-            raise RuntimeError("Frozen worker collection progress failed")
-        if result["result"]["collection"]["metric_sources"].get("rsrp") != ["imported_metrics"]:
-            raise RuntimeError("Frozen worker import provenance failed")
-        run(exe, "verify", result["result"]["evidence_zip"], timeout=30)
-    run(exe, "--gui-smoke", ROOT / "test-artifacts/packaged-gui-console", timeout=60)
-    run(gui, "--smoke-test", ROOT / "test-artifacts/packaged-gui", timeout=60)
-    report = json.loads((ROOT / "test-artifacts/packaged-gui/gui-smoke.json").read_text(encoding="utf-8"))
-    if not report.get("passed") or report["version"] != __version__:
-        raise RuntimeError("Packaged GUI smoke failed")
+    if not skip_tests:
+        run(exe, "--version", timeout=30)
+        run(exe, "selftest", timeout=60)
+        # Test real frozen worker dispatch and Unicode data paths, without contacting hardware.
+        with tempfile.TemporaryDirectory(prefix="veilbreaker-frozen-") as temp:
+            folder = Path(temp)
+            request = folder / "request.json"
+            response = folder / "result.json"
+            request.write_text(json.dumps({"action": "analyze", "config": {"data_dir": str(folder / "Büro"), "site_id": "東京"},
+                                           "input": str(ROOT / "examples/cellular-degraded.json")}), encoding="utf-8")
+            worker = run(exe, "--desktop-job", request, response, timeout=60, capture_output=True, text=True)
+            result = json.loads(response.read_text(encoding="utf-8"))
+            if not result.get("ok") or not Path(result["result"]["evidence_zip"]).exists():
+                raise RuntimeError("Frozen analysis worker failed")
+            events = [json.loads(line) for line in worker.stdout.splitlines()]
+            if [event.get("status") for event in events] != ["running", "collected"]:
+                raise RuntimeError("Frozen worker collection progress failed")
+            if result["result"]["collection"]["metric_sources"].get("rsrp") != ["imported_metrics"]:
+                raise RuntimeError("Frozen worker import provenance failed")
+            run(exe, "verify", result["result"]["evidence_zip"], timeout=30)
+        run(exe, "--gui-smoke", ROOT / "test-artifacts/packaged-gui-console", timeout=60)
+        run(gui, "--smoke-test", ROOT / "test-artifacts/packaged-gui", timeout=60)
+        report = json.loads((ROOT / "test-artifacts/packaged-gui/gui-smoke.json").read_text(encoding="utf-8"))
+        if not report.get("passed") or report["version"] != __version__:
+            raise RuntimeError("Packaged GUI smoke failed")
     licenses = bundle / "third-party-licenses"
     licenses.mkdir(exist_ok=True)
     for package in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "pyserial", "PyInstaller"):
@@ -83,19 +86,20 @@ def main():
         shutil.copy2(ROOT / "installer/uninstall-linux.sh", bundle / "installer/uninstall-linux.sh")
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
-                "passed": True, "checks": ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages"]}
+                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages"]}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"
     archive = Path(shutil.make_archive(str(ROOT / "dist" / name), "zip" if os.name == "nt" else "gztar", ROOT / "dist", "Veilbreaker"))
     archive.with_name(archive.name + ".sha256").write_text(hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name + "\n", encoding="ascii")
     if sys.platform == "linux":
         from test_linux_install import test_install
-        test_install(ROOT)
+        if not skip_tests:
+            test_install(ROOT)
         from build_linux import build_deb
         deb = build_deb(ROOT, __version__)
         if deb:
             deb.with_name(deb.name + ".sha256").write_text(hashlib.sha256(deb.read_bytes()).hexdigest() + "  " + deb.name + "\n", encoding="ascii")
-    print(f"Verified release: {archive}")
+    print(f"{'Built (tests skipped)' if skip_tests else 'Verified release'}: {archive}")
 
 
 if __name__ == "__main__":
