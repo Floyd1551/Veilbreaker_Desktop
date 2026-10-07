@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "veilbreaker-desktop"
-version = "0.20.1rc1"
+version = "0.20.2rc1"
 description = "Explainable field network diagnostics for Windows and Linux"
 requires-python = ">=3.11"
 dependencies = ["pyserial==3.5"]

@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.20.1rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.20.2rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.20.1rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.20.2rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -229,3 +229,8 @@ See [band reference formats and sources](docs/band-reference.md). Reports can be
 The base build now includes explicit general carrier associations and uplink/downlink/TDD direction for the supplied advanced reference. These appear in the searchable band legend, spectrum hover readout and SDR peak descriptions. Carrier associations are contextual and can include historical deployments; they do not identify a received transmitter. Existing custom selections are preserved: use **Band legend / import → Apply advanced U.S. plan** to switch to the bundled update.
 
 This installer was built without rerunning tests at the user's request. Normal CI builds retain all checks.
+
+
+### 0.20.2rc1 — Faster spectrum navigation
+
+The band legend defaults to entries overlapping the loaded capture. Search carrier, direction or band, select a row, then choose **Zoom to selected band** (or double-click). Zoom stays within the captured frequencies and never starts acquisition. Center-frequency markers get a small inspection window, not an assumed signal bandwidth. Turn off **Only bands in the captured range** to browse the full reference. Local regression and installer tests were skipped under the requested resource constraint; normal GitHub CI remains enabled.
