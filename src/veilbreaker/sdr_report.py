@@ -8,6 +8,7 @@ from pathlib import Path
 import statistics
 from .bandplan import default_plan, bands_at, NOTICE, band_description
 from .rf_workflow import read_trace
+from .band_summary import summarize_bands
 
 
 def observed_intervals(path, low, high):
@@ -56,6 +57,7 @@ def build_sdr_report(summaries, metadata, plan=None):
             # Union of bin intervals: overlaps must not inflate frequency coverage.
             intervals, widths = observed_intervals(path, low, high)
             row['observed_bin_widths_hz'] = widths
+            row['band_summaries'] = summarize_bands(points, intervals, plan, low, high)
             covered, end = 0.0, low
             for start, stop in intervals:
                 covered += max(0, stop-max(start, end))
@@ -112,6 +114,19 @@ def report_html(report, interactive=False):
             parts.append('<p>Observed bin widths (Hz): ' + esc(', '.join(f'{w:g}' for w in row['observed_bin_widths_hz'])) + '</p>')
             parts.append(f"<p>Strongest bin: {p['frequency_mhz']:.3f} MHz · Maximum {p['maximum_db']:.1f} relative dB · Median {p['median_db']:.1f} relative dB.<br>Expected uses: {esc(', '.join(p['expected_uses']) or 'No reference entry')}.</p>")
             parts.append(f"<p>Estimated floor: {row['estimated_floor_db']:.1f} relative dB. Observed bins above floor + 10 dB: {row['bins_above_floor_plus_10db_pct']:g}%.</p>")
+            parts.append('<h3>Band survey summary</h3><p>Coverage is the measured fraction of the full reference band. Median is the median of observed bin medians, not integrated band power. Overlapping references reuse measurements and must not be added together. Center-frequency markers are excluded. No bin centers means the band was not resolved, not that it was quiet.</p>')
+            if not row.get('band_summaries'):
+                parts.append('<p>No reference bands overlap this capture.</p>')
+            else:
+                parts.append('<table border="1" cellspacing="0" cellpadding="6"><tr><th>Band / carrier / direction</th><th>Full-band coverage</th><th>Bins</th><th>Median relative dB</th><th>Maximum relative dB</th></tr>')
+                for band_index, band in enumerate(row['band_summaries']):
+                    title = esc(band['label'])
+                    if interactive:
+                        title = f'<a href="sdr-band:{range_index}:{band_index}">{title}</a>'
+                    median = 'Unavailable' if band['median_bin_power_db'] is None else f"{band['median_bin_power_db']:.1f}"
+                    maximum = 'Unavailable' if band['maximum_db'] is None else f"{band['maximum_db']:.1f}"
+                    parts.append(f"<tr><td>{title}<br>{esc(band['carrier'])}<br>{esc(band['direction'])}</td><td>{band['full_band_coverage_pct']:g}%<br>{esc(band['coverage_status'])}</td><td>{band['bin_count']}</td><td>{median}</td><td>{maximum}</td></tr>")
+                parts.append('</table>')
             parts.append('<h3>Strongest observed bins</h3><p>Ranked by maximum relative power. Adjacent bins may belong to the same signal; these are not separate transmitter detections.</p>')
             parts.append('<table border="1" cellspacing="0" cellpadding="6"><tr><th>MHz</th><th>Maximum dB</th><th>Median dB</th><th>Median above estimated floor (dB)</th><th>Reference context</th></tr>')
             for rank, point in enumerate(row.get('strongest_bins', [])):

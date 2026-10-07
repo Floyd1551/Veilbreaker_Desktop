@@ -4524,6 +4524,8 @@ def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, An
     sdr_report = build_sdr_report([asdict(s) for s in sweep_summaries], {**metadata, 'collection': collection}, band_plan)
     (run_dir / 'sdr_report.json').write_text(json.dumps(sdr_report, indent=2) + '\n', encoding='utf-8')
     (run_dir / 'sdr_report.html').write_text(report_html(sdr_report), encoding='utf-8')
+    from .band_summary import band_csv
+    (run_dir / 'sdr_bands.csv').write_text(band_csv(sdr_report), encoding='utf-8', newline='')
     from .evidence import write_manifest
     write_manifest(run_dir, metadata)
     zip_path = config.reports_dir / f"{run_id}_evidence.zip"

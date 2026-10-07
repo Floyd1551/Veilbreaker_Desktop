@@ -39,3 +39,10 @@ Version 0.20.1rc1 adds optional `carrier`, `direction`, and `association_note` f
 Associations are extracted from the supplied descriptions, including historical qualifications. T-Mobile n71/n25/n41 context was cross-checked against [T-Mobile network frequencies](https://www.t-mobile.com/support/coverage/t-mobile-network). Additional carrier references include [Verizon network extender bands](https://www.verizon.com/content/dam/support/pdf/user_guide/verizon-4g-lte-network-extender3-enterprise-v81-user-guide.pdf) and [AT&T supported network bands](https://www.att.com/product-compare/prepaid-phone-compare/). These references do not establish the operator of a signal captured at a particular site.
 
 For explicitly requested untested local builds, `python tools/build_release.py --skip-tests` records `passed: false` and `tests_skipped: true` in the manifest. `build-installer.ps1 -SkipBuild -AllowUntested` permits packaging that result. Default release and CI behavior still runs all checks.
+
+
+## Band-level survey exports
+
+The SDR report includes every positive-width reference band overlapping a readable capture. Coverage uses the union of actual captured CSV intervals, clipped to the reference band. Full-band coverage divides by the entire reference bandwidth; requested-overlap coverage divides by its intersection with the requested sweep. Power statistics use only bin centers within the band. A narrow band may have interval coverage but no bin centers at coarse resolution; its power stays unavailable. Frequency markers are excluded. Overlaps share bins, so do not sum their statistics.
+
+The CSV preserves capture status, receiver settings, CSV source/hash, and reference version for comparison outside the app. Text cells starting with spreadsheet formula characters are escaped; numeric power values remain numeric. Missing/unreadable captures have no CSV measurement rows; the HTML/JSON report retains their failure notes. Use compatible receiver settings and antenna placement when comparing relative measurements.

@@ -479,6 +479,7 @@ class MainWindow(QMainWindow):
         export_actions = FlowLayout()
         export_actions.addWidget(button("Export SDR HTML…", lambda: self.export_sdr_report("html")))
         export_actions.addWidget(button("Export SDR JSON…", lambda: self.export_sdr_report("json")))
+        export_actions.addWidget(button("Export band CSV…", lambda: self.export_sdr_report("csv")))
         sdr_layout.addLayout(export_actions)
         self.tabs.addTab(sdr_panel, "SDR report")
         self.tabs.currentChanged.connect(self.compact_diagnostics)
@@ -1019,11 +1020,18 @@ class MainWindow(QMainWindow):
     def inspect_sdr_bin(self, url):
         """Navigate only to a bin from the current report; never dispatch external links."""
         parts = url.toString().split(':')
-        if len(parts) != 3 or parts[0] != 'sdr-bin':
+        if len(parts) != 3 or parts[0] not in ('sdr-bin', 'sdr-band'):
             return
         try:
             range_index, rank = int(parts[1]), int(parts[2])
             if range_index < 0 or rank < 0 or range_index >= self.sweep_selector.count():
+                return
+            if parts[0] == 'sdr-band':
+                band = self.sdr_report_data['ranges'][range_index]['band_summaries'][rank]
+                self.sweep_selector.setCurrentIndex(range_index)
+                if self.spectrum.points:
+                    self.spectrum.set_bounds(band['inspected_min_mhz'], band['inspected_max_mhz'])
+                    self.tabs.setCurrentIndex(6)
                 return
             point = self.sdr_report_data['ranges'][range_index]['strongest_bins'][rank]
         except (ValueError, IndexError, KeyError, AttributeError):
@@ -1051,8 +1059,12 @@ class MainWindow(QMainWindow):
             target = Path(path)
             if target.suffix.lower() != '.' + format:
                 target = target.with_suffix('.' + format)
-            content = report_html(self.sdr_report_data) if format == 'html' else json.dumps(self.sdr_report_data, indent=2, ensure_ascii=False, allow_nan=False)
-            target.write_text(content + '\n', encoding='utf-8')
+            if format == 'csv':
+                from .band_summary import band_csv
+                content = band_csv(self.sdr_report_data)
+            else:
+                content = report_html(self.sdr_report_data) if format == 'html' else json.dumps(self.sdr_report_data, indent=2, ensure_ascii=False, allow_nan=False) + '\n'
+            target.write_text(content, encoding='utf-8', newline='')
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self, 'SDR report export failed', str(exc))
 
