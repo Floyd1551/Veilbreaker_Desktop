@@ -82,6 +82,11 @@ def build_sdr_report(summaries, metadata, plan=None):
             medians = sorted(p[1] for p in points)
             floor = statistics.median(medians[:max(1, len(medians)//5)])
             row['estimated_floor_db'] = floor
+            row['strongest_bins'] = [
+                {'frequency_mhz': p[0], 'median_db': p[1], 'maximum_db': p[2],
+                 'median_above_floor_db': round(p[1]-floor, 3),
+                 'expected_uses': [band_description(b) for b in bands_at(plan, p[0])]}
+                for p in sorted(points, key=lambda p: (-p[2], p[0]))[:10]]
             row['bins_above_floor_plus_10db_pct'] = round(100 * sum(p[1] > floor+10 for p in points)/len(points), 2)
             row['notes'].append('Floor estimate: median of lowest 20% of bin medians (at least one). Activity: fraction of observed bin medians > floor + 10 dB; not time occupancy. Strong wideband signals can bias this estimate.')
         except (OSError, ValueError, KeyError, TypeError) as exc:
@@ -89,7 +94,7 @@ def build_sdr_report(summaries, metadata, plan=None):
     return result
 
 
-def report_html(report):
+def report_html(report, interactive=False):
     esc = lambda value: escape(str(value))
     parts = ['<!doctype html><html><head><meta charset="utf-8"><title>SDR diagnostic report</title>',
              '<style>body{font:15px sans-serif;max-width:1050px;margin:32px auto;padding:16px;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}section{border-top:1px solid #aaa;padding:16px 0}</style></head><body>',
@@ -98,7 +103,7 @@ def report_html(report):
              '<p>Band reference: ' + esc(report['band_plan']['name']) + ' / ' + esc(report['band_plan']['version']) + '</p>']
     if not report['ranges']:
         parts.append('<p>No SDR capture evidence in this run.</p>')
-    for row in report['ranges']:
+    for range_index, row in enumerate(report['ranges']):
         parts.extend(['<section><h2>' + esc(row['label']) + '</h2>',
                       '<p>Status: <b>' + esc(row['status']) + '</b> · Observed bins: ' + str(row['bin_count']) + '</p>',
                       '<p>Requested range: ' + esc(row['requested_min_mhz']) + '–' + esc(row['requested_max_mhz']) + ' MHz. Summary bin spacing: ' + esc(row['bin_width_hz']) + ' Hz. Frequency coverage: ' + (esc(row['coverage_pct']) + '%' if row['coverage_pct'] is not None else 'unavailable') + '.</p>'])
@@ -107,6 +112,14 @@ def report_html(report):
             parts.append('<p>Observed bin widths (Hz): ' + esc(', '.join(f'{w:g}' for w in row['observed_bin_widths_hz'])) + '</p>')
             parts.append(f"<p>Strongest bin: {p['frequency_mhz']:.3f} MHz · Maximum {p['maximum_db']:.1f} relative dB · Median {p['median_db']:.1f} relative dB.<br>Expected uses: {esc(', '.join(p['expected_uses']) or 'No reference entry')}.</p>")
             parts.append(f"<p>Estimated floor: {row['estimated_floor_db']:.1f} relative dB. Observed bins above floor + 10 dB: {row['bins_above_floor_plus_10db_pct']:g}%.</p>")
+            parts.append('<h3>Strongest observed bins</h3><p>Ranked by maximum relative power. Adjacent bins may belong to the same signal; these are not separate transmitter detections.</p>')
+            parts.append('<table border="1" cellspacing="0" cellpadding="6"><tr><th>MHz</th><th>Maximum dB</th><th>Median dB</th><th>Median above estimated floor (dB)</th><th>Reference context</th></tr>')
+            for rank, point in enumerate(row.get('strongest_bins', [])):
+                frequency = f"{point['frequency_mhz']:.3f}"
+                if interactive:
+                    frequency = f'<a href="sdr-bin:{range_index}:{rank}">{frequency}</a>'
+                parts.append(f"<tr><td>{frequency}</td><td>{point['maximum_db']:.1f}</td><td>{point['median_db']:.1f}</td><td>{point['median_above_floor_db']:+.1f}</td><td>{esc('; '.join(point['expected_uses']) or 'No reference entry')}</td></tr>")
+            parts.append('</table>')
         parts.extend(['<p>' + '<br>'.join(esc(n) for n in row['notes']) + '</p>',
                       '<h3>Acquisition metadata</h3><pre>' + (esc(json.dumps(row['capture'], indent=2, ensure_ascii=False)) if row['capture'] is not None else 'Unavailable') + '</pre>',
                       '<p>Source: ' + esc(row['csv_path']) + '<br>SHA-256: ' + esc(row['sha256']) + '</p></section>'])

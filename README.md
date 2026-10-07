@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.20.2rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.20.3rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.20.2rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.20.3rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -234,3 +234,8 @@ This installer was built without rerunning tests at the user's request. Normal C
 ### 0.20.2rc1 — Faster spectrum navigation
 
 The band legend defaults to entries overlapping the loaded capture. Search carrier, direction or band, select a row, then choose **Zoom to selected band** (or double-click). Zoom stays within the captured frequencies and never starts acquisition. Center-frequency markers get a small inspection window, not an assumed signal bandwidth. Turn off **Only bands in the captured range** to browse the full reference. Local regression and installer tests were skipped under the requested resource constraint; normal GitHub CI remains enabled.
+
+
+### 0.20.3rc1 — Ranked SDR observations
+
+Each SDR range now reports its ten strongest observed bins, ranked by maximum relative power, with median power, median excess above the estimated floor, and carrier/direction reference context. Click a frequency in the in-app SDR report to inspect that location in the saved spectrum. HTML and JSON exports include the ranking; exported HTML is standalone without app-only links. Adjacent bins can represent the same signal, and this ranking does not identify transmitters. No new acquisition is started. Local test reruns remain skipped per the requested resource constraint.

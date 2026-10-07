@@ -472,6 +472,8 @@ class MainWindow(QMainWindow):
         sdr_panel = QWidget()
         sdr_layout = QVBoxLayout(sdr_panel)
         self.sdr_report_view = QTextBrowser()
+        self.sdr_report_view.setOpenLinks(False)
+        self.sdr_report_view.anchorClicked.connect(self.inspect_sdr_bin)
         self.sdr_report_view.setHtml("<p>No SDR capture evidence in this run.</p>")
         sdr_layout.addWidget(self.sdr_report_view, 1)
         export_actions = FlowLayout()
@@ -1012,7 +1014,32 @@ class MainWindow(QMainWindow):
         payload = self.payload or {}
         metadata = {k: payload[k] for k in ('run_id', 'site_id', 'scenario', 'timestamp', 'collection') if k in payload}
         self.sdr_report_data = build_sdr_report(payload.get('sweeps', []), metadata, self.spectrum.band_plan)
-        self.sdr_report_view.setHtml(report_html(self.sdr_report_data))
+        self.sdr_report_view.setHtml(report_html(self.sdr_report_data, interactive=True))
+
+    def inspect_sdr_bin(self, url):
+        """Navigate only to a bin from the current report; never dispatch external links."""
+        parts = url.toString().split(':')
+        if len(parts) != 3 or parts[0] != 'sdr-bin':
+            return
+        try:
+            range_index, rank = int(parts[1]), int(parts[2])
+            if range_index < 0 or rank < 0 or range_index >= self.sweep_selector.count():
+                return
+            point = self.sdr_report_data['ranges'][range_index]['strongest_bins'][rank]
+        except (ValueError, IndexError, KeyError, AttributeError):
+            return
+        self.sweep_selector.setCurrentIndex(range_index)
+        view = self.spectrum
+        if not view.points:
+            return
+        frequency = point['frequency_mhz']
+        low, high = view.full_bounds
+        span = max((high-low)*0.05, (high-low)/len(view.points)*4)
+        view.set_bounds(frequency-span/2, frequency+span/2)
+        view.cursor = min(view.points, key=lambda sample: abs(sample[0]-frequency))
+        view.inspected.emit(f"{frequency:.3f} MHz • Maximum {point['maximum_db']:.1f} relative dB • Median {point['median_db']:.1f} relative dB • Reference: " + ('; '.join(point['expected_uses']) or 'No reference entry'))
+        self.tabs.setCurrentIndex(6)
+        view.update()
 
     def export_sdr_report(self, format):
         from .sdr_report import report_html
