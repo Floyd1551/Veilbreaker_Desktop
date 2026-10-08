@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.23.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.24.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.23.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.24.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -270,3 +270,9 @@ Use **Run history → Open report…** to view standalone `.html`/`.htm` files o
 The viewer uses the existing bundled Qt text renderer, so there is no browser installation or online dependency. It displays text and tables; scripts, linked images/styles and external navigation are not loaded. Opening a report is separate from verifying evidence integrity; use the existing verification workflow when needed. Viewing limits: 8 MiB per HTML report, up to 20 reports and 16 MiB total HTML content per ZIP. No ZIP files are extracted.
 
 Focused checks covered actual generated report rendering, standalone HTML, ZIP and directory loading, Unicode, report selection, and search. Full regression and installer lifecycle tests were not rerun for this release.
+
+### 0.24.0rc1 — Site survey reports
+
+Open a saved session in Site surveys and choose **View survey report / save HTML…**. The native viewer shows all points, collection states, assessments, saved operator notes, requested tests and measurement gaps. Save HTML from the viewer for sharing. Each newly exported survey evidence ZIP includes `survey_report.html` covered by its manifest. Older sessions can generate reports without repeating acquisition.
+
+Numeric summaries use finite values from complete tests only, with observed/planned counts. Partial values remain in point details. Statistics are descriptive: mixed tests, settings and conditions do not establish comparability or improvement. Reports are snapshots of saved notes and results; reopening refreshes the snapshot.

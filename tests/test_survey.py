@@ -31,6 +31,8 @@ class SurveyTests(unittest.TestCase):
             with zipfile.ZipFile(result["evidence_zip"]) as bundle:
                 self.assertEqual(sum(n.endswith("_evidence.zip") for n in bundle.namelist()), 20)
                 self.assertIn("comparison.csv", bundle.namelist())
+                self.assertIn("survey_report.html", bundle.namelist())
+                self.assertIn("Point 19", bundle.read("survey_report.html").decode("utf-8"))
             reopened = read_session(cfg, result["survey_path"])
             self.assertEqual(reopened["steps"][0]["metrics"]["latency_ms"], 0)
 

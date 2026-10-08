@@ -244,6 +244,8 @@ def export_session(config, path, destination=None):
             elif evidence:
                 step["export_note"] = "Original evidence ZIP is missing"
         (folder / "comparison.csv").write_text(stream.getvalue(), encoding="utf-8-sig")
+        from .survey_report import report_html
+        (folder / "survey_report.html").write_text(report_html(session), encoding="utf-8")
         atomic_json(folder / "survey.json", session)
         (folder / "README.txt").write_text("Each step retains its original evidence. Point notes are annotations; edits retain a history in survey.json and do not rewrite original run evidence. Missing values are blank, never zero. Compare equivalent tests and receiver settings; differing test flags or antenna placement can change results. This session workflow adds no GPS or mapping interface. Recovered/partial measurements remain explicitly labeled.\n", encoding="utf-8")
         write_manifest(folder, {"survey_id": session["survey_id"], "site_id": session["site_id"], "status": session["status"]})

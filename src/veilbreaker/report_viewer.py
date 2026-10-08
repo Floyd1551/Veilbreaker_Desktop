@@ -20,7 +20,7 @@ def read_reports(path):
         return data
     if path.is_dir():
         result = []
-        for name in ('report.html', 'sdr_report.html'):
+        for name in ('report.html', 'sdr_report.html', 'survey_report.html'):
             source = path / name
             if source.is_file():
                 with source.open('rb') as stream:
@@ -58,8 +58,8 @@ class OfflineReportBrowser(QTextBrowser):
 
 
 class ReportViewer(QDialog):
-    def __init__(self, parent, path):
-        reports = read_reports(path)
+    def __init__(self, parent, path, reports=None):
+        reports = read_reports(path) if reports is None else reports
         super().__init__(parent)
         self.reports = reports
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -78,7 +78,7 @@ class ReportViewer(QDialog):
         self.selector = QComboBox()
         self.selector.setAccessibleName('Report to view')
         for name, _ in reports:
-            friendly = {'report.html': 'Diagnostic report', 'sdr_report.html': 'SDR survey report'}.get(Path(name).name, name)
+            friendly = {'report.html': 'Diagnostic report', 'sdr_report.html': 'SDR survey report', 'survey_report.html': 'Site survey report'}.get(Path(name).name, name)
             self.selector.addItem(friendly, name)
         layout.addWidget(self.selector)
         search_row = QHBoxLayout()

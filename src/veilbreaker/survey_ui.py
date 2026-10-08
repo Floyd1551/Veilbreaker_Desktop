@@ -156,6 +156,9 @@ class SurveyPage(QWidget):
         self.export_button = button("Export survey and all available evidence…", self.export)
         self.export_button.setEnabled(False)
         layout.addWidget(self.export_button)
+        self.report_button = button("View survey report / save HTML…", self.view_report)
+        self.report_button.setEnabled(False)
+        layout.addWidget(self.report_button)
         self.refresh()
 
     def save_queue_template(self):
@@ -308,6 +311,7 @@ class SurveyPage(QWidget):
         self.compare_visit_button.setEnabled(True)
         self.trend_button.setEnabled(True)
         self.export_button.setEnabled(True)
+        self.report_button.setEnabled(True)
         self.builder_toggle.setChecked(False)
         self.continue_button.setEnabled(self.window.process is None and self.can_continue())
         self.point_notes.clear()
@@ -369,6 +373,19 @@ class SurveyPage(QWidget):
                 self.window.error("This step has no saved diagnostic. Recover interrupted captures in Tools if available.")
         finally:
             store.close()
+
+    def view_report(self):
+        if not self.session_path:
+            return
+        from .report_viewer import ReportViewer
+        from .survey_report import report_html
+        try:
+            session = read_session(self.window.config, self.session_path)
+            self.report_viewer = ReportViewer(self.window, self.session_path,
+                reports=[('survey_report.html', report_html(session).encode('utf-8'))])
+            self.report_viewer.showMaximized()
+        except (OSError, ValueError, KeyError) as exc:
+            self.window.error(str(exc))
 
     def export(self):
         if not self.session_path:

@@ -192,3 +192,7 @@ Delivered after this roadmap's initial inventory: 0.16 searchable history across
 ## October 5 field-workflow increment — 0.19.0rc1
 
 Delivered multi-visit trends using the selected survey as a baseline, with comparable-only statistics, explicit gaps, an accessible values table, and JSON/CSV export. Added saved-survey search/state filtering and draft point rename/reordering. Extended confirmed cases with timestamped confirmation/withdrawal events, transactional writes, withdrawal reasons, search/state/paging, JSON export and source reopening. Existing evidence and legacy cases are preserved. Full guided investigations, GPS/maps, live hardware qualification and native Linux qualification remain open.
+
+## Site survey reporting — 0.24.0rc1
+
+Implemented native viewing and portable HTML reports for existing 1–20-point surveys, with collection/assessment separation, saved notes, complete-test numeric summaries and explicit measurement gaps. Survey exports include the report in the integrity manifest. Hardware, GPS and platform qualification remain separate milestones.
