@@ -196,3 +196,7 @@ Delivered multi-visit trends using the selected survey as a baseline, with compa
 ## Site survey reporting — 0.24.0rc1
 
 Implemented native viewing and portable HTML reports for existing 1–20-point surveys, with collection/assessment separation, saved notes, complete-test numeric summaries and explicit measurement gaps. Survey exports include the report in the integrity manifest. Hardware, GPS and platform qualification remain separate milestones.
+
+## Guided comparison increment — 0.25.0rc1
+
+Extended the existing baseline comparison with persistent ordered-visit change notes, native report viewing and HTML/JSON export with provenance. Comparison eligibility remains guarded by complete collections, matching settings, scenarios and test selections. This delivers the record-change/review-comparison segment of Phase 3; the full readiness-to-follow-up guided journey remains open.

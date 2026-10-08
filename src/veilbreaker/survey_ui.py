@@ -405,7 +405,11 @@ class SurveyPage(QWidget):
             return
         from .survey_compare import compare_saved_visits
         from .recovery import atomic_json
-        dialog = QDialog(self)
+        class ComparisonDialog(QDialog):
+            def reject(inner):
+                if persist():
+                    super().reject()
+        dialog = ComparisonDialog(self)
         dialog.setWindowTitle("Compare survey visits")
         dialog.resize(1100, 650)
         layout = QVBoxLayout(dialog)
@@ -421,16 +425,53 @@ class SurveyPage(QWidget):
         rows = table(["Point", "Metric", "Baseline", "Current", "Change", "Notes"])
         layout.addWidget(rows, 1)
         layout.addWidget(label("Change = current − baseline; it does not mean better or worse. Missing values stay unknown. Matching settings cannot verify identical antennas, hardware or conditions. Use spectrum comparison for RF evidence.", "muted"))
+        from .comparison_report import load_notes, save_notes, report_html
+        from .report_viewer import ReportViewer
+        notes = QPlainTextEdit()
+        notes.setAccessibleName("Change between survey visits")
+        notes.setPlaceholderText("What changed? Antenna placement, equipment, configuration or conditions (up to 2000 characters). Notes save automatically when you leave the field, switch baseline, view or export.")
+        notes.setMaximumHeight(85)
+        layout.addWidget(notes)
         result = {}
+        annotation = {}
+        def persist():
+            if not result:
+                return True
+            try:
+                if notes.toPlainText() != annotation.get('notes', ''):
+                    annotation.update(save_notes(self.window.config.root, result['baseline']['survey_id'], result['current']['survey_id'], notes.toPlainText()))
+                return True
+            except (OSError, ValueError) as exc:
+                self.window.error(str(exc))
+                return False
+        previous_focus_out = notes.focusOutEvent
+        def save_on_blur(event):
+            persist()
+            previous_focus_out(event)
+        notes.focusOutEvent = save_on_blur
         def refresh():
+            if not persist():
+                choice.blockSignals(True)
+                choice.setCurrentIndex(choice.findData(result.get('_baseline_path')))
+                choice.blockSignals(False)
+                return
+
             result.clear()
             rows.setRowCount(0)
             export_button.setEnabled(False)
+            report_button.setEnabled(False)
+            notes.setEnabled(False)
+            notes.clear()
+            annotation.clear()
             if not choice.currentData():
                 summary.setText("No other saved visits for this site. Run the same template on another visit, then compare here.")
                 return
             try:
                 result.update(compare_saved_visits(self.window.config, choice.currentData(), self.session_path))
+                annotation.update(load_notes(self.window.config.root, result['baseline']['survey_id'], result['current']['survey_id']))
+                result['_baseline_path'] = choice.currentData()
+                notes.setPlainText(annotation['notes'])
+                notes.setEnabled(True)
                 def display(value):
                     return "—" if value is None else json.dumps(value, ensure_ascii=False)
                 fill(rows, [[r["point"], r["metric"], display(r["baseline"]), display(r["current"]), display(r["delta"]), r["notes"]] for r in result["rows"]])
@@ -439,21 +480,34 @@ class SurveyPage(QWidget):
                     rows.setColumnWidth(index, width)
                 summary.setText(f"Current: {result['current']['name']} • {result['current']['created_utc']} | Settings: " + ("match" if result["settings_match"] else "different or unavailable; changes withheld"))
                 export_button.setEnabled(True)
+                report_button.setEnabled(True)
             except (OSError, ValueError, KeyError) as exc:
+                result.clear()
                 summary.setText(str(exc))
+        def snapshot():
+            return {**{k: v for k, v in result.items() if not k.startswith('_')}, 'change_notes': notes.toPlainText(), 'change_notes_updated_utc': annotation.get('updated_utc')}
+        def view_comparison():
+            if result and persist():
+                viewer = ReportViewer(dialog, 'Survey visit comparison', reports=[('visit_comparison.html', report_html(result, notes.toPlainText(), annotation.get('updated_utc')).encode('utf-8'))])
+                viewer.exec()
         def export_comparison():
+            if not persist():
+                return
             target, _ = QFileDialog.getSaveFileName(dialog, "Export visit comparison", "visit-comparison.json", "JSON (*.json)")
             if target:
                 try:
-                    atomic_json(Path(target), result)
+                    atomic_json(Path(target), snapshot())
                     summary.setText("Comparison exported; original survey evidence is unchanged.")
                 except OSError as exc:
                     self.window.error(str(exc))
-        export_button = button("Export comparison…", export_comparison)
+        report_button = button("View comparison report / save HTML…", view_comparison)
+        layout.addWidget(report_button)
+        export_button = button("Export comparison JSON…", export_comparison)
         layout.addWidget(export_button)
         choice.currentIndexChanged.connect(refresh)
         refresh()
         dialog.exec()
+        persist()
 
     def show_trends(self):
         if self.session_path:

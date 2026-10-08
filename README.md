@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.24.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.25.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.24.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.25.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -276,3 +276,7 @@ Focused checks covered actual generated report rendering, standalone HTML, ZIP a
 Open a saved session in Site surveys and choose **View survey report / save HTML…**. The native viewer shows all points, collection states, assessments, saved operator notes, requested tests and measurement gaps. Save HTML from the viewer for sharing. Each newly exported survey evidence ZIP includes `survey_report.html` covered by its manifest. Older sessions can generate reports without repeating acquisition.
 
 Numeric summaries use finite values from complete tests only, with observed/planned counts. Partial values remain in point details. Statistics are descriptive: mixed tests, settings and conditions do not establish comparability or improvement. Reports are snapshots of saved notes and results; reopening refreshes the snapshot.
+
+### 0.25.0rc1 — Before/after survey investigation reports
+
+In Site surveys, open a visit and choose Compare this visit with a baseline. Record the adjustment between visits; notes persist locally for that ordered visit pair. View the comparison report inside Veilbreaker and save HTML, or export JSON including the notes and timestamp. Reports separate measured changes (including zero changes) from unavailable comparisons with reasons, and retain survey/run references. Notes are operator annotations, not evidence of causation. Original evidence is unchanged.
