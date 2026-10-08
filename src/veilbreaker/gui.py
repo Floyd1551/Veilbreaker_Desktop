@@ -25,6 +25,7 @@ from .scenarios import SCENARIOS, scenario_help
 
 STYLE = """
 QWidget { background: #101722; color: #dee7f2; font-family: 'Segoe UI', 'DejaVu Sans'; font-size: 13px; }
+QWidget#surfaceContainer { background: transparent; }
 QLabel { background: transparent; }
 QMainWindow { background: #101722; }
 QFrame#sidebar { background: #0b111b; border-right: 1px solid #243145; }
@@ -35,6 +36,7 @@ QLabel#muted { color: #98aac0; }
 QLabel#metric { font-size: 29px; color: #6be0ca; font-weight: 600; }
 QFrame#card { background: #172131; border: 1px solid #2a394e; border-radius: 10px; }
 QFrame#card QLabel { background: transparent; border: none; }
+QFrame#card QCheckBox { background: transparent; }
 QFrame#taskBanner { background: #1c3540; border-bottom: 1px solid #3b6b6c; }
 QLabel#section { font-size: 18px; font-weight: 600; color: #f4f8ff; }
 QListWidget { background: transparent; border: none; outline: none; }
@@ -44,6 +46,7 @@ QListWidget::item:hover { background: #1b283a; }
 QPushButton { background: #223249; border: 1px solid #354960; border-radius: 6px; padding: 9px 14px; }
 QPushButton:hover { background: #2c425d; border-color: #7390ae; }
 QPushButton:focus { border: 2px solid #72deca; }
+QPushButton:checked { background: #243b46; border-color: #65d7c0; color: #84e4d2; }
 QPushButton:disabled { color: #63738a; background: #192232; border-color: #263247; }
 QPushButton#primary { background: #5bd7bd; color: #09241f; font-weight: 700; border: 1px solid #5bd7bd; }
 QPushButton#primary:hover { background: #87ecd5; }
@@ -275,10 +278,12 @@ class MainWindow(QMainWindow):
 
     def compact_diagnostics(self, index):
         compact = index in (6, 8)
-        for panel in self.setup_panels:
+        self.show_setup.blockSignals(True)
+        self.show_setup.setChecked(not compact and not bool(self.payload))
+        self.show_setup.blockSignals(False)
+        self.toggle_setup(self.show_setup.isChecked())
+        for panel in self.diagnostic_heading + [self.stats_panel]:
             panel.setVisible(not compact)
-        self.show_setup.setVisible(compact)
-        self.show_setup.setChecked(False)
 
     def toggle_setup(self, checked):
         for panel in self.setup_panels:
@@ -312,7 +317,19 @@ class MainWindow(QMainWindow):
 
     def build_diagnostics(self):
         widget, layout = page("Diagnostic workspace", "Collect a snapshot, review competing explanations, and preserve the evidence.")
-        self.setup_panels = [layout.itemAt(0).widget(), layout.itemAt(1).widget()]
+        self.diagnostic_heading = [layout.itemAt(0).widget(), layout.itemAt(1).widget()]
+        page_layout = layout
+        self.show_setup = QCheckBox("Configure next run")
+        self.show_setup.setChecked(True)
+        self.show_setup.toggled.connect(self.toggle_setup)
+        page_layout.addWidget(self.show_setup)
+        self.run_setup_card = QFrame()
+        self.run_setup_card.setObjectName("card")
+        page_layout.addWidget(self.run_setup_card)
+        layout = QVBoxLayout(self.run_setup_card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+        self.setup_panels = [self.run_setup_card]
         controls = QHBoxLayout()
         self.site = QLineEdit(self.config.site_id)
         self.site.setAccessibleName("Site identifier")
@@ -327,14 +344,23 @@ class MainWindow(QMainWindow):
         controls.addWidget(label("Scenario"))
         controls.addWidget(self.scenario, 1)
         setup = QWidget()
+        setup.setObjectName("surfaceContainer")
         setup.setLayout(controls)
-        self.setup_panels.append(setup)
         layout.addWidget(setup)
         self.scenario_description = label(scenario_help(self.scenario.currentData()), "muted")
         self.scenario_description.setWordWrap(True)
         self.scenario.currentIndexChanged.connect(lambda: self.scenario_description.setText(scenario_help(self.scenario.currentData())))
-        self.setup_panels.append(self.scenario_description)
+        scenario_actions = QHBoxLayout()
+        self.scenario_hint = label(SCENARIOS.get(self.scenario.currentData(), ("", ""))[1].split(" Suggested tests:")[0], "muted")
+        self.scenario.currentIndexChanged.connect(lambda: self.scenario_hint.setText(SCENARIOS.get(self.scenario.currentData(), ("", ""))[1].split(" Suggested tests:")[0]))
+        scenario_actions.addWidget(self.scenario_hint, 1)
+        self.scenario_help_toggle = QPushButton("Scenario details")
+        self.scenario_help_toggle.setCheckable(True)
+        self.scenario_help_toggle.toggled.connect(self.scenario_description.setVisible)
+        scenario_actions.addWidget(self.scenario_help_toggle)
+        layout.addLayout(scenario_actions)
         layout.addWidget(self.scenario_description)
+        self.scenario_description.hide()
         options = FlowLayout()
         self.flags = {}
         for key, title, tip in [
@@ -350,11 +376,10 @@ class MainWindow(QMainWindow):
             options.addWidget(check)
             self.flags[key] = check
         options_panel = QWidget()
+        options_panel.setObjectName("surfaceContainer")
         options_panel.setLayout(options)
-        self.setup_panels.append(options_panel)
         layout.addWidget(options_panel)
         self.run_plan = label("", "muted")
-        self.setup_panels.append(self.run_plan)
         layout.addWidget(self.run_plan)
         for check in self.flags.values():
             check.toggled.connect(self.update_run_plan)
@@ -364,6 +389,7 @@ class MainWindow(QMainWindow):
         self.import_button = button("Import metrics…", self.import_metrics)
         self.cancel_button = button("Cancel task", self.cancel_task)
         self.cancel_button.setEnabled(False)
+        self.cancel_button.hide()
         self.export_button = button("Save evidence ZIP…", self.export_evidence)
         self.export_button.setEnabled(False)
         actions.addWidget(self.run_button)
@@ -372,19 +398,23 @@ class MainWindow(QMainWindow):
         self.retry_button = button("Retry after reconnect", self.retry_diagnostic)
         self.retry_button.setToolTip("Start a new diagnostic using the previous request and rediscover hardware. Requested active tests will run again.")
         self.retry_button.setEnabled(False)
+        self.retry_button.hide()
         actions.addWidget(self.retry_button)
-        actions.addWidget(self.export_button)
         action_panel = QWidget()
+        action_panel.setObjectName("surfaceContainer")
         action_panel.setLayout(actions)
-        self.setup_panels.append(action_panel)
         layout.addWidget(action_panel)
+        layout = page_layout
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
         self.progress.setTextVisible(False)
         self.progress.hide()
         layout.addWidget(self.progress)
         self.result_caption = label("No assessment yet • Run a diagnostic or import a JSON metric snapshot.", "muted")
-        layout.addWidget(self.result_caption)
+        result_actions = QHBoxLayout()
+        result_actions.addWidget(self.result_caption, 1)
+        result_actions.addWidget(self.export_button)
+        layout.addLayout(result_actions)
         stats = QHBoxLayout()
         self.stat_labels = []
         for name in ("HEALTH / 100", "DATA QUALITY / 100", "FINDINGS", "ASSESSMENT"):
@@ -398,7 +428,7 @@ class MainWindow(QMainWindow):
             self.stat_labels.append(value)
         stats_panel = QWidget()
         stats_panel.setLayout(stats)
-        self.setup_panels.append(stats_panel)
+        self.stats_panel = stats_panel
         layout.addWidget(stats_panel)
         self.tabs = QTabWidget()
         self.tabs.setMinimumHeight(320)
@@ -439,7 +469,7 @@ class MainWindow(QMainWindow):
         self.sweep_selector = QComboBox()
         self.sweep_selector.setAccessibleName("Captured spectrum range")
         self.sweep_selector.currentIndexChanged.connect(self.select_sweep)
-        spectrum_actions = QHBoxLayout()
+        spectrum_actions = FlowLayout()
         range_actions = QHBoxLayout()
         range_actions.addWidget(self.sweep_selector, 1)
         range_actions.addWidget(button("Compare saved capture…", self.compare_spectrum))
@@ -450,17 +480,14 @@ class MainWindow(QMainWindow):
         self.band_overlay.toggled.connect(lambda checked: self.spectrum.set_band_plan(self.spectrum.band_plan, checked))
         band_actions.addWidget(self.band_overlay)
         band_actions.addWidget(button("Band legend / import…", self.open_band_plan))
-        spectrum_layout.addLayout(band_actions)
-        spectrum_actions.addStretch()
+
         spectrum_actions.addWidget(button("+", lambda: self.spectrum.zoom(0.75)))
         spectrum_actions.addWidget(button("−", lambda: self.spectrum.zoom(1.333333)))
         spectrum_actions.addWidget(button("Reset", self.spectrum.reset_view))
         spectrum_actions.addWidget(button("Expand chart", self.expand_spectrum))
-        self.show_setup = QCheckBox("Show run setup")
-        self.show_setup.toggled.connect(self.toggle_setup)
-        self.show_setup.hide()
-        spectrum_actions.insertWidget(0, self.show_setup)
-        spectrum_layout.addLayout(spectrum_actions)
+        while spectrum_actions.count():
+            band_actions.addWidget(spectrum_actions.takeAt(0).widget())
+        spectrum_layout.addLayout(band_actions)
         spectrum_layout.addWidget(self.spectrum, 1)
         self.spectrum_readout = label("", "muted")
         self.spectrum.inspected.connect(self.spectrum_readout.setText)
@@ -475,6 +502,9 @@ class MainWindow(QMainWindow):
         self.sdr_report_view.setOpenLinks(False)
         self.sdr_report_view.anchorClicked.connect(self.inspect_sdr_bin)
         self.sdr_report_view.setHtml("<p>No SDR capture evidence in this run.</p>")
+        self.report_details = QCheckBox("Show technical details and sources")
+        self.report_details.toggled.connect(self.render_sdr_report)
+        sdr_layout.addWidget(self.report_details)
         sdr_layout.addWidget(self.sdr_report_view, 1)
         export_actions = FlowLayout()
         export_actions.addWidget(button("Export SDR HTML…", lambda: self.export_sdr_report("html")))
@@ -772,7 +802,9 @@ class MainWindow(QMainWindow):
         self.run_button.setEnabled(not busy)
         self.import_button.setEnabled(not busy)
         self.cancel_button.setEnabled(busy)
+        self.cancel_button.setVisible(busy)
         self.retry_button.setEnabled(not busy and bool(getattr(self, "last_run_request", None)))
+        self.retry_button.setVisible(not busy and bool(getattr(self, "last_run_request", None)))
         self.progress.setVisible(busy)
         self.pages.widget(4).setEnabled(not busy)
         self.survey_page.set_busy(busy)
@@ -882,6 +914,7 @@ class MainWindow(QMainWindow):
         self.sweep_selector.blockSignals(False)
         self.select_sweep()
         self.refresh_sdr_report()
+        self.compact_diagnostics(self.tabs.currentIndex())
 
     def filter_metrics(self):
         query = self.metric_search.text().strip().casefold()
@@ -1015,7 +1048,13 @@ class MainWindow(QMainWindow):
         payload = self.payload or {}
         metadata = {k: payload[k] for k in ('run_id', 'site_id', 'scenario', 'timestamp', 'collection') if k in payload}
         self.sdr_report_data = build_sdr_report(payload.get('sweeps', []), metadata, self.spectrum.band_plan)
-        self.sdr_report_view.setHtml(report_html(self.sdr_report_data, interactive=True))
+        self.render_sdr_report()
+
+    def render_sdr_report(self, *_):
+        from .sdr_report import report_html
+        if not hasattr(self, 'sdr_report_data'):
+            return
+        self.sdr_report_view.setHtml(report_html(self.sdr_report_data, interactive=True, technical=self.report_details.isChecked()))
 
     def inspect_sdr_bin(self, url):
         """Navigate only to a bin from the current report; never dispatch external links."""

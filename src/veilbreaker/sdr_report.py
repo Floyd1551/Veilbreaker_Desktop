@@ -96,25 +96,42 @@ def build_sdr_report(summaries, metadata, plan=None):
     return result
 
 
-def report_html(report, interactive=False):
+def report_html(report, interactive=False, technical=True):
     esc = lambda value: escape(str(value))
-    parts = ['<!doctype html><html><head><meta charset="utf-8"><title>SDR diagnostic report</title>',
-             '<style>body{font:15px sans-serif;max-width:1050px;margin:32px auto;padding:16px;line-height:1.5}pre{white-space:pre-wrap;overflow-wrap:anywhere}section{border-top:1px solid #aaa;padding:16px 0}</style></head><body>',
-             '<h1>SDR diagnostic report</h1>', '<p>' + esc(report['limitations']) + '</p>',
-             '<h2>Run context</h2><pre>' + esc(json.dumps(report['metadata'], indent=2, ensure_ascii=False)) + '</pre>',
-             '<p>Band reference: ' + esc(report['band_plan']['name']) + ' / ' + esc(report['band_plan']['version']) + '</p>']
+    foreground = '#dee7f2' if interactive else '#172131'
+    muted = '#a7b8cb' if interactive else '#536579'
+    accent = '#75e1ce' if interactive else '#146754'
+    border = '#354960' if interactive else '#d5dee8'
+    parts = ['<!doctype html><html><head><meta charset="utf-8"><title>SDR survey report</title>',
+             f'<style>body, p, td, th {{font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; color: {foreground};}} '
+             f'body {{max-width:1050px; margin:16px auto; padding:12px;}} h1 {{font-size:24px; font-weight:600;}} '
+             f'h2 {{font-size:19px; margin-top:24px;}} h3 {{font-size:15px; margin-top:20px;}} '
+             f'a {{color:{accent};}} .muted {{color:{muted};}} table {{border-collapse:collapse; width:100%;}} '
+             f'td, th {{border:1px solid {border}; padding:8px; text-align:left;}} '
+             'pre {font-family: Consolas, monospace; font-size:11px; white-space:pre-wrap;}</style></head><body>',
+             '<h1>SDR survey report</h1>',
+             '<p class="muted">' + esc(report['metadata'].get('site_id', 'Site not recorded')) + ' &nbsp; / &nbsp; ' + esc(report['metadata'].get('run_id', 'Run not recorded')) + '</p>',
+             '<p class="muted">Relative power, uncalibrated. Band and carrier labels are reference context, not detected identities.</p>']
     if not report['ranges']:
         parts.append('<p>No SDR capture evidence in this run.</p>')
     for range_index, row in enumerate(report['ranges']):
+        status = {'metadata unknown': 'Capture settings unavailable', 'recorded success': 'Capture completed',
+                  'partial': 'Partial capture', 'unavailable': 'Evidence unavailable'}.get(row['status'], row['status'])
         parts.extend(['<section><h2>' + esc(row['label']) + '</h2>',
-                      '<p>Status: <b>' + esc(row['status']) + '</b> · Observed bins: ' + str(row['bin_count']) + '</p>',
-                      '<p>Requested range: ' + esc(row['requested_min_mhz']) + '–' + esc(row['requested_max_mhz']) + ' MHz. Summary bin spacing: ' + esc(row['bin_width_hz']) + ' Hz. Frequency coverage: ' + (esc(row['coverage_pct']) + '%' if row['coverage_pct'] is not None else 'unavailable') + '.</p>'])
+                      '<p class="muted">' + esc(status) + ' &nbsp; · &nbsp; ' + str(row['bin_count']) + ' observed bins &nbsp; · &nbsp; ' + esc(row['requested_min_mhz']) + '–' + esc(row['requested_max_mhz']) + ' MHz</p>'])
         if row['peak']:
             p = row['peak']
-            parts.append('<p>Observed bin widths (Hz): ' + esc(', '.join(f'{w:g}' for w in row['observed_bin_widths_hz'])) + '</p>')
-            parts.append(f"<p>Strongest bin: {p['frequency_mhz']:.3f} MHz · Maximum {p['maximum_db']:.1f} relative dB · Median {p['median_db']:.1f} relative dB.<br>Expected uses: {esc(', '.join(p['expected_uses']) or 'No reference entry')}.</p>")
+            parts.append(f"<table cellpadding=\"10\"><tr><td>Strongest bin<br><b>{p['frequency_mhz']:.3f} MHz</b></td><td>Maximum relative power<br><b>{p['maximum_db']:.1f} dB</b></td><td>Frequency coverage<br><b>{row['coverage_pct']:g}%</b></td></tr></table>")
+            context = ', '.join(p['expected_uses']) or 'No reference entry'
+            if interactive and not technical:
+                context = '; '.join(item.split(' | ')[0] for item in p['expected_uses'][:2]) or 'No reference entry'
+                if len(p['expected_uses']) > 2:
+                    context += f"; {len(p['expected_uses'])-2} more overlapping references in the band table"
+            parts.append('<p class="muted">Expected uses: ' + esc(context) + '.</p>')
+            if technical:
+                parts.append('<p>Observed bin widths: ' + esc(', '.join(f'{w/1000:g} kHz' for w in row['observed_bin_widths_hz'])) + '</p>')
             parts.append(f"<p>Estimated floor: {row['estimated_floor_db']:.1f} relative dB. Observed bins above floor + 10 dB: {row['bins_above_floor_plus_10db_pct']:g}%.</p>")
-            parts.append('<h3>Band survey summary</h3><p>Coverage is the measured fraction of the full reference band. Median is the median of observed bin medians, not integrated band power. Overlapping references reuse measurements and must not be added together. Center-frequency markers are excluded. No bin centers means the band was not resolved, not that it was quiet.</p>')
+            parts.append('<h3>Band survey summary</h3><p class="muted">' + ('Select a band to inspect it. ' if interactive else '') + 'Coverage is measured against the full reference band. Overlapping bands share measurements; unavailable means unresolved, not quiet.</p>')
             if not row.get('band_summaries'):
                 parts.append('<p>No reference bands overlap this capture.</p>')
             else:
@@ -135,8 +152,16 @@ def report_html(report, interactive=False):
                     frequency = f'<a href="sdr-bin:{range_index}:{rank}">{frequency}</a>'
                 parts.append(f"<tr><td>{frequency}</td><td>{point['maximum_db']:.1f}</td><td>{point['median_db']:.1f}</td><td>{point['median_above_floor_db']:+.1f}</td><td>{esc('; '.join(point['expected_uses']) or 'No reference entry')}</td></tr>")
             parts.append('</table>')
-        parts.extend(['<p>' + '<br>'.join(esc(n) for n in row['notes']) + '</p>',
+        parts.append('<p class="muted">' + '<br>'.join(esc(n) for n in row['notes']) + '</p>')
+        if technical:
+            parts.extend([
                       '<h3>Acquisition metadata</h3><pre>' + (esc(json.dumps(row['capture'], indent=2, ensure_ascii=False)) if row['capture'] is not None else 'Unavailable') + '</pre>',
-                      '<p>Source: ' + esc(row['csv_path']) + '<br>SHA-256: ' + esc(row['sha256']) + '</p></section>'])
-    parts.append('<h2>Reference sources</h2><pre>' + esc('\n'.join(sorted({b['source'] for b in report['band_plan']['bands']}))) + '</pre></body></html>')
+                      '<p>Source: ' + esc(row['csv_path']) + '<br>SHA-256: ' + esc(row['sha256']) + '</p>'])
+        parts.append('</section>')
+    parts.append('<h2>How to interpret this report</h2><p class="muted">' + esc(report['limitations']) + ' Band medians summarize bin medians, not integrated band power. Center-frequency markers are excluded from band summaries.</p>')
+    parts.append('<p class="muted">Reference: ' + esc(report['band_plan']['name']) + ' / ' + esc(report['band_plan']['version']) + '</p>')
+    if technical:
+        parts.append('<h2>Run metadata</h2><pre>' + esc(json.dumps(report['metadata'], indent=2, ensure_ascii=False)) + '</pre>')
+        parts.append('<h2>Reference sources</h2>' + ''.join('<p class="muted">' + esc(source) + '</p>' for source in sorted({b['source'] for b in report['band_plan']['bands']})))
+    parts.append('</body></html>')
     return ''.join(parts)

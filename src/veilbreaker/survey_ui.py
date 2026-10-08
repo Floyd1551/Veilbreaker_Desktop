@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QComboBox, QCheckBox, QFileDialog, QHeaderView, QPlainTextEdit, QDialog, QInputDialog
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QComboBox, QCheckBox, QFileDialog, QHeaderView, QPlainTextEdit, QDialog, QInputDialog, QFrame
 from .gui import label, button, table, fill
 from .survey_templates import save_template, load_template
 from . import core
@@ -23,14 +23,17 @@ class SurveyPage(QWidget):
         layout.addWidget(label("Site surveys", "title"))
         layout.addWidget(label("Group up to 20 named diagnostics. Choose test flags on Diagnostics, then add steps here. Site and scenario come from Diagnostics when the survey starts.", "muted"))
         outer = layout
-        self.builder = QWidget()
-        self.builder_toggle = QCheckBox("Show survey builder")
+        self.builder = QFrame()
+        self.builder.setObjectName('card')
+        self.builder_toggle = QCheckBox("Plan a survey")
         self.builder_toggle.setChecked(True)
         self.builder_toggle.toggled.connect(self.builder.setVisible)
         outer.addWidget(self.builder_toggle)
         outer.addWidget(self.builder)
         layout = QVBoxLayout(self.builder)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
+        layout.addWidget(label("SURVEY PLAN", "eyebrow"))
         self.name = QLineEdit("Site survey")
         self.name.setMaxLength(100)
         self.name.setAccessibleName("Survey name")
@@ -41,7 +44,7 @@ class SurveyPage(QWidget):
         templates.addWidget(self.save_template_button)
         templates.addWidget(self.load_template_button)
         layout.addLayout(templates)
-        self.template_hint = label("Templates keep point labels, test selections and pause mode. Each visit uses current site, targets and receiver settings. Review the queue before Run survey.", "muted")
+        self.template_hint = label("Reuse a template or add points below. Test selections come from Diagnostics; each visit uses your current settings.", "muted")
         layout.addWidget(self.template_hint)
         add = QHBoxLayout()
         self.step_name = QLineEdit()
@@ -59,13 +62,19 @@ class SurveyPage(QWidget):
         layout.addLayout(add)
         self.queue = table(["Step", "Label", "Requested tests"])
         self.queue.setMinimumHeight(160)
+        self.queue.setMaximumHeight(230)
+        self.queue.hide()
+        self.queue_hint = label("No points yet. Name your first point and choose Add selected tests.", "muted")
+        layout.addWidget(self.queue_hint)
         layout.addWidget(self.queue)
         self.preset = QCheckBox("Use Tools receive preset for SDR steps")
         self.preset.setChecked(True)
-        layout.addWidget(self.preset)
+        survey_options = FlowLayout()
+        survey_options.addWidget(self.preset)
         self.manual = QCheckBox("Pause between tests (manual progression)")
         self.manual.setChecked(True)
-        layout.addWidget(self.manual)
+        survey_options.addWidget(self.manual)
+        layout.addLayout(survey_options)
         actions = FlowLayout()
         self.remove_button = button("Remove selected step", self.remove_step)
         self.start_button = button("Run survey", self.start, True)
@@ -77,13 +86,17 @@ class SurveyPage(QWidget):
         self.move_down_button = button("Move down", lambda: self.move_queued_point(1))
         for control in (self.rename_button,self.move_up_button,self.move_down_button):
             control.setEnabled(False)
+            control.hide()
             actions.addWidget(control)
+        self.remove_button.hide()
         actions.addWidget(self.remove_button)
-        actions.addWidget(self.start_button)
-        actions.addWidget(button("Cancel running task", window.cancel_task))
         layout.addLayout(actions)
-        layout.addWidget(label("Manual mode stops after each test and releases device handles. Move to the next point, add notes, then explicitly continue. Turn off manual mode for an uninterrupted batch. No automatic resume after cancellation; GPS/mapping remains future work.", "muted"))
+        start_actions = QHBoxLayout()
+        start_actions.addWidget(self.start_button)
+        start_actions.addWidget(label("Pause mode lets you move to the next point before continuing.", "muted"), 1)
+        layout.addLayout(start_actions)
         layout = outer
+        layout.addWidget(label("Saved surveys", "section"))
         self.session_search = QLineEdit()
         self.session_search.setAccessibleName("Search survey sessions")
         self.session_search.setPlaceholderText("Find surveys by name, site, point, ID or UTC date")
@@ -198,6 +211,10 @@ class SurveyPage(QWidget):
         self.update_queue()
 
     def update_queue(self):
+        self.queue_hint.setText(f"{len(self.steps)} of 20 points planned. Select a point to rename, reorder or remove it." if self.steps else "No points yet. Name your first point and choose Add selected tests.")
+        self.queue.setVisible(bool(self.steps))
+        for control in (self.rename_button, self.move_up_button, self.move_down_button, self.remove_button):
+            control.setVisible(bool(self.steps))
         self.queue.clearSelection()
         self.queue.setCurrentCell(-1, -1)
         fill(self.queue, [[i, s["label"], ", ".join(k for k, v in s["options"].items() if v) or "Passive host/network"] for i, s in enumerate(self.steps, 1)])
