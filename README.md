@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.22.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.23.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.22.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.23.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -259,3 +259,14 @@ Spectrum controls share a compact toolbar. The SDR report leads with site/run co
 Site surveys separate the plan from saved sessions, provide an empty-queue hint, reveal editing controls after adding points, and distinguish planning actions from **Run survey**. Active tasks remain cancellable through the global task banner.
 
 Verification: visual review at 1280×800 and 1024×700, plus focused native UI interaction checks including 760px reflow. No live capture or full regression/installer lifecycle rerun was performed for this polish release.
+
+
+### 0.23.0rc1 — Reports inside Veilbreaker
+
+Use **View report** beside a diagnostic result or on a selected run in **Run history**. The offline viewer opens the saved diagnostic and SDR HTML reports directly from the evidence ZIP, with no browser or extraction step. If the ZIP is unavailable, a history entry can use its saved report directory.
+
+Use **Run history → Open report…** to view standalone `.html`/`.htm` files or another evidence ZIP. Switch reports with the selector; use Find next / Ctrl+F and zoom controls to inspect them. **Save HTML** preserves the selected report's original bytes. HTML exports remain portable; PDF is not required for standalone use.
+
+The viewer uses the existing bundled Qt text renderer, so there is no browser installation or online dependency. It displays text and tables; scripts, linked images/styles and external navigation are not loaded. Opening a report is separate from verifying evidence integrity; use the existing verification workflow when needed. Viewing limits: 8 MiB per HTML report, up to 20 reports and 16 MiB total HTML content per ZIP. No ZIP files are extracted.
+
+Focused checks covered actual generated report rendering, standalone HTML, ZIP and directory loading, Unicode, report selection, and search. Full regression and installer lifecycle tests were not rerun for this release.

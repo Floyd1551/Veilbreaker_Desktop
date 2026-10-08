@@ -413,6 +413,9 @@ class MainWindow(QMainWindow):
         self.result_caption = label("No assessment yet • Run a diagnostic or import a JSON metric snapshot.", "muted")
         result_actions = QHBoxLayout()
         result_actions.addWidget(self.result_caption, 1)
+        self.view_report_button = button("View report", self.view_current_report)
+        self.view_report_button.setEnabled(False)
+        result_actions.addWidget(self.view_report_button)
         result_actions.addWidget(self.export_button)
         layout.addLayout(result_actions)
         stats = QHBoxLayout()
@@ -533,8 +536,11 @@ class MainWindow(QMainWindow):
         self.history_search.returnPressed.connect(self.search_history)
         actions.addWidget(button("Refresh", self.refresh_history))
         self.history_open = button("Open selected run", self.open_history, True)
+        self.history_report = button("View report", self.view_history_report)
         self.history_compare = button("Compare to previous", self.compare_history)
         actions.addWidget(self.history_open)
+        actions.addWidget(self.history_report)
+        actions.addWidget(button("Open report…", self.open_report_file))
         actions.addWidget(self.history_compare)
         from .case_ui import show_cases
         actions.addWidget(button("Confirmed cases…", lambda: show_cases(self)))
@@ -907,6 +913,7 @@ class MainWindow(QMainWindow):
         self.filter_metrics()
         self.notes.setPlainText("\n".join(payload.get("notes", [])) or "No collector notes recorded.")
         self.export_button.setEnabled(bool(payload.get("evidence_zip")))
+        self.view_report_button.setEnabled(bool(payload.get("evidence_zip") or payload.get("artifact_dir")))
         self.sweep_selector.blockSignals(True)
         self.sweep_selector.clear()
         for sweep in payload.get("sweeps", []):
@@ -1153,6 +1160,7 @@ class MainWindow(QMainWindow):
     def update_history_actions(self):
         selected = bool(self.history.selectedItems())
         self.history_open.setEnabled(selected)
+        self.history_report.setEnabled(selected)
         self.history_compare.setEnabled(selected)
 
     def selected_run(self):
@@ -1165,6 +1173,35 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("Select a saved run first.")
             return
         self.display_saved_run(row)
+
+    def open_report_file(self):
+        path, _ = QFileDialog.getOpenFileName(self, 'Open saved report', str(self.config.reports_dir), 'Reports and evidence (*.html *.htm *.zip)')
+        if path:
+            self.show_report_file(path)
+
+    def show_report_file(self, path):
+        from .report_viewer import ReportViewer
+        try:
+            viewer = ReportViewer(self, path)
+        except (OSError, ValueError) as exc:
+            self.error(f'Could not open report: {exc}')
+            return
+        self.report_viewer = viewer
+        viewer.showMaximized()
+
+    def view_history_report(self):
+        row = self.selected_run()
+        if not row:
+            return
+        pack = self.config.reports_dir / f"{row['run_id']}_evidence.zip"
+        self.show_report_file(pack if pack.exists() else Path(row.get('artifact_dir') or self.config.artifacts_dir / row['run_id']))
+
+    def view_current_report(self):
+        if not self.payload:
+            return
+        pack = self.payload.get('evidence_zip')
+        folder = self.payload.get('artifact_dir') or self.config.artifacts_dir / self.payload['run_id']
+        self.show_report_file(Path(pack) if pack and Path(pack).exists() else Path(folder))
 
     def display_saved_run(self, row):
         pack = self.config.reports_dir / f"{row['run_id']}_evidence.zip"
@@ -1179,6 +1216,7 @@ class MainWindow(QMainWindow):
                 self.error("Saved collection details could not be read. The diagnostic report is still available.")
         self.display_payload({"collection": collection, "report": json.loads(row["report_json"]), "metrics": json.loads(row["metrics_json"]),
                               "run_id": row["run_id"], "site_id": row["site_id"],
+                              "artifact_dir": row.get("artifact_dir"),
                               "notes": notes.read_text(encoding="utf-8", errors="replace").splitlines() if notes and notes.exists() else [],
                               "evidence_zip": str(pack) if pack.exists() else None,
                               "sweeps": json.loads(sweep_file.read_text(encoding="utf-8")) if sweep_file and sweep_file.exists() else []})
