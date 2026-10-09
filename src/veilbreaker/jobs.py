@@ -24,6 +24,9 @@ def demo_payload():
 def execute(request, progress=None):
     cfg = core.AppConfig.from_dict(request["config"])
     action = request["action"]
+    if action == "readiness":
+        from .readiness import check_selected
+        return {"readiness": check_selected(cfg, request.get("options", {}))}
     if action == "survey":
         from .survey import execute_survey
         return execute_survey(cfg, request["name"], request["steps"], progress, manual=request.get("manual", False))

@@ -393,6 +393,7 @@ class MainWindow(QMainWindow):
         self.export_button = button("Save evidence ZIP…", self.export_evidence)
         self.export_button.setEnabled(False)
         actions.addWidget(self.run_button)
+        actions.addWidget(button("Check selected test readiness", self.check_selected_readiness))
         actions.addWidget(self.import_button)
         actions.addWidget(self.cancel_button)
         self.retry_button = button("Retry after reconnect", self.retry_diagnostic)
@@ -626,6 +627,13 @@ class MainWindow(QMainWindow):
         layout.addLayout(preset_form)
         layout.addWidget(label("Smaller bins resolve finer frequency detail and produce more data. Record antenna and placement changes when comparing captures. These controls apply to Capture selected preset; diagnostic SDR sweeps use Settings.", "muted"))
         layout.addWidget(label("Readiness can query hardware enabled in Settings. Serial-port listing does not open ports. Additional CLI commands remain available for targeted modem, Starlink, SDR and path tests.", "muted"))
+        layout.addWidget(button("Check selected diagnostic prerequisites", self.check_selected_readiness))
+        self.readiness_caption = label("No selected-test check yet. Results are snapshots; recheck after changing settings or devices.", "muted")
+        layout.addWidget(self.readiness_caption)
+        self.readiness_table = table(["Prerequisite", "State", "Details / next action"])
+        self.readiness_table.setMinimumHeight(200)
+        layout.addWidget(self.readiness_table)
+        layout.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(4)))
         self.tool_output = QPlainTextEdit()
         self.tool_output.setReadOnly(True)
         self.tool_output.setPlaceholderText("Choose a check above. Missing optional hardware does not prevent offline analysis.")
@@ -732,6 +740,15 @@ class MainWindow(QMainWindow):
         self.show_setup.setChecked(True)
         self.pages.widget(1).ensureWidgetVisible(self.show_setup)
         self.statusBar().showMessage('Follow-up options prepared. Review site, scenario, settings and targets, then press Run. No acquisition started.')
+
+    def check_selected_readiness(self):
+        if self.process is not None:
+            self.statusBar().showMessage("Wait for the current task or cancel it before checking readiness.")
+            return
+        self.nav.setCurrentRow(3)
+        self.readiness_caption.setText("Checking selected prerequisites… No acquisition or connectivity tests will run.")
+        self.readiness_table.setRowCount(0)
+        self.start_job('readiness', options={key: control.isChecked() for key, control in self.flags.items()})
 
     def run_diagnostic(self):
         options = {key: check.isChecked() for key, check in self.flags.items()}
@@ -879,6 +896,12 @@ class MainWindow(QMainWindow):
                 obj = json.loads(result_path.read_text(encoding="utf-8"))
                 if not obj["ok"]:
                     self.error(obj["error"])
+                elif "readiness" in obj["result"]:
+                    check = obj['result']['readiness']
+                    fill(self.readiness_table, [[r['item'], r['state'], r['detail']] for r in check['rows']])
+                    self.readiness_caption.setText(f"Snapshot checked {check['checked_utc']} • Site: {check['site_id']} • Scenario: {check['scenario']} • Selected: {', '.join(check['selected']) or 'passive only'}. Recheck after changing settings or devices.")
+                    self.nav.setCurrentRow(3)
+                    self.statusBar().showMessage('Prerequisite check complete. Review missing and untested items; acquisition has not started.')
                 elif "survey" in obj["result"]:
                     self.survey_page.show_session(obj["result"]["survey"], obj["result"]["survey_path"])
                     self.nav.setCurrentRow(5)

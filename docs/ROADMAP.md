@@ -204,3 +204,7 @@ Extended the existing baseline comparison with persistent ordered-visit change n
 ## Guided follow-up increment — 0.27.0rc1
 
 Next tests now provides detailed requirements, procedures and bounded setup preparation for supported recommendations, plus settings/readiness navigation. Preparation does not start acquisition or alter site/scenario. Unsupported procedures remain manual. A fully integrated investigation journey and hardware qualification remain open.
+
+## Selected-test readiness — 0.28.0rc1
+
+Delivered a worker-based prerequisite checklist linked from diagnostic setup and Tools. Checks are scoped to current selections, distinguish missing/configured/available/untested, and show snapshot provenance. They do not establish connectivity, hardware qualification or successful acquisition.

@@ -56,6 +56,17 @@ class GuiTests(unittest.TestCase):
         self.assertFalse(self.window.prepare_followup_button.isEnabled())
         self.window.set_busy(False)
 
+    def test_selected_readiness_worker_returns_snapshot_without_run(self):
+        self.window.flags['sdr'].setChecked(True)
+        self.window.flags['starlink'].setChecked(True)
+        self.window.flags['cellular'].setChecked(True)
+        self.window.check_selected_readiness()
+        self.wait_job()
+        self.assertFalse(self.errors)
+        self.assertGreater(self.window.readiness_table.rowCount(), 5)
+        self.assertIn('Snapshot checked', self.window.readiness_caption.text())
+        self.assertFalse(self.window.config.db_path.exists())
+
     def test_demo_does_not_write_history(self):
         self.window.show_demo()
         self.assertEqual(self.window.payload["run_id"], "demo")

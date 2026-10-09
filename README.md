@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.27.1rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.28.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.27.1rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.28.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -292,3 +292,7 @@ Select a recommendation under Diagnostics → Next tests to read its purpose, pr
 ### 0.27.1rc1 — Reconstructed waterfall
 
 Report waterfalls assemble CSV fragments into sweep rows using repeated frequency bins as boundaries. Newest displayed sweep is at the top. A taller dark heatmap, percentile contrast and embedded power legend replace the sparse record-strip image. Missing data stays dark gray; single-sweep and truncated captures are labeled. Timing is sweep progression, not calibrated elapsed time. Spectrum rendering is unchanged. Re-export an SDR report from its saved diagnostic to regenerate the waterfall; archived HTML is unchanged.
+
+### 0.28.0rc1 — Selected-test readiness checklist
+
+Use Check selected test readiness in Diagnostics, or the selected-prerequisites action in Tools & readiness. A worker checks storage, selected dependencies and configured targets, then displays a timestamped checklist with site, scenario and selected flags. Missing prerequisites and untested connectivity are distinct; unselected hardware is omitted. Settings are one click away. No diagnostic acquisition, modem probe, HackRF device open or network test is performed. Results are snapshots: recheck after changing settings, selections or devices. The existing broader Check readiness tool remains available separately.
