@@ -15,7 +15,7 @@ class VisualTests(unittest.TestCase):
             self.assertTrue(result['truncated'])
             for key in ('spectrum_png', 'waterfall_png'):
                 self.assertTrue(base64.b64decode(result[key].split(',')[1]).startswith(b'\x89PNG'))
-            self.assertIn('Not a calibrated time axis', visuals_html(result))
+            self.assertIn('not a calibrated time axis', visuals_html(result))
             self.assertIn('first 128', visuals_html(result))
 
     def test_blank_power_keeps_its_frequency_gap(self):
@@ -26,3 +26,17 @@ class VisualTests(unittest.TestCase):
             self.assertEqual(result['record_count'], 1)
             self.assertFalse(result['truncated'])
             self.assertEqual(result['ceiling_db'], -38)
+
+    def test_fragments_assemble_into_full_sweep_rows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'sweep.csv'
+            path.write_text(('d,t,2400000000,2402000000,1000000,2,-70,-60\n'
+                             'd,t,2402000000,2404000000,1000000,2,-50,-40\n') * 3, encoding='utf-8')
+            result = build_visuals(path, [(2400.5,-70,-70), (2403.5,-40,-40)], 2400,2404)
+            self.assertEqual(result['sweep_count'], 3)
+            self.assertEqual(result['record_count'], 6)
+            from PySide6.QtGui import QImage
+            image = QImage.fromData(base64.b64decode(result['waterfall_png'].split(',')[1]))
+            self.assertEqual(image.height(), 320)
+            for x in (10, 200, 400, 700):
+                self.assertNotEqual(image.pixelColor(x, 20).getRgb()[:3], (30,34,43))

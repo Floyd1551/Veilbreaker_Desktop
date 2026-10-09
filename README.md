@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.27.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.27.1rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.27.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.27.1rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -288,3 +288,7 @@ SDR reports now embed a median/maximum spectrum readout and capture-progression 
 ### 0.27.0rc1 — Actionable follow-up guidance
 
 Select a recommendation under Diagnostics → Next tests to read its purpose, procedure, expected observations, prerequisites and automation limits. Prepare supported test options selects only the relevant flags and reveals setup; acquisition starts only when you press Run. Preparation retains your current site, scenario and saved configuration. Settings and readiness shortcuts help review prerequisites. Unsupported recommendations remain manual, including matched SDR and path/MTU procedures. Repeated or simultaneous measurement recommendations clearly distinguish the single/sequential measurements Veilbreaker can prepare.
+
+### 0.27.1rc1 — Reconstructed waterfall
+
+Report waterfalls assemble CSV fragments into sweep rows using repeated frequency bins as boundaries. Newest displayed sweep is at the top. A taller dark heatmap, percentile contrast and embedded power legend replace the sparse record-strip image. Missing data stays dark gray; single-sweep and truncated captures are labeled. Timing is sweep progression, not calibrated elapsed time. Spectrum rendering is unchanged. Re-export an SDR report from its saved diagnostic to regenerate the waterfall; archived HTML is unchanged.

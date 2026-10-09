@@ -19,8 +19,11 @@ def png(pixels, width=WIDTH, height=HEIGHT):
 
 
 def build_visuals(path, points, low, high):
-    # Record order is explicit: a CSV record is not necessarily a complete sweep.
+    # Repeated frequency intervals mark the next observed sweep.
     records = []
+    sweeps = []
+    current = []
+    seen = set()
     truncated = False
     with path.open(encoding='utf-8', errors='replace', newline='') as stream:
         for row in csv.reader(stream):
@@ -40,12 +43,21 @@ def build_visuals(path, points, low, high):
                     if math.isfinite(power) and right > low and left < high:
                         bins.append((max(low, left), min(high, right), power))
                 if bins:
-                    if len(records) == 128:
-                        truncated = True
-                        break
-                    records.append(bins)
+                    keys = {(a, b) for a, b, _ in bins}
+                    if seen.intersection(keys):
+                        sweeps.append(current)
+                        current, seen = [], set()
+                        if len(sweeps) == 128:
+                            truncated = True
+                            break
+                    current.extend(bins)
+                    seen.update(keys)
+                    if len(records) < 128:
+                        records.append(bins)
             except (ValueError, OverflowError):
                 continue
+    if current:
+        sweeps.append(current)
     values = [v for p in points for v in p[1:]] + [b[2] for r in records for b in r]
     floor, ceiling = math.floor(min(values))-2, math.ceil(max(values))+2
     def x(freq):
@@ -76,16 +88,37 @@ def build_visuals(path, points, low, high):
             for px in range(max(0,x(freq)-1), min(WIDTH,x(freq)+2)):
                 for py in range(max(0,y(value)-1), min(HEIGHT,y(value)+2)):
                     dot(spectrum, px, py, color)
-    waterfall = canvas()
-    for index, bins in enumerate(records):
+    water_height = 320
+    waterfall = bytearray((30, 34, 43) * (WIDTH*water_height))
+    powers = sorted(b[2] for sweep in sweeps for b in sweep)
+    water_floor = powers[int((len(powers)-1)*0.05)] if powers else floor
+    water_top = powers[int((len(powers)-1)*0.99)] if powers else ceiling
+    water_top = max(water_floor+10, water_top)
+    palette = [(4, 7, 30), (20, 30, 110), (0, 115, 195), (0, 210, 190), (245, 220, 50), (255, 85, 25)]
+    def color(power):
+        position = max(0, min(1, (power-water_floor)/(water_top-water_floor))) * (len(palette)-1)
+        index = min(len(palette)-2, int(position))
+        blend = position-index
+        return tuple(round(a+(b-a)*blend) for a,b in zip(palette[index], palette[index+1]))
+    for index, bins in enumerate(reversed(sweeps)):
+        # Maximum power per display column preserves narrow peaks when downsampling.
+        columns = [None]*WIDTH
         for left, right, power in bins:
-            level = max(0, min(1, (power-floor)/(ceiling-floor)))
-            color = (int(245*level), int(45+180*level), int(160-120*level))
-            for py in range(index*HEIGHT//len(records), (index+1)*HEIGHT//len(records)):
-                for px in range(x(left), min(WIDTH, max(x(left)+1,x(right)))):
-                    dot(waterfall, px, py, color)
-    return {'spectrum_png': png(spectrum), 'waterfall_png': png(waterfall),
-            'floor_db': floor, 'ceiling_db': ceiling, 'record_count': len(records), 'truncated': truncated,
+            start = max(0, min(WIDTH-1, int((left-low)/(high-low)*WIDTH)))
+            stop = max(start+1, min(WIDTH, math.ceil((right-low)/(high-low)*WIDTH)))
+            for px in range(start, stop):
+                columns[px] = power if columns[px] is None else max(columns[px], power)
+        row = b''.join(bytes(color(p)) if p is not None else bytes((30,34,43)) for p in columns)
+        for py in range(index*water_height//len(sweeps), (index+1)*water_height//len(sweeps)):
+            waterfall[py*WIDTH*3:(py+1)*WIDTH*3] = row
+    legend = bytearray()
+    for _ in range(16):
+        for px in range(WIDTH):
+            legend.extend(color(water_floor+(water_top-water_floor)*px/(WIDTH-1)))
+    return {'spectrum_png': png(spectrum), 'waterfall_png': png(waterfall, WIDTH, water_height),
+            'legend_png': png(legend, WIDTH, 16), 'water_floor_db': water_floor, 'water_top_db': water_top,
+            'sweep_count': len(sweeps), 'floor_db': floor, 'ceiling_db': ceiling,
+            'record_count': len(records), 'truncated': truncated,
             'min_mhz': low, 'max_mhz': high}
 
 
@@ -94,9 +127,12 @@ def visuals_html(v):
     return (f'<h3>Spectrum readout</h3><p>Relative dB: {v["ceiling_db"]:g} (top) to {v["floor_db"]:g} (bottom). '
             'Teal: median · Amber: maximum. Traces are not joined across frequency gaps.</p>'
             f'<img width="720" height="200" alt="Median and maximum spectrum" src="{v["spectrum_png"]}">' + axis +
-            '<h3>Capture waterfall</h3><p>CSV record progression, earliest at top; each row can cover only part of a sweep. '
-            'Not a calibrated time axis. Gray means no sample in that record, not low power.</p>'
-            f'<img width="720" height="200" alt="Frequency versus CSV record progression" src="{v["waterfall_png"]}">' + axis +
-            f'<p>Color scale: <span style="color:#002da0">blue {v["floor_db"]:g} dB</span> → '
-            f'<span style="color:#a87920">yellow {v["ceiling_db"]:g} dB</span> (relative). '
-            f'{v["record_count"]} records displayed. ' + ('Limited to first 128 records; spectrum uses the full saved trace.' if v['truncated'] else '') + '</p>')
+            '<h3>Capture waterfall</h3><p>Newest sweep at top · oldest at bottom. '
+            'Sweep boundaries inferred from repeated frequency bins; not a calibrated time axis. Dark gray means missing data.</p>'
+            f'<img width="720" height="320" alt="Frequency versus reconstructed sweep progression" src="{v["waterfall_png"]}">' + axis +
+            f'<img width="720" height="16" alt="Relative power color scale" src="{v["legend_png"]}">'
+            f'<p>Relative power: {v["water_floor_db"]:.1f} dB (left, dark blue) → {v["water_top_db"]:.1f} dB (right, orange). '
+            'Contrast spans the 5th–99th sample percentiles (at least 10 dB); outliers are color-clipped, not removed. '
+            f'{v["sweep_count"]} reconstructed sweeps. ' + ('Limited to first 128 sweeps; newest displayed sweep at top. ' if v['truncated'] else '') +
+            ('Only one sweep is available; no temporal variation can be shown. ' if v['sweep_count'] == 1 else '') +
+            'Partial sweeps retain gaps. Frequency columns use maximum power when multiple bins share a pixel.</p>')
