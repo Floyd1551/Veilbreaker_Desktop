@@ -37,6 +37,25 @@ class GuiTests(unittest.TestCase):
             QTest.qWait(30)
         self.assertIsNone(self.window.process, "Worker timed out")
 
+    def test_followup_prepares_options_without_acquisition(self):
+        self.window.show_demo()
+        test = {'test_id': 'TEST-DNS', 'title': 'DNS', 'purpose': 'Compare', 'action': 'Check', 'priority': 1}
+        self.window.payload['report']['next_tests'] = [test]
+        from veilbreaker.gui import fill
+        fill(self.window.next_tests, [[1, 'DNS', 'Compare', 'Check']])
+        self.window.next_tests.selectRow(0)
+        self.window.flags['throughput'].setChecked(True)
+        with patch.object(self.window, 'start_job') as start:
+            self.window.prepare_followup()
+            start.assert_not_called()
+        self.assertTrue(self.window.flags['active'].isChecked())
+        self.assertFalse(self.window.flags['throughput'].isChecked())
+        self.assertTrue(self.window.show_setup.isChecked())
+        self.assertIn('alternate resolver', self.window.followup_details.toPlainText())
+        self.window.set_busy(True)
+        self.assertFalse(self.window.prepare_followup_button.isEnabled())
+        self.window.set_busy(False)
+
     def test_demo_does_not_write_history(self):
         self.window.show_demo()
         self.assertEqual(self.window.payload["run_id"], "demo")

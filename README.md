@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.26.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.27.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.26.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.27.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -284,3 +284,7 @@ In Site surveys, open a visit and choose Compare this visit with a baseline. Rec
 ### 0.26.0rc1 — Embedded SDR spectrum and waterfall
 
 SDR reports now embed a median/maximum spectrum readout and capture-progression waterfall for each available range, inside the application and portable HTML. PNGs are self-contained and require no network, plotting library or browser. Frequency and relative-power scales are labeled. Gray waterfall cells mean no sample, not quiet spectrum. Rows represent CSV records, which may cover only part of a sweep; this is not a calibrated time axis. The waterfall displays the first 128 usable records with truncation labeled; the spectrum summarizes the full saved trace. Existing archived reports remain unchanged; reopen a saved diagnostic and export its SDR report to generate the new visuals.
+
+### 0.27.0rc1 — Actionable follow-up guidance
+
+Select a recommendation under Diagnostics → Next tests to read its purpose, procedure, expected observations, prerequisites and automation limits. Prepare supported test options selects only the relevant flags and reveals setup; acquisition starts only when you press Run. Preparation retains your current site, scenario and saved configuration. Settings and readiness shortcuts help review prerequisites. Unsupported recommendations remain manual, including matched SDR and path/MTU procedures. Repeated or simultaneous measurement recommendations clearly distinguish the single/sequential measurements Veilbreaker can prepare.

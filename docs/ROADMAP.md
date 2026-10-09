@@ -200,3 +200,7 @@ Implemented native viewing and portable HTML reports for existing 1–20-point s
 ## Guided comparison increment — 0.25.0rc1
 
 Extended the existing baseline comparison with persistent ordered-visit change notes, native report viewing and HTML/JSON export with provenance. Comparison eligibility remains guarded by complete collections, matching settings, scenarios and test selections. This delivers the record-change/review-comparison segment of Phase 3; the full readiness-to-follow-up guided journey remains open.
+
+## Guided follow-up increment — 0.27.0rc1
+
+Next tests now provides detailed requirements, procedures and bounded setup preparation for supported recommendations, plus settings/readiness navigation. Preparation does not start acquisition or alter site/scenario. Unsupported procedures remain manual. A fully integrated investigation journey and hardware qualification remain open.

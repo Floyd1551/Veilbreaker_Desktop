@@ -444,6 +444,23 @@ class MainWindow(QMainWindow):
         self.hypotheses = table(["Likely cause", "Score", "Status", "Supporting / contradicting evidence"])
         self.findings = table(["Severity", "Finding", "Observation", "Recommended action"])
         self.next_tests = table(["Priority", "Next test", "Why", "Action"])
+        followup_panel = QWidget()
+        followup_layout = QVBoxLayout(followup_panel)
+        followup_layout.addWidget(self.next_tests, 1)
+        self.followup_details = QPlainTextEdit()
+        self.followup_details.setReadOnly(True)
+        self.followup_details.setAccessibleName("Selected follow-up guidance")
+        self.followup_details.setPlaceholderText("Select a recommendation to review its procedure, requirements and supported setup.")
+        followup_layout.addWidget(self.followup_details, 1)
+        followup_actions = FlowLayout()
+        self.prepare_followup_button = button("Prepare supported test options", self.prepare_followup)
+        self.prepare_followup_button.setEnabled(False)
+        followup_actions.addWidget(self.prepare_followup_button)
+        followup_actions.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(4)))
+        followup_actions.addWidget(button("Tools & readiness", lambda: self.nav.setCurrentRow(3)))
+        followup_layout.addLayout(followup_actions)
+        self.next_tests.itemSelectionChanged.connect(self.select_followup)
+
         self.metrics = table(["Metric", "Value", "Sources (last source supplies value)"])
         metrics_panel = QWidget()
         metrics_layout = QVBoxLayout(metrics_panel)
@@ -496,7 +513,7 @@ class MainWindow(QMainWindow):
         self.spectrum.inspected.connect(self.spectrum_readout.setText)
         spectrum_layout.addWidget(self.spectrum_readout)
         for name, panel in [("Summary", self.summary), ("Hypotheses", self.hypotheses),
-                            ("Findings", self.findings), ("Next tests", self.next_tests),
+                            ("Findings", self.findings), ("Next tests", followup_panel),
                             ("Metrics", metrics_panel), ("Collector notes", self.notes), ("Spectrum", spectrum_panel), ("Collection", self.collection_table)]:
             self.tabs.addTab(panel, name)
         sdr_panel = QWidget()
@@ -691,6 +708,31 @@ class MainWindow(QMainWindow):
         cfg.scenario = self.scenario.currentData()
         return cfg
 
+    def selected_followup(self):
+        index = self.next_tests.currentRow()
+        tests = (self.payload or {}).get('report', {}).get('next_tests', [])
+        return tests[index] if self.next_tests.selectedItems() and 0 <= index < len(tests) else None
+
+    def select_followup(self):
+        from .followup import guidance, details
+        test = self.selected_followup()
+        self.followup_details.setPlainText(details(test) if test else '')
+        self.prepare_followup_button.setEnabled(bool(test and guidance(test.get('test_id', ''))[0]) and self.process is None)
+
+    def prepare_followup(self):
+        from .followup import guidance
+        test = self.selected_followup()
+        if not test or self.process is not None:
+            return
+        flags = guidance(test.get('test_id', ''))[0]
+        if not flags:
+            return
+        for key, control in self.flags.items():
+            control.setChecked(key in flags)
+        self.show_setup.setChecked(True)
+        self.pages.widget(1).ensureWidgetVisible(self.show_setup)
+        self.statusBar().showMessage('Follow-up options prepared. Review site, scenario, settings and targets, then press Run. No acquisition started.')
+
     def run_diagnostic(self):
         options = {key: check.isChecked() for key, check in self.flags.items()}
         options["active"] = options["active"] or options["guided"]
@@ -800,6 +842,9 @@ class MainWindow(QMainWindow):
             self.task_status.setText(message)
 
     def set_busy(self, busy):
+        from .followup import guidance
+        test = self.selected_followup()
+        self.prepare_followup_button.setEnabled(not busy and bool(test and guidance(test.get("test_id", ""))[0]))
         self.task_banner.setVisible(busy)
         self.task_cancel.setEnabled(busy)
         self.site.setEnabled(not busy)
@@ -902,6 +947,10 @@ class MainWindow(QMainWindow):
                                "\n".join(f"{e['direction']}: {e['statement']}" for e in h["evidence"])] for h in report["hypotheses"]])
         fill(self.findings, [[f["severity"], f["title"], f["observation"], f["recommendation"]] for f in report["findings"]])
         fill(self.next_tests, [[t["priority"], t["title"], t["purpose"], t["action"]] for t in report["next_tests"]])
+        self.next_tests.clearSelection()
+        self.next_tests.setCurrentCell(-1, -1)
+        self.select_followup()
+
         from .acquisition import collection_summary
         collection = payload.get("collection", {})
         sources = collection.get("metric_sources", {})
