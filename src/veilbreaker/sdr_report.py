@@ -90,6 +90,8 @@ def build_sdr_report(summaries, metadata, plan=None):
                  'expected_uses': [band_description(b) for b in bands_at(plan, p[0])]}
                 for p in sorted(points, key=lambda p: (-p[2], p[0]))[:10]]
             row['bins_above_floor_plus_10db_pct'] = round(100 * sum(p[1] > floor+10 for p in points)/len(points), 2)
+            from .sdr_visuals import build_visuals
+            row['visuals'] = build_visuals(path, points, low, high)
             row['notes'].append('Floor estimate: median of lowest 20% of bin medians (at least one). Activity: fraction of observed bin medians > floor + 10 dB; not time occupancy. Strong wideband signals can bias this estimate.')
         except (OSError, ValueError, KeyError, TypeError) as exc:
             row['notes'].append(f'Saved spectrum unavailable: {exc}')
@@ -119,6 +121,9 @@ def report_html(report, interactive=False, technical=True):
                   'partial': 'Partial capture', 'unavailable': 'Evidence unavailable'}.get(row['status'], row['status'])
         parts.extend(['<section><h2>' + esc(row['label']) + '</h2>',
                       '<p class="muted">' + esc(status) + ' &nbsp; · &nbsp; ' + str(row['bin_count']) + ' observed bins &nbsp; · &nbsp; ' + esc(row['requested_min_mhz']) + '–' + esc(row['requested_max_mhz']) + ' MHz</p>'])
+        if row.get('visuals'):
+            from .sdr_visuals import visuals_html
+            parts.append(visuals_html(row['visuals']))
         if row['peak']:
             p = row['peak']
             parts.append(f"<table cellpadding=\"10\"><tr><td>Strongest bin<br><b>{p['frequency_mhz']:.3f} MHz</b></td><td>Maximum relative power<br><b>{p['maximum_db']:.1f} dB</b></td><td>Frequency coverage<br><b>{row['coverage_pct']:g}%</b></td></tr></table>")

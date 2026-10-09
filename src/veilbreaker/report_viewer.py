@@ -2,7 +2,7 @@
 from pathlib import Path
 import zipfile
 from PySide6.QtCore import QByteArray, Qt
-from PySide6.QtGui import QKeySequence, QShortcut, QTextCursor
+from PySide6.QtGui import QKeySequence, QShortcut, QTextCursor, QImage
 from PySide6.QtWidgets import QComboBox, QDialog, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QTextBrowser, QVBoxLayout
 from .widgets import FlowLayout
 
@@ -53,6 +53,19 @@ def read_reports(path):
 
 class OfflineReportBrowser(QTextBrowser):
     def loadResource(self, resource_type, url):
+        import base64
+        value = url.toString()
+        prefix = 'data:image/png;base64,'
+        if value.startswith(prefix) and len(value) < 2_000_000:
+            try:
+                raw = base64.b64decode(value[len(prefix):], validate=True)
+                import struct
+                if raw[:8] == b'\x89PNG\r\n\x1a\n' and len(raw) >= 24:
+                    width, height = struct.unpack('!II', raw[16:24])
+                    if 0 < width <= 1440 and 0 < height <= 800:
+                        return QImage.fromData(raw, 'PNG')
+            except (ValueError, TypeError):
+                pass
         # Saved report text/tables need no remote content or unrelated local files.
         return QByteArray()
 

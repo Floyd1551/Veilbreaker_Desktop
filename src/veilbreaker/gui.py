@@ -501,7 +501,8 @@ class MainWindow(QMainWindow):
             self.tabs.addTab(panel, name)
         sdr_panel = QWidget()
         sdr_layout = QVBoxLayout(sdr_panel)
-        self.sdr_report_view = QTextBrowser()
+        from .report_viewer import OfflineReportBrowser
+        self.sdr_report_view = OfflineReportBrowser()
         self.sdr_report_view.setOpenLinks(False)
         self.sdr_report_view.anchorClicked.connect(self.inspect_sdr_bin)
         self.sdr_report_view.setHtml("<p>No SDR capture evidence in this run.</p>")
