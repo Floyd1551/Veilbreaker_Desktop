@@ -69,3 +69,17 @@
 - [ ] Update README and roadmap with transfer/import instructions and the GPS extension boundary; increment release metadata only for the delivered Desktop feature.
 - [ ] Build Windows package and installer through existing scripts; preserve skipped-test labeling if full qualification is not run. Commit and push source under existing user authorization.
 - [ ] Prepare the companion implementation plan against the proven contract. Android API guards, foreground permissions, bounded sessions, cancellation and export remain required before the phone can produce real captures. Survey attachment follows that end-to-end validation; no phone/scanner compatibility claim before evidence exists.
+
+## Execution record — October 10, 2026
+
+Implemented contract validation, evidence-preserving worker import, explicit native selection UI and release documentation. Android-specific tests: 10 passed; evidence tests: 8 passed; existing GUI tests: 14 passed. Native worker import → history reopening → saved HTML report passed using the synthetic fixture. Preview screenshot: test-artifacts/android-import-preview.png.
+
+Ruling: preserve every known signal quantity in the original capture; normalize only selected LTE/NR serving fields. Historical case/baseline matching and generic Android history deltas are withheld because receiver compatibility is not established. Costs: reduced automatic comparisons until a qualified compatibility rule exists.
+
+Ruling: duplicate capture ID requires explicit repeat even when choosing another snapshot; this prevents accidental repeated imports while allowing deliberate per-observation analysis. Repeats keep independent run IDs.
+
+Ruling: failure after artifact creation can leave unreferenced evidence files, but history is committed only after successful report/manifest generation. Original source files are never changed. No automatic deletion of potentially useful evidence occurs.
+
+GPS coordinates are preserved only when present in the input; no location collection or mapping was added. Physical Android acquisition, companion APK and survey attachment remain separate phases.
+
+Final review October 11: fixed selected-cell aliases so RF diagnosis receives imported RSRP/RSRQ (and NR SS-SINR only); excluded Android imports before desktop baseline limits and excluded Android confirmed cases from automatic matches; malformed enum types now raise validation errors. Android suite now 11 tests, engine suite 12 tests; evidence/GUI regression checks repeated.

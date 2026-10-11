@@ -24,6 +24,9 @@ def demo_payload():
 def execute(request, progress=None):
     cfg = core.AppConfig.from_dict(request["config"])
     action = request["action"]
+    if action == "android_import":
+        from .android_import import import_capture
+        return import_capture(cfg, request['input'], request['expected_sha256'], request['observation_id'], request['cell_index'], request.get('allow_repeat', False))
     if action == "readiness":
         from .readiness import check_selected
         return {"readiness": check_selected(cfg, request.get("options", {}))}

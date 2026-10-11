@@ -208,3 +208,7 @@ Next tests now provides detailed requirements, procedures and bounded setup prep
 ## Selected-test readiness — 0.28.0rc1
 
 Delivered a worker-based prerequisite checklist linked from diagnostic setup and Tools. Checks are scoped to current selections, distinguish missing/configured/available/untested, and show snapshot provenance. They do not establish connectivity, hardware qualification or successful acquisition.
+
+## Android import foundation — 0.29.0rc1
+
+Added versioned Android envelope validation, explicit native observation/serving-cell review, original-byte evidence preservation and offline analysis. Optional GPS metadata is validated and retained. Companion APK, survey attachment and physical phone qualification remain future phases; this is not live Android receiver support.

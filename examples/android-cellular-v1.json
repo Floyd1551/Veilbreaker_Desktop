@@ -1,0 +1,17 @@
+{
+  "format": "veilbreaker.android.cellular",
+  "schema_version": 1,
+  "capture_id": "335e7702-68e3-4698-98b4-0f319d5b8803",
+  "created_utc": "2026-10-10T12:00:00Z",
+  "device": {"manufacturer": "Synthetic", "model": "Fixture only", "android_version": "13", "api_level": 33, "companion_version": "fixture-1"},
+  "collection": {"mode": "snapshot", "started_utc": "2026-10-10T12:00:00Z", "ended_utc": "2026-10-10T12:00:01Z", "outcome": "complete", "permissions": {"fine_location": "granted", "phone_state": "granted"}, "notes": ["Synthetic fixture; not a phone capture."]},
+  "subscriptions": [{"key": "sim-1"}],
+  "observations": [{
+    "observation_id": "snapshot-1", "subscription_key": "sim-1", "received_utc": "2026-10-10T12:00:01Z",
+    "elapsed_realtime_ms": 10000, "outcome": "complete",
+    "cells": [{"radio": "LTE", "registered": true, "connection_status": "primary", "age_ms": 1500,
+      "identity": {"pci": 12, "earfcn": 100, "bands": [1], "cell_id": "1234", "mcc": "310", "mnc": "260"},
+      "signal": {"rsrp": {"value": -95, "unit": "dBm"}, "rsrq": {"value": -12, "unit": "dB"}, "rssnr": {"value": null, "unit": "dB", "reason": "not_reported"}}
+    }]
+  }]
+}

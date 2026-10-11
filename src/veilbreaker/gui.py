@@ -395,6 +395,7 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.run_button)
         actions.addWidget(button("Check selected test readiness", self.check_selected_readiness))
         actions.addWidget(self.import_button)
+        actions.addWidget(button("Import Android capture…", self.import_android_capture))
         actions.addWidget(self.cancel_button)
         self.retry_button = button("Retry after reconnect", self.retry_diagnostic)
         self.retry_button.setToolTip("Start a new diagnostic using the previous request and rediscover hardware. Requested active tests will run again.")
@@ -782,6 +783,28 @@ class MainWindow(QMainWindow):
 
     def capture_wifi(self):
         self.start_job("run", options={"sdr": True}, wifi_capture=True)
+
+    def import_android_capture(self):
+        if self.process is not None:
+            self.statusBar().showMessage('Wait for the current task before importing.')
+            return
+        from .android_capture import load_capture
+        from .android_ui import AndroidImportDialog
+        path, _ = QFileDialog.getOpenFileName(self, 'Import Android cellular capture', '', 'Android capture (*.json)')
+        if not path:
+            return
+        try:
+            capture = load_capture(Path(path))
+            dialog = AndroidImportDialog(self, capture)
+            destination = QLabel(f'Destination site: {self.site.text()} · Scenario: {self.scenario.currentText()}')
+            destination.setTextFormat(Qt.TextFormat.PlainText)
+            destination.setWordWrap(True)
+            dialog.layout().insertWidget(0, destination)
+            if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selection():
+                observation, cell = dialog.selection()
+                self.start_job('android_import', input=path, expected_sha256=capture['sha256'], observation_id=observation, cell_index=cell, allow_repeat=dialog.repeat.isChecked())
+        except (OSError, ValueError) as exc:
+            self.error(str(exc))
 
     def import_metrics(self):
         if self.process is not None:

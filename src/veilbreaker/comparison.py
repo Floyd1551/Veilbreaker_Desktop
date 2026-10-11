@@ -5,6 +5,9 @@ import math
 
 def compare_runs(before, after):
     left, right = json.loads(before["metrics_json"]), json.loads(after["metrics_json"])
+    if left.get('android_source') or right.get('android_source'):
+        return (f"Before: {before['run_id']}\nAfter: {after['run_id']}\n"
+                'Numeric comparison withheld: Android receiver/settings compatibility is not established. Review the original observations and reports separately.')
     lines = [f"Before: {before['run_id']}", f"After:  {after['run_id']}",
              "Deltas are after minus before; missing values are not zero.\n"]
     for key in sorted(set(left) | set(right)):

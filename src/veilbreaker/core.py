@@ -1561,12 +1561,12 @@ class VeilbreakerStore:
     def recent_metric_sets(self, site_id: str, scenario: Optional[str], limit: int) -> List[Dict[str, Any]]:
         if scenario:
             rows = self.db.execute(
-                "SELECT metrics_json FROM runs WHERE site_id=? AND scenario=? ORDER BY ts_utc DESC LIMIT ?",
+                "SELECT metrics_json FROM runs WHERE site_id=? AND scenario=? AND run_id NOT LIKE 'android-%' ORDER BY ts_utc DESC LIMIT ?",
                 (site_id, scenario, limit),
             )
         else:
             rows = self.db.execute(
-                "SELECT metrics_json FROM runs WHERE site_id=? ORDER BY ts_utc DESC LIMIT ?",
+                "SELECT metrics_json FROM runs WHERE site_id=? AND run_id NOT LIKE 'android-%' ORDER BY ts_utc DESC LIMIT ?",
                 (site_id, limit),
             )
         out = []
@@ -1719,9 +1719,13 @@ class VeilbreakerStore:
         return math.exp(-1.6 * mean_d), n
 
     def match_cases(self, metrics: Mapping[str, Any], limit: int = 3) -> List[Dict[str, Any]]:
+        if metrics.get("android_source"):
+            return []
         sig = self.case_signature(metrics)
         matches = []
         for row in self.db.execute("SELECT * FROM cases WHERE confirmed=1"):
+            if str(row["source_run_id"] or "").startswith("android-"):
+                continue
             try:
                 other = json.loads(row["signature_json"])
             except Exception:

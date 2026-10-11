@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.28.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.29.0rc1** adds a native desktop interface, packaging, persistent per-user storage, Unicode-safe exports, and saved-run comparison while retaining the CLI.
 
 ## Windows installation
 
-Run `Veilbreaker-0.28.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.29.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -296,3 +296,7 @@ Report waterfalls assemble CSV fragments into sweep rows using repeated frequenc
 ### 0.28.0rc1 — Selected-test readiness checklist
 
 Use Check selected test readiness in Diagnostics, or the selected-prerequisites action in Tools & readiness. A worker checks storage, selected dependencies and configured targets, then displays a timestamped checklist with site, scenario and selected flags. Missing prerequisites and untested connectivity are distinct; unselected hardware is omitted. Settings are one click away. No diagnostic acquisition, modem probe, HackRF device open or network test is performed. Results are snapshots: recheck after changing settings, selections or devices. The existing broader Check readiness tool remains available separately.
+
+### 0.29.0rc1 — Android capture import foundation
+
+Diagnostics → Import Android capture accepts the versioned format documented in [Android capture v1](docs/android-capture-v1.md). Review device, subscription, timestamps and cells, then explicitly select an LTE/NR serving cell. Original bytes, hash and selection provenance are included in evidence. Missing/cached values and optional future GPS metadata stay distinct. Cross-receiver history comparisons are withheld. This release provides Desktop import with synthetic fixtures; the phone companion APK, live USB capture and physical phone qualification are not yet delivered.
