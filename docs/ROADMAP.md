@@ -212,3 +212,7 @@ Delivered a worker-based prerequisite checklist linked from diagnostic setup and
 ## Android import foundation — 0.29.0rc1
 
 Added versioned Android envelope validation, explicit native observation/serving-cell review, original-byte evidence preservation and offline analysis. Optional GPS metadata is validated and retained. Companion APK, survey attachment and physical phone qualification remain future phases; this is not live Android receiver support.
+
+## Android companion source increment — October 11, 2026
+
+Added an initial snapshot-only Kotlin companion and Android CI workflow. Includes public LTE/NR cell observations and JSON export matching the Desktop contract. Compilation/qualification status is recorded in android-companion/README.md; source implementation is not physical compatibility evidence. Timed sessions, lifecycle tests, phone qualification, production signing and survey attachment remain open.

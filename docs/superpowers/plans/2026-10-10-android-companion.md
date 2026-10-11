@@ -61,3 +61,9 @@
 - [ ] Document installation and USB file transfer. Qualify on the user's exact Samsung model/OS when connected; list actual returned fields and unsupported ones. No support claim based solely on emulator results.
 
 Survey-point attachment follows validated companion-to-Desktop capture transfer as a separate increment.
+
+## Progress — October 11, 2026
+
+Snapshot-only first increment committed under android-companion/. Source includes explicit SIM/permission flow, bounded CellInfo callback with generation cancellation, LTE/NR serialization, last-capture persistence and document-picker export. Public-API timestamps, missing values and separate signal quantities are retained. Timed sessions, detailed legacy-radio fields, lifecycle instrumentation and device qualification are unfinished.
+
+Ruling: no Java/Gradle/Android SDK was found locally. To conserve the requested remaining usage, use a pinned GitHub CI build rather than install a local Android toolchain. CI runs JUnit and validates a Kotlin-generated fixture with the Desktop importer. No APK/build success is claimed until CI succeeds. Wrapper and production signing remain pending.
