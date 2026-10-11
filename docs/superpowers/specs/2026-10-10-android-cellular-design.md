@@ -1,6 +1,6 @@
 # Android cellular companion and Desktop import
 
-Status: proposed specification for user review. No Android compatibility claim or implementation is implied by this document.
+Status: standard-first design approved; optional future GPS extension requested October 10, 2026. No Android compatibility claim or implementation is implied by this document.
 
 ## Intent
 
@@ -48,6 +48,14 @@ LTE RSSNR stays distinct from NR SS-SINR and CSI-SINR. Band lists are device-rep
 Keep original modem monotonic timestamps separate from receipt wall-clock time. Compute age only on the phone within the same boot's clock domain; future/invalid ages are unknown. Desktop must not compare its monotonic clock with the phone's. Cached readings retain their ages and are labeled; repeated timestamps are not fresh samples.
 
 Bounds: 16 MiB input, 1,000 observations and 256 cells per observation. Reject invalid envelopes, excessive collections, duplicate IDs, nonfinite numbers and unexpected types before creating history entries. Preserve unrecognized fields in the original artifact; normalize only supported fields. Unsupported schema versions produce an actionable error without partial import.
+
+## Future GPS extension
+
+Reserve optional `location` on each observation. Absence means location was not collected; it must not become coordinates (0, 0). Version 1 importers accept and preserve this object without requiring GPS permissions or providing maps.
+
+A location object carries `status` (`available`, `unavailable`, `permission_denied`, `disabled`), `source` (`phone`, `external_receiver`, `imported`), `provider` text and `fix_utc`. Available fixes require finite WGS84 `latitude_deg` (-90 through 90), `longitude_deg` (-180 through 180), and nonnegative `horizontal_accuracy_m`. Optional fields are `altitude_m`, `vertical_accuracy_m`, `speed_mps`, `bearing_deg`, `fix_age_ms`, and `mock` (boolean). Altitude includes `altitude_reference` (`ellipsoid`, `mean_sea_level`, `unknown`); never assume altitude datum. Nonnegative accuracy, speed and age; bearing in [0, 360). Unknown values remain null. Unavailable statuses cannot carry coordinate values.
+
+Cellular and location observation times stay separate. Later capture code must report actual fix age rather than claiming a fix was simultaneous with the radio observation. External USB GPS or gpsd observations retain their own source and timestamps. Maps, interpolation, geocoding and automatic location-based point matching are deferred. Future exports must make coordinate inclusion visible to the operator. Device location permissions required to access cell information do not by themselves authorize the companion to record coordinates.
 
 ## Desktop integration
 
