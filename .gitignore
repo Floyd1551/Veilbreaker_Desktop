@@ -27,3 +27,8 @@ archive/
 htmlcov/
 .DS_Store
 Thumbs.db
+android-companion/.gradle/
+android-companion/.kotlin/
+android-companion/local.properties
+*.jks
+*.keystore
