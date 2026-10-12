@@ -154,7 +154,7 @@ def normalize_selection(envelope, observation_id, cell_index):
     obs = next((o for o in envelope['observations'] if o['observation_id'] == observation_id), None)
     require(obs is not None and type(cell_index) is int and 0 <= cell_index < len(obs['cells']), 'Select a valid observation and cell')
     cell = obs['cells'][cell_index]
-    require(cell.get('registered') is True and cell['connection_status'] in {'primary','secondary'}, 'Select an explicitly registered serving cell')
+    require(cell.get('registered') is True, 'Select an explicitly registered serving cell')
     require(cell['radio'] in {'LTE','NR'}, 'Only LTE/NR serving cells support analysis in this version')
     mapping = {'rsrp':'lte_rsrp','rsrq':'lte_rsrq','rssi':'lte_rssi'} if cell['radio'] == 'LTE' else {'ss_rsrp':'nr_rsrp','ss_rsrq':'nr_rsrq','ss_sinr':'nr_sinr'}
     metrics = {'android_capture_id':envelope['capture_id'], 'android_observation_id':observation_id,
@@ -177,7 +177,9 @@ def normalize_selection(envelope, observation_id, cell_index):
     notes = [f'Android imported observation, not desktop acquisition. Device: {envelope["device"]["manufacturer"]} {envelope["device"]["model"]}.',
              f'Received: {obs["received_utc"]}; sample age at phone receipt: {cell.get("age_ms")} ms (None means unknown).',
              f'Source collection: {envelope["collection"]["outcome"]}; observation: {obs["outcome"]}. No other cells, subscriptions or host measurements were merged.']
+    if cell['connection_status'] in {'none', 'unknown'}:
+        notes.append(f"Android reports registered=true with connection status {cell['connection_status']}; primary/secondary role is not confirmed. Selection uses explicit registration only.")
     return {'metrics':metrics, 'notes':notes, 'provenance':{'capture_id':envelope['capture_id'], 'observation_id':observation_id,
-            'cell_index':cell_index, 'subscription_key':obs['subscription_key'], 'device':envelope['device'],
+            'cell_index':cell_index, 'registered':True, 'connection_status':cell['connection_status'], 'subscription_key':obs['subscription_key'], 'device':envelope['device'],
             'received_utc':obs['received_utc'], 'age_ms':cell.get('age_ms'), 'location':obs.get('location'),
             'collection_outcome':envelope['collection']['outcome'], 'observation_outcome':obs['outcome'], 'field_mapping':fields}}

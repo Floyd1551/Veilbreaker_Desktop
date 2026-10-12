@@ -86,4 +86,7 @@ class AndroidImportDialog(QDialog):
         self.details.setPlainText(json.dumps({'cell':obs['cells'][index], 'location':obs.get('location'), 'source_collection':self.capture['envelope']['collection']},indent=2,ensure_ascii=False) if valid else '')
         selected = self.selection()
         self.import_button.setEnabled(selected is not None)
-        self.message.setText('Selected data will be imported, not collected live. Age is measured at phone receipt; cached values are not fresh measurements. Location is retained as metadata only.' if selected else 'Choose an explicitly registered LTE/NR primary or secondary cell. Unknown roles and neighbors cannot be analyzed.')
+        self.message.setText('Selected data will be imported, not collected live. Age is measured at phone receipt; cached values are not fresh measurements. Location is retained as metadata only.' if selected else 'Choose an LTE/NR row with Registered = true. Unregistered neighbors and unknown registration cannot be analyzed.')
+
+        if selected and obs['cells'][index]['connection_status'] in {'none', 'unknown'}:
+            self.message.setText(self.message.text() + ' Android reports this cell as registered, but its primary/secondary role is not confirmed; the original role is preserved.')

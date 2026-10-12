@@ -24,3 +24,13 @@ class AndroidUiTests(unittest.TestCase):
         dialog.show_cell()
         self.assertFalse(dialog.import_button.isEnabled())
         dialog.reject()
+
+    def test_registered_cell_with_none_role_can_be_imported(self):
+        capture = load_capture(Path('examples/android-cellular-v1.json'))
+        capture['envelope']['observations'][0]['cells'][0]['connection_status'] = 'none'
+        dialog = AndroidImportDialog(None, capture)
+        dialog.observations.setCurrentIndex(1)
+        dialog.cells.selectRow(0)
+        self.assertTrue(dialog.import_button.isEnabled())
+        self.assertIn('not confirmed', dialog.message.text())
+        dialog.reject()

@@ -83,3 +83,15 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(normalize_selection(value,'snapshot-1',0)['provenance']['age_ms'],9000)
         value['observations'][0]['cells'][0]['age_ms'] = None
         self.assertIsNone(normalize_selection(value,'snapshot-1',0)['provenance']['age_ms'])
+
+    def test_registered_cell_without_connection_role(self):
+        for role in ('none', 'unknown'):
+            value = fixture()
+            value['observations'][0]['cells'][0]['connection_status'] = role
+            result = normalize_selection(value, 'snapshot-1', 0)
+            self.assertEqual(result['metrics']['rsrp'], -95)
+            self.assertEqual(result['provenance']['connection_status'], role)
+            self.assertTrue(any('not confirmed' in note for note in result['notes']))
+            for registered in (False, None):
+                value['observations'][0]['cells'][0]['registered'] = registered
+                with self.assertRaises(ValueError): normalize_selection(value, 'snapshot-1', 0)
