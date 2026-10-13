@@ -4490,10 +4490,13 @@ def report_to_html(report: DiagnosticReport, metadata: Mapping[str, Any]) -> str
         for t in report.next_tests
     )
     summaries = "".join(f"<li>{esc(x)}</li>" for x in report.summary)
+    from .cellular_report import report_html as cellular_html
+    cellular = report.normalized_metrics.get('android_cellular_report')
+    cellular_section = cellular_html(cellular, fragment=True) if cellular else '' 
     return f"""<!doctype html><html><head><meta charset='utf-8'><title>Veilbreaker {esc(metadata.get('run_id',''))}</title>
 <style>body{{font-family:system-ui,-apple-system,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;color:#13202b}}h1{{margin-bottom:0}}.muted{{color:#617181}}table{{border-collapse:collapse;width:100%}}td,th{{border-bottom:1px solid #ddd;padding:9px;text-align:left}}section{{border-left:4px solid #778899;padding-left:14px;margin:20px 0}}code{{background:#eef2f4;padding:2px 5px}}</style></head><body>
 <h1>Veilbreaker Field Diagnostic Report</h1><p class='muted'>Run {esc(metadata.get('run_id'))} · Site {esc(metadata.get('site_id'))} · {esc(metadata.get('timestamp'))}</p>
-<h2>Assessment</h2><ul>{summaries}</ul><h2>Likely causes</h2><table><tr><th>#</th><th>Hypothesis</th><th>Score</th><th>Status</th></tr>{hyp_rows}</table>
+<h2>Assessment</h2><ul>{summaries}</ul>{cellular_section}<h2>Likely causes</h2><table><tr><th>#</th><th>Hypothesis</th><th>Score</th><th>Status</th></tr>{hyp_rows}</table>
 <h2>Findings</h2>{finding_blocks}<h2>Next best tests</h2><ol>{test_blocks}</ol></body></html>"""
 
 
@@ -4502,6 +4505,13 @@ def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, An
     run_dir = config.artifacts_dir / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     metadata = {"run_id": run_id, "site_id": config.site_id, "scenario": config.scenario, "timestamp": utcnow_iso()}
+    phone_source = run_dir / 'android-capture.json'
+    if phone_source.exists():
+        from .android_capture import load_capture
+        from .cellular_report import build_report, report_html as cellular_html
+        cellular = build_report(load_capture(phone_source)['envelope'])
+        report.normalized_metrics['android_cellular_report'] = cellular
+        (run_dir / 'cellular_report.html').write_text(cellular_html(cellular), encoding='utf-8')
     (run_dir / "metrics.json").write_text(json.dumps(dict(metrics), indent=2, default=str) + "\n", encoding="utf-8")
     (run_dir / "report.json").write_text(report.to_json() + "\n", encoding="utf-8")
     (run_dir / "report.txt").write_text(render_professional_console(report, metadata) + "\n", encoding="utf-8")
@@ -4724,7 +4734,7 @@ class VeilbreakerApplication:
             notes.extend(phone['notes'])
             phone_report = self.engine.analyze(phone['metrics'])
             report.summary.append(('Live USB Android session' if android_live else 'Saved Android input') + ': phone measurements evaluated separately from desktop network tests. Capture time: ' + phone['provenance']['received_utc'])
-            if android_live: report.summary.extend(phone['notes'])
+            if android_live: report.summary.append('See Cellular report for serving-cell details, signal tables, sample freshness and trends.')
             report.summary.extend('Phone RF: ' + finding.title + ' — ' + finding.observation for finding in phone_report.findings)
             report.normalized_metrics.update(phone_metrics)
             (artifact_dir / 'android-capture.json').write_bytes(phone['raw_bytes'])

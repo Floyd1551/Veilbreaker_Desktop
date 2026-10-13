@@ -106,6 +106,11 @@ class MainActivity : Activity() {
                 val outcome = if (error != null || source.isEmpty() || source.size > 256) "partial" else "complete"
                 val snapshot = CaptureSerializer.envelope(Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE,
                     Build.VERSION.SDK_INT, "0.2.0-dev", source.take(256).map { CellularSnapshot.cell(it,elapsed) }, elapsed, outcome, notes, started)
+                val selectedManager = getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected.subscriptionId)
+                snapshot.getJSONArray("subscriptions").getJSONObject(0)
+                    .put("network_operator", selectedManager.networkOperatorName)
+                    .put("sim_carrier", selected.carrierName?.toString() ?: "")
+                    .put("slot_index", selected.simSlotIndex)
                 snapshot.getJSONObject("collection").put("permissions", JSONObject().put("phone_state", "granted").put("fine_location", "granted"))
                 if (usb != null) {
                     usb!!.accept(snapshot)

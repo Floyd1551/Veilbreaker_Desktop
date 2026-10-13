@@ -20,6 +20,7 @@ object CellularSnapshot {
             is CellInfoLte -> {
                 val id = info.cellIdentity
                 string("mcc", id.mccString); string("mnc", id.mncString)
+                string("operator_alpha_long", id.operatorAlphaLong?.toString())
                 string("cell_id", if (id.ci == Int.MAX_VALUE) null else id.ci.toString())
                 integer("pci", id.pci); integer("tac", id.tac); integer("earfcn", id.earfcn)
                 integer("bandwidth_khz", id.bandwidth)
@@ -36,6 +37,7 @@ object CellularSnapshot {
             is CellInfoNr -> {
                 val id = info.cellIdentity as CellIdentityNr
                 string("mcc", id.mccString); string("mnc", id.mncString)
+                string("operator_alpha_long", id.operatorAlphaLong?.toString())
                 string("cell_id", if (id.nci == Long.MAX_VALUE) null else id.nci.toString())
                 integer("pci", id.pci); integer("tac", id.tac); integer("nrarfcn", id.nrarfcn)
                 if (Build.VERSION.SDK_INT >= 30) identity.put("bands", JSONArray(id.bands.toList()))

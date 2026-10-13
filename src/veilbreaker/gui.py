@@ -537,6 +537,9 @@ class MainWindow(QMainWindow):
         export_actions.addWidget(button("Export band CSV…", lambda: self.export_sdr_report("csv")))
         sdr_layout.addLayout(export_actions)
         self.tabs.addTab(sdr_panel, "SDR report")
+        self.cellular_report_view = OfflineReportBrowser()
+        self.cellular_report_view.setHtml('<p>No Android cellular evidence in this run.</p>')
+        self.tabs.addTab(self.cellular_report_view, 'Cellular')
         self.tabs.currentChanged.connect(self.compact_diagnostics)
         layout.addWidget(self.tabs, 1)
         self.add_scroll_page(widget)
@@ -1065,6 +1068,15 @@ class MainWindow(QMainWindow):
         self.sweep_selector.blockSignals(False)
         self.select_sweep()
         self.refresh_sdr_report()
+        from .cellular_report import build_report, report_html as cellular_html
+        cellular = report.get('normalized_metrics', {}).get('android_cellular_report')
+        if not cellular:
+            try:
+                from .android_capture import load_capture
+                source = Path(payload.get('artifact_dir') or self.config.artifacts_dir / payload['run_id']) / 'android-capture.json'
+                if source.exists(): cellular = build_report(load_capture(source)['envelope'])
+            except (ValueError, OSError): pass
+        self.cellular_report_view.setHtml(cellular_html(cellular) if cellular else '<p>No Android cellular evidence in this run.</p>')
         self.compact_diagnostics(self.tabs.currentIndex())
 
     def filter_metrics(self):
