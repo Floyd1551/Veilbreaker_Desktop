@@ -23,6 +23,9 @@ class MainActivity : Activity() {
     private var choices: List<SubscriptionInfo> = emptyList()
     private var generation = 0
     private var pending = false
+    private var usb: UsbSession? = null
+    private var endpoint: LoopbackEndpoint? = null
+    private lateinit var usbStatus: TextView
     private var capture: JSONObject? = null
     private var exportText: String? = null
     private val permissions = arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -41,7 +44,9 @@ class MainActivity : Activity() {
         }
         subscriptions = Spinner(this); layout.addView(subscriptions)
         captureButton = button("Capture selected SIM snapshot") { takeSnapshot() }
-        button("Stop pending request") { cancelPending() }
+        button("Stop pending request / USB session") { stopUsb(); cancelPending() }
+        button("Arm USB session for selected SIM") { armUsb() }
+        usbStatus = text("USB collection is disarmed. Select a SIM, arm here, then enter the token in Desktop. Keep this app visible.")
         exportButton = button("Export capture JSON") {
             capture?.let {
                 exportText = it.toString(2)
@@ -62,10 +67,11 @@ class MainActivity : Activity() {
         checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
     private fun refresh() {
+        if (usb != null) return
         choices = if (allowed()) try { getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList ?: emptyList() } catch (_: SecurityException) { emptyList() } else emptyList()
         subscriptions.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
             listOf("Choose a SIM…") + choices.map { "SIM slot ${it.simSlotIndex + 1} · ${it.displayName}" })
-        captureButton.isEnabled = allowed() && choices.isNotEmpty() && !pending
+        captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty() && !pending
         if (choices.isEmpty()) status.text = "No available subscription, or permissions are missing. No capture started."
     }
 
@@ -87,7 +93,7 @@ class MainActivity : Activity() {
         status.text = "Requesting public cell information…"
         fun finish(cells: List<CellInfo>?, error: String?) {
             if (generation != token || !pending) return
-            pending = false; subscriptions.isEnabled = true
+            pending = false; subscriptions.isEnabled = usb == null
             val elapsed = SystemClock.elapsedRealtime()
             try {
                 val stillPresent = getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId == selected.subscriptionId } == true
@@ -98,15 +104,22 @@ class MainActivity : Activity() {
                 if (source.isEmpty()) notes.add("No cell observations returned. Android may rate-limit updates.")
                 if (source.size > 256) notes.add("Cell list limited to first 256 entries.")
                 val outcome = if (error != null || source.isEmpty() || source.size > 256) "partial" else "complete"
-                capture = CaptureSerializer.envelope(Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE,
-                    Build.VERSION.SDK_INT, "0.1.0-dev", source.take(256).map { CellularSnapshot.cell(it,elapsed) }, elapsed, outcome, notes, started)
-                capture!!.getJSONObject("collection").put("permissions", JSONObject().put("phone_state", "granted").put("fine_location", "granted"))
-                filesDir.resolve("last-capture.json").writeText(capture!!.toString())
+                val snapshot = CaptureSerializer.envelope(Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE,
+                    Build.VERSION.SDK_INT, "0.2.0-dev", source.take(256).map { CellularSnapshot.cell(it,elapsed) }, elapsed, outcome, notes, started)
+                snapshot.getJSONObject("collection").put("permissions", JSONObject().put("phone_state", "granted").put("fine_location", "granted"))
+                if (usb != null) {
+                    usb!!.accept(snapshot)
+                    if (!stillPresent || !allowed()) usb!!.finish("partial")
+                } else {
+                    capture = snapshot
+                    filesDir.resolve("last-capture.json").writeText(snapshot.toString())
+                }
                 status.text = "Snapshot saved locally. Review and export it to Desktop. Completion does not mean every modem field was available."
             } catch (e: Exception) {
+                usb?.finish("partial")
                 status.text = "Snapshot failed: ${e.message}. Any previous saved capture remains available."
             }
-            showCapture(); captureButton.isEnabled = allowed() && choices.isNotEmpty()
+            showCapture(); captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty()
         }
         handler.postDelayed({ finish(null,"Cell-info request timed out after 15 seconds.") }, 15000)
         try {
@@ -120,14 +133,60 @@ class MainActivity : Activity() {
 
     private fun showCapture() {
         preview.text = capture?.toString(2)?.take(20000) ?: "No saved capture."
-        exportButton.isEnabled = capture != null && !pending
+        exportButton.isEnabled = capture != null && !pending && usb == null
     }
     private fun cancelPending() {
         if (pending) status.text = "Pending request stopped. Previously saved capture is unchanged."
         generation++; pending = false; handler.removeCallbacksAndMessages(null)
-        subscriptions.isEnabled = true; captureButton.isEnabled = allowed() && choices.isNotEmpty(); showCapture()
+        subscriptions.isEnabled = true; captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty(); showCapture()
     }
-    override fun onStop() { cancelPending(); super.onStop() }
+    private fun armUsb() {
+        if (pending || usb != null || !allowed() || choices.getOrNull(subscriptions.selectedItemPosition - 1) == null) {
+            status.text = "Grant permissions, choose a SIM and stop any pending request before arming."; return
+        }
+        if (!getSystemService(LocationManager::class.java).isLocationEnabled) {
+            status.text = "Enable Android location services before arming."; return
+        }
+        val session = UsbSession({ SystemClock.elapsedRealtime() }, { takeSnapshot() }, { value ->
+            capture = value
+            filesDir.resolve("last-capture.json").writeText(value.toString())
+            showCapture()
+        })
+        usb = session
+        try {
+            endpoint = LoopbackEndpoint { name, token, body ->
+                val latch = java.util.concurrent.CountDownLatch(1)
+                var response: JSONObject? = null
+                handler.post {
+                    try {
+                        if (usb === session) response = session.command(name, token, body)
+                    } catch (_: Exception) { } finally { latch.countDown() }
+                }
+                require(latch.await(2, java.util.concurrent.TimeUnit.SECONDS))
+                response ?: throw IllegalArgumentException("Session unavailable")
+            }
+            usbStatus.text = "USB token: ${session.token}\nKeep this app visible. USB debugging must be authorized on this phone."
+            usbStatus.setTextIsSelectable(true)
+            subscriptions.isEnabled = false; captureButton.isEnabled = false; exportButton.isEnabled = false
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            fun tick() {
+                if (usb !== session) return
+                session.expire()
+                handler.postDelayed({ tick() }, 1000)
+            }
+            tick()
+        } catch (_: Exception) {
+            usb = null; status.text = "Cannot open USB endpoint. Stop another companion instance and try again."
+        }
+    }
+
+    private fun stopUsb() {
+        endpoint?.close(); endpoint = null
+        usb?.finish("cancelled"); usb = null
+        usbStatus.text = "USB session stopped. Arm again for a new token."
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+    override fun onStop() { stopUsb(); cancelPending(); super.onStop() }
 
     @Deprecated("Platform activity result used to keep the initial companion dependency-light")
     override fun onActivityResult(request: Int, result: Int, data: Intent?) {
