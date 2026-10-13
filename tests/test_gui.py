@@ -228,3 +228,14 @@ class GuiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_android_attachment_is_passed_to_run_and_can_be_cleared(self):
+        self.window.android_input = {'path': 'capture.json', 'expected_sha256': 'hash', 'observation_id': 'snapshot-1', 'cell_index': 0}
+        self.window.android_input_caption = 'Synthetic phone'
+        self.window.update_run_plan()
+        self.assertIn('not live', self.window.run_plan.text())
+        with patch.object(self.window, 'start_job') as start:
+            self.window.run_diagnostic()
+            self.assertEqual(start.call_args.kwargs['options']['android_input']['path'], 'capture.json')
+        self.window.clear_android_input()
+        self.assertNotIn('saved Android input', self.window.run_plan.text())

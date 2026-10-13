@@ -4612,8 +4612,11 @@ class VeilbreakerApplication:
 
     def run(self, *, active: bool = False, sdr: bool = False, throughput: bool = False,
             guided: bool = False, starlink: bool = False, cellular: bool = False,
-            metrics_file: Optional[str] = None, note: Optional[str] = None, run_id: Optional[str] = None) -> RunResult:
+            metrics_file: Optional[str] = None, note: Optional[str] = None, run_id: Optional[str] = None,
+            android_input: Optional[Dict[str, Any]] = None) -> RunResult:
         from .acquisition import Acquisition, collection_summary
+        from .android_import import prepare_input
+        phone = prepare_input(android_input) if android_input else None
         self.acquisition = Acquisition(self.progress)
         run_id = run_id or (_dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", run_id):
@@ -4693,7 +4696,23 @@ class VeilbreakerApplication:
                 report = self.engine.analyze(metrics, context)
                 report.summary.append("Guided diagnostics executed one bounded follow-up test cycle and re-ranked the hypotheses.")
 
+        if phone:
+            # A saved phone reading is a separate receiver/time context. Never
+            # correlate its RF aliases with this computer's live transport tests.
+            phone_metrics = {'phone_' + key: value for key, value in phone['metrics'].items()}
+            complete = phone['provenance']['collection_outcome'] == 'complete' and phone['provenance']['observation_outcome'] == 'complete'
+            self.acquisition.collect('android_input', lambda: (phone_metrics, phone['notes']), complete=lambda _: complete)
+            metrics.update(phone_metrics)
+            notes.extend(phone['notes'])
+            phone_report = self.engine.analyze(phone['metrics'])
+            report.summary.append('Attached Android input: saved phone measurements, evaluated separately from desktop network tests. Capture time: ' + phone['provenance']['received_utc'])
+            report.summary.extend('Phone RF: ' + finding.title + ' — ' + finding.observation for finding in phone_report.findings)
+            report.normalized_metrics.update(phone_metrics)
+            (artifact_dir / 'android-capture.json').write_bytes(phone['raw_bytes'])
+            (artifact_dir / 'android-selection.json').write_text(json.dumps(phone['provenance'], indent=2, ensure_ascii=False), encoding='utf-8')
         collection = self.acquisition.to_dict()
+        if phone:
+            collection['android'] = phone['provenance']
         report.summary.append(collection_summary(collection))
         evidence_zip = write_evidence_pack(self.config, run_id, metrics, report, notes, sweep_summaries, collection)
         self.store.save_run(run_id, self.config.site_id, self.config.scenario, metrics, report,

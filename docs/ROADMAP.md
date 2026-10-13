@@ -216,3 +216,7 @@ Added versioned Android envelope validation, explicit native observation/serving
 ## Android companion source increment — October 11, 2026
 
 Added an initial snapshot-only Kotlin companion and Android CI workflow. Includes public LTE/NR cell observations and JSON export matching the Desktop contract. Compilation/qualification status is recorded in android-companion/README.md; source implementation is not physical compatibility evidence. Timed sessions, lifecycle tests, phone qualification, production signing and survey attachment remain open.
+
+## Android diagnostic input — 0.30.0rc1
+
+Saved Android captures now attach to Run diagnostic instead of starting a standalone import. Phone measurements, source time and original evidence share the run with selected collectors while retaining separate RF interpretation. Clear the attachment to remove it. Live USB sessions and survey queue attachment remain pending; USB design is in docs/superpowers/specs/2026-10-13-android-usb-input-design.md.

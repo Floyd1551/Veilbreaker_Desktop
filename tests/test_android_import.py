@@ -37,3 +37,27 @@ class ImportTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'changed'):
                 import_capture(cfg, 'examples/android-cellular-v1.json', 'bad', 'snapshot-1', 0)
             self.assertFalse(cfg.db_path.exists())
+
+    def test_attached_input_shares_run_and_keeps_receiver_metrics_separate(self):
+        source = Path('examples/android-cellular-v1.json')
+        capture = load_capture(source)
+        selection = dict(path=str(source), expected_sha256=capture['sha256'], observation_id='snapshot-1', cell_index=0)
+        with tempfile.TemporaryDirectory() as folder:
+            cfg = core.AppConfig(data_dir=folder)
+            app = core.VeilbreakerApplication(cfg)
+            try:
+                with patch.object(app, 'collect_passive', return_value=({'rsrp': -80}, [])):
+                    result = app.run(android_input=selection)
+                self.assertEqual(result.metrics['rsrp'], -80)
+                self.assertEqual(result.metrics['phone_rsrp'], -95)
+                self.assertEqual(result.collection['android']['source_kind'], 'saved_android_capture')
+                self.assertEqual(app.store.db.execute('SELECT COUNT(*) FROM runs').fetchone()[0], 1)
+                self.assertFalse(result.run_id.startswith('android-'))
+                with zipfile.ZipFile(result.evidence_zip) as bundle:
+                    self.assertEqual(bundle.read('android-capture.json'), capture['raw_bytes'])
+                self.assertEqual(verify_bundle(result.evidence_zip)['status'], 'verified')
+                selection['expected_sha256'] = 'changed'
+                with patch.object(app, 'collect_passive', side_effect=AssertionError('must validate first')):
+                    with self.assertRaisesRegex(ValueError, 'changed'): app.run(android_input=selection)
+            finally:
+                app.close()

@@ -395,7 +395,8 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.run_button)
         actions.addWidget(button("Check selected test readiness", self.check_selected_readiness))
         actions.addWidget(self.import_button)
-        actions.addWidget(button("Import Android capture…", self.import_android_capture))
+        actions.addWidget(button("Attach Android input…", self.import_android_capture))
+        actions.addWidget(button("Clear Android input", self.clear_android_input))
         actions.addWidget(self.cancel_button)
         self.retry_button = button("Retry after reconnect", self.retry_diagnostic)
         self.retry_button.setToolTip("Start a new diagnostic using the previous request and rediscover hardware. Requested active tests will run again.")
@@ -757,7 +758,13 @@ class MainWindow(QMainWindow):
         if options["throughput"] and not self.config.iperf3_server:
             self.error("Set iperf3_server in Settings before enabling throughput.")
             return
+        if getattr(self, 'android_input', None):
+            options['android_input'] = dict(self.android_input)
         self.start_job("run", options=options)
+
+    def clear_android_input(self):
+        self.android_input = None
+        self.update_run_plan()
 
     def update_run_plan(self):
         parts = ["Host and link snapshot"]
@@ -771,6 +778,8 @@ class MainWindow(QMainWindow):
             parts.append(f"throughput to {self.config.iperf3_server or 'an unconfigured server (set it in Settings)'}")
         if self.flags["guided"].isChecked():
             parts.append("one guided follow-up cycle")
+        if getattr(self, 'android_input', None):
+            parts.append('saved Android input (' + self.android_input_caption + '; not live)')
         self.run_plan.setText("This run: " + "; ".join(parts) + ".")
 
     def selected_capture_settings(self):
@@ -796,13 +805,19 @@ class MainWindow(QMainWindow):
         try:
             capture = load_capture(Path(path))
             dialog = AndroidImportDialog(self, capture)
+            dialog.repeat.hide()
+            dialog.import_button.setText('Use as diagnostic input')
             destination = QLabel(f'Destination site: {self.site.text()} · Scenario: {self.scenario.currentText()}')
             destination.setTextFormat(Qt.TextFormat.PlainText)
             destination.setWordWrap(True)
             dialog.layout().insertWidget(0, destination)
             if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selection():
                 observation, cell = dialog.selection()
-                self.start_job('android_import', input=path, expected_sha256=capture['sha256'], observation_id=observation, cell_index=cell, allow_repeat=dialog.repeat.isChecked())
+                self.android_input = dict(path=path, expected_sha256=capture['sha256'], observation_id=observation, cell_index=cell)
+                obs = next(o for o in capture['envelope']['observations'] if o['observation_id'] == observation)
+                self.android_input_caption = capture['envelope']['device']['model'] + ' · ' + obs['received_utc']
+                self.update_run_plan()
+                self.statusBar().showMessage('Android input attached. Select diagnostic options and press Run diagnostic. No test has started.')
         except (OSError, ValueError) as exc:
             self.error(str(exc))
 

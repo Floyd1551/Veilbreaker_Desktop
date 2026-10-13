@@ -42,3 +42,14 @@ def import_capture(config, path, expected_sha256, observation_id, cell_index, al
                 'notes':notes, 'collection':collection, 'sweeps':[], 'artifact_dir':str(artifact_dir), 'evidence_zip':str(pack)}
     finally:
         app.close()
+
+
+def prepare_input(selection):
+    """Validate an attached capture before starting any diagnostic collectors."""
+    capture = load_capture(selection['path'])
+    require(capture['sha256'] == selection['expected_sha256'], 'Android input changed since selection; attach it again.')
+    selected = normalize_selection(capture['envelope'], selection['observation_id'], selection['cell_index'])
+    selected['provenance']['source_sha256'] = capture['sha256']
+    selected['provenance']['source_kind'] = 'saved_android_capture'
+    selected['raw_bytes'] = capture['raw_bytes']
+    return selected
