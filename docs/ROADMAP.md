@@ -224,3 +224,7 @@ Saved Android captures now attach to Run diagnostic instead of starting a standa
 ## Android live USB input — 0.31.0rc1
 
 Companion 0.2 adds armed foreground USB sessions. Desktop selects an authorized USB device, requests bounded samples and retains raw sessions plus per-cell ranges/change/age summaries in the normal diagnostic evidence bundle. Saved captures remain an alternative input. Tokens are ephemeral and excluded from retry history. Physical-device qualification, survey-queue attachment and stable APK signing remain pending.
+
+### 0.31.0rc2 Windows USB discovery fix
+
+Verified against the connected Samsung: Windows platform-tools 37.0.1 omits USB bus paths and rejects devices --proto-text. Fall back to ADB's USB-only -d get-serialno selector; refuse ambiguity instead of inferring transport from serial shape. Existing companion APK remains compatible.

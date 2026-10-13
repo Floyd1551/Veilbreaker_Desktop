@@ -31,9 +31,16 @@ def list_devices(path):
             return devices
     except (ValueError, subprocess.SubprocessError):
         pass
+    # Released Windows builds may support neither proto-text nor usb: paths.
+    # -d resolves only a USB transport and fails on ambiguity; never infer USB
+    # merely from a serial's shape (Wi-Fi transports must remain excluded).
+    try:
+        usb_serial = adb(path, '-d', 'get-serialno')
+    except (ValueError, subprocess.SubprocessError):
+        usb_serial = None
     for line in adb(path, 'devices', '-l').splitlines()[1:]:
         parts = line.split()
-        if len(parts) >= 2 and any(p.startswith('usb:') for p in parts[2:]):
+        if len(parts) >= 2 and (parts[0] == usb_serial or any(p.startswith('usb:') for p in parts[2:])):
             if re.fullmatch(r'[A-Za-z0-9_-]{1,128}', parts[0]):
                 devices.append({'serial': parts[0], 'state': parts[1]})
     return devices
@@ -70,7 +77,7 @@ def request(port, token, command, session_id=None, **fields):
 def collect_session(adb_path, serial, token, duration_s, cancelled=lambda: False, progress=None, checkpoint=None):
     if cancelled(): raise ValueError('USB session cancelled before collection')
     if type(duration_s) is not int or not 5 <= duration_s <= 300:
-        raise ValueError('USB session duration must be 5â€“300 seconds')
+        raise ValueError('USB session duration must be 5Ã¢â‚¬â€œ300 seconds')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', serial or '') or not re.fullmatch(r'[a-f0-9]{32}', token or ''):
         raise ValueError('Select a USB device and enter the current 32-character phone token')
     if {'serial': serial, 'state': 'device'} not in list_devices(adb_path):

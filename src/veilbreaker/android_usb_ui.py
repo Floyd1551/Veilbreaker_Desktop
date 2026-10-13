@@ -13,7 +13,7 @@ class AndroidUsbDialog(QDialog):
         layout.addWidget(QLabel('ADB executable (platform-tools path, or adb on PATH)'))
         self.path = QLineEdit('adb'); layout.addWidget(self.path)
         refresh = QPushButton('Refresh USB devices'); layout.addWidget(refresh)
-        self.devices = QComboBox(); self.devices.addItem('Choose an authorized USB device…', None); layout.addWidget(self.devices)
+        self.devices = QComboBox(); self.devices.addItem('Choose an authorized USB deviceâ€¦', None); layout.addWidget(self.devices)
         layout.addWidget(QLabel('Current companion token (used once; never saved in settings)'))
         self.token = QLineEdit(); self.token.setEchoMode(QLineEdit.EchoMode.Password); layout.addWidget(self.token)
         self.duration = QSpinBox(); self.duration.setRange(5, 300); self.duration.setValue(30); self.duration.setSuffix(' seconds'); layout.addWidget(self.duration)
@@ -24,11 +24,11 @@ class AndroidUsbDialog(QDialog):
         cancel = QPushButton('Cancel'); cancel.clicked.connect(self.reject); layout.addWidget(cancel)
 
     def refresh(self):
-        self.devices.clear(); self.devices.addItem('Choose an authorized USB device…', None)
+        self.devices.clear(); self.devices.addItem('Choose an authorized USB deviceâ€¦', None)
         try:
             for device in list_devices(self.path.text().strip()):
-                self.devices.addItem(device['serial'] + ' · ' + device['state'], device['serial'] if device['state'] == 'device' else None)
-            self.message.setText('Select an authorized USB device. If none appear, check cable, drivers and the phone authorization prompt.')
+                self.devices.addItem(device['serial'] + ' Â· ' + device['state'], device['serial'] if device['state'] == 'device' else None)
+            self.message.setText('Select an authorized USB device. If none appear, check cable, drivers and phone authorization. On Windows, connect only one USB phone while selecting.')
         except Exception:
             self.message.setText('ADB unavailable. Install official Android platform-tools or enter its full executable path.')
 

@@ -87,3 +87,19 @@ class UsbTests(unittest.TestCase):
         value['observations'].append(other)
         signal = summarize_session(value)['registered_cells'][0]['signals']['rsrp']
         self.assertEqual(signal, dict(min=-105,max=-95,first=-95,last=-105,change=-10,unit='dBm'))
+
+    def test_windows_adb_without_proto_or_bus_path_uses_usb_selector(self):
+        def command(path, *args):
+            if args == ('devices', '--proto-text'): raise ValueError('unsupported option')
+            if args == ('-d', 'get-serialno'): return 'PHONE123'
+            if args == ('devices', '-l'): return 'List of devices attached\nPHONE123 device product:test model:Test transport_id:1\n192.168.1.2:5555 device model:Other\n'
+            raise AssertionError(args)
+        with patch('veilbreaker.android_usb.adb', side_effect=command):
+            self.assertEqual(list_devices('adb'), [dict(serial='PHONE123',state='device')])
+
+    def test_ambiguous_windows_usb_is_not_guessed(self):
+        def command(path, *args):
+            if args == ('devices', '-l'): return 'List of devices attached\nPHONE123 device transport_id:1\nPHONE456 device transport_id:2\n'
+            raise ValueError('unsupported or multiple USB devices')
+        with patch('veilbreaker.android_usb.adb', side_effect=command):
+            self.assertEqual(list_devices('adb'), [])

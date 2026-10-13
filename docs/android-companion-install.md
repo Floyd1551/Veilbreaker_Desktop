@@ -1,9 +1,9 @@
 # Android companion and live USB input
 
-Desktop 0.31.0rc1 and Companion 0.2.0-dev support foreground USB cellular sessions as an input to an ordinary diagnostic run. This is development functionality; physical Samsung qualification remains outstanding. Only public Android LTE/NR data is available, not the entire decoded modem feed.
+Desktop 0.31.0rc2 and Companion 0.2.0-dev support foreground USB cellular sessions as an input to an ordinary diagnostic run. This is development functionality; physical Samsung qualification remains outstanding. Only public Android LTE/NR data is available, not the entire decoded modem feed.
 
 ## Setup
-1. Install Desktop 0.31.0rc1 and transfer/install `Veilbreaker-Companion-0.2.0-dev.apk` on Android 10 or newer.
+1. Install Desktop 0.31.0rc2 and transfer/install `Veilbreaker-Companion-0.2.0-dev.apk` on Android 10 or newer.
 2. Install current official [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) on the computer. Desktop accepts the full path to `adb.exe` on Windows or `adb` on Linux. Platform-tools and phone USB drivers are not bundled.
 3. Enable USB debugging in the phone's developer options, connect with a data-capable USB cable, and personally approve the computer's debugging authorization prompt on the phone.
 4. Open Companion, grant phone and precise-location permissions, enable Android location services, refresh SIMs, and choose the desired SIM. GPS coordinates are not collected.
@@ -22,7 +22,7 @@ Cancel requests cooperative shutdown and retains completed phone observations. D
 Capture a snapshot, export JSON using Android's document picker and copy it to the computer. Choose **Attach Android input…**, select a registered LTE/NR cell, then **Run diagnostic**. The attachment remains visibly labeled saved until cleared. This method does not need USB debugging and still works without ADB.
 
 ## Troubleshooting
-- No devices: check current platform-tools, data cable, USB driver, debugging and authorization. Offline/unauthorized devices cannot be selected. Wi-Fi ADB and emulators are excluded.
+- No devices: check current platform-tools, data cable, USB driver, debugging and authorization. Offline/unauthorized devices cannot be selected. On Windows ADB versions without transport metadata, connect only one USB phone; the USB-only selector refuses ambiguous devices. Wi-Fi ADB and emulators are excluded.
 - Rejected token/session: stop and arm again on the phone, then configure a fresh live input in Desktop. Keep Companion visible.
 - No cell data: confirm precise-location permission, Android location services and an active SIM. OEM/carrier APIs may omit fields or return cached/empty results.
 - Development APK update rejected: CI debug keys may differ between builds. Export any capture first; uninstalling the old companion removes its local data. Stable production signing is not implemented.
