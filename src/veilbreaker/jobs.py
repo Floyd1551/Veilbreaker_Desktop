@@ -62,8 +62,12 @@ def execute(request, progress=None):
         raise ValueError(f"Unknown task: {action}")
     app = core.VeilbreakerApplication(cfg, progress=progress)
     try:
+        options = dict(request.get('options', {}))
+        if options.get('android_live'):
+            marker = request.get('cancel_path')
+            options['cancelled'] = lambda: bool(marker and Path(marker).exists())
         result = (app.analyze_file(request["input"]) if action == "analyze"
-                  else app.run(**request.get("options", {})))
+                  else app.run(**options))
         return {"report": result.report.to_dict(), "metrics": result.metrics,
                 "notes": result.notes, "run_id": result.run_id,
                 "site_id": cfg.site_id, "evidence_zip": str(result.evidence_zip),
@@ -79,7 +83,9 @@ def worker_main(args):
         os.setsid()  # Give cancellation its own process group, including collector children.
     source, destination = map(Path, args)
     try:
-        payload = {"ok": True, "result": execute(json.loads(source.read_text(encoding="utf-8")),
+        request = json.loads(source.read_text(encoding="utf-8"))
+        source.unlink()  # Ephemeral USB credentials must not outlive worker startup.
+        payload = {"ok": True, "result": execute(request,
                     progress=lambda event: print(json.dumps(event, ensure_ascii=True), flush=True))}
         rc = 0
     except Exception as exc:

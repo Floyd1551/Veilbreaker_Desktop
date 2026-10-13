@@ -19,6 +19,18 @@ def adb(path, *args):
 
 def list_devices(path):
     devices = []
+    # Modern platform-tools reports transport type explicitly on Windows too.
+    try:
+        proto = adb(path, 'devices', '--proto-text')
+        if 'device {' in proto or not proto.strip():
+            for record in re.findall(r'device \{(.*?)\n\}', proto, re.S):
+                serial = re.search(r'serial: "([A-Za-z0-9_-]{1,128})"', record)
+                state = re.search(r'state: ([A-Z]+)', record)
+                if serial and state and re.search(r'connection_type: USB\b', record):
+                    devices.append({'serial': serial.group(1), 'state': state.group(1).lower()})
+            return devices
+    except (ValueError, subprocess.SubprocessError):
+        pass
     for line in adb(path, 'devices', '-l').splitlines()[1:]:
         parts = line.split()
         if len(parts) >= 2 and any(p.startswith('usb:') for p in parts[2:]):
@@ -56,8 +68,9 @@ def request(port, token, command, session_id=None, **fields):
 
 
 def collect_session(adb_path, serial, token, duration_s, cancelled=lambda: False, progress=None, checkpoint=None):
+    if cancelled(): raise ValueError('USB session cancelled before collection')
     if type(duration_s) is not int or not 5 <= duration_s <= 300:
-        raise ValueError('USB session duration must be 5–300 seconds')
+        raise ValueError('USB session duration must be 5â€“300 seconds')
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,128}', serial or '') or not re.fullmatch(r'[a-f0-9]{32}', token or ''):
         raise ValueError('Select a USB device and enter the current 32-character phone token')
     if {'serial': serial, 'state': 'device'} not in list_devices(adb_path):
@@ -70,6 +83,7 @@ def collect_session(adb_path, serial, token, duration_s, cancelled=lambda: False
     session = None
     outcome = 'partial'
     try:
+        if cancelled(): raise ValueError('USB session cancelled before collection')
         response = request(port, token, 'start', duration_s=duration_s)
         session = response['session_id']
         deadline = time.monotonic() + duration_s
@@ -119,8 +133,13 @@ def summarize_session(capture):
         for cell in obs['cells']:
             if cell.get('registered') is not True: continue
             identity = json.dumps([obs['subscription_key'], cell['radio'], cell['identity']], sort_keys=True)
-            group = groups.setdefault(identity, {'radio': cell['radio'], 'identity': cell['identity'], 'samples': 0})
+            group = groups.setdefault(identity, {'radio': cell['radio'], 'identity': cell['identity'], 'samples': 0, 'signals': {}})
             group['samples'] += 1
+            for name, quantity in cell['signal'].items():
+                value = quantity.get('value') if isinstance(quantity, dict) else None
+                if type(value) not in (int, float): continue
+                stats = group['signals'].setdefault(name, dict(min=value, max=value, first=value, last=value, change=0, unit=quantity.get('unit')))
+                stats.update(min=min(stats['min'], value), max=max(stats['max'], value), last=value, change=value-stats['first'])
             age = cell.get('age_ms')
             if age is None: unknown += 1
             else:

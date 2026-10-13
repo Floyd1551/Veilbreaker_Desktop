@@ -32,11 +32,11 @@ jobs:
       - name: Validate Kotlin fixture with Desktop contract
         env:
           PYTHONPATH: src
-        run: python -c "from pathlib import Path; from veilbreaker.android_capture import load_capture; print(load_capture(Path('android-companion/app/build/contract-fixture.json'))['sha256'])"
+        run: python -c "from pathlib import Path; from veilbreaker.android_capture import load_capture; [print(load_capture(p)['sha256']) for p in [Path('android-companion/app/build/contract-fixture.json'), Path('android-companion/app/build/session-fixture.json')]]"
       - uses: actions/upload-artifact@v4
         with:
           name: veilbreaker-android-debug
           path: |
             android-companion/app/build/outputs/apk/debug/*.apk
             android-companion/app/build/reports/tests/
-            android-companion/app/build/contract-fixture.json
+            android-companion/app/build/*fixture.json

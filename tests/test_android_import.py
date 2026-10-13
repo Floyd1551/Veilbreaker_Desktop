@@ -1,5 +1,6 @@
 from pathlib import Path
 import tempfile
+import json
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -61,3 +62,19 @@ class ImportTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, 'changed'): app.run(android_input=selection)
             finally:
                 app.close()
+
+    def test_live_input_is_one_run_and_preserves_session(self):
+        from test_android_capture import fixture
+        capture = fixture()
+        capture['collection']['mode'] = 'session'
+        with tempfile.TemporaryDirectory() as folder:
+            app = core.VeilbreakerApplication(core.AppConfig(data_dir=folder))
+            try:
+                with patch.object(app, 'collect_passive', return_value=({'rsrp': -80}, [])), patch('veilbreaker.android_usb.collect_session', return_value=capture):
+                    result = app.run(android_live=dict(adb_path='adb', serial='ABC', token='a'*32, duration_s=5))
+                self.assertEqual(result.metrics['rsrp'], -80)
+                self.assertEqual(result.metrics['phone_observation_count'], 1)
+                self.assertEqual(result.collection['android']['source_kind'], 'live_android_usb')
+                self.assertNotIn('a'*32, json.dumps(result.report.to_dict()))
+                self.assertEqual(verify_bundle(result.evidence_zip)['status'], 'verified')
+            finally: app.close()

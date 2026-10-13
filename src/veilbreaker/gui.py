@@ -396,6 +396,7 @@ class MainWindow(QMainWindow):
         actions.addWidget(button("Check selected test readiness", self.check_selected_readiness))
         actions.addWidget(self.import_button)
         actions.addWidget(button("Attach Android input…", self.import_android_capture))
+        actions.addWidget(button("Live Android USB…", self.configure_android_usb))
         actions.addWidget(button("Clear Android input", self.clear_android_input))
         actions.addWidget(self.cancel_button)
         self.retry_button = button("Retry after reconnect", self.retry_diagnostic)
@@ -760,10 +761,26 @@ class MainWindow(QMainWindow):
             return
         if getattr(self, 'android_input', None):
             options['android_input'] = dict(self.android_input)
+        if getattr(self, 'android_live', None):
+            options['android_live'] = dict(self.android_live)
+            self.android_live = None
+            self.update_run_plan()
         self.start_job("run", options=options)
+
+    def configure_android_usb(self):
+        if self.process is not None: return
+        from .android_usb_ui import AndroidUsbDialog
+        dialog = AndroidUsbDialog(self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.android_live = dialog.selection()
+            self.android_input = None
+            self.update_run_plan()
+            self.statusBar().showMessage('Live USB input prepared. Press Run diagnostic; keep Companion armed and visible.')
+        dialog.token.clear()
 
     def clear_android_input(self):
         self.android_input = None
+        self.android_live = None
         self.update_run_plan()
 
     def update_run_plan(self):
@@ -780,6 +797,8 @@ class MainWindow(QMainWindow):
             parts.append("one guided follow-up cycle")
         if getattr(self, 'android_input', None):
             parts.append('saved Android input (' + self.android_input_caption + '; not live)')
+        if getattr(self, 'android_live', None):
+            parts.append(f"live Android USB session ({self.android_live['duration_s']} seconds)")
         self.run_plan.setText("This run: " + "; ".join(parts) + ".")
 
     def selected_capture_settings(self):
@@ -813,6 +832,7 @@ class MainWindow(QMainWindow):
             dialog.layout().insertWidget(0, destination)
             if dialog.exec() == QDialog.DialogCode.Accepted and dialog.selection():
                 observation, cell = dialog.selection()
+                self.android_live = None
                 self.android_input = dict(path=path, expected_sha256=capture['sha256'], observation_id=observation, cell_index=cell)
                 obs = next(o for o in capture['envelope']['observations'] if o['observation_id'] == observation)
                 self.android_input_caption = capture['envelope']['device']['model'] + ' · ' + obs['received_utc']
@@ -840,7 +860,7 @@ class MainWindow(QMainWindow):
             return
         cfg = self.effective_config()
         if action == "run":
-            self.last_run_request = json.loads(json.dumps(extra))
+            self.last_run_request = None if extra.get('options', {}).get('android_live') else json.loads(json.dumps(extra))
         preset = extra.pop("capture_settings", None)
         if preset:
             from .rf_workflow import apply_preset
@@ -859,7 +879,10 @@ class MainWindow(QMainWindow):
             cfg.sdr.enabled = bool(opts.get("sdr"))
         self.job_dir = tempfile.TemporaryDirectory(prefix="veilbreaker-job-")
         job_path = Path(self.job_dir.name)
+        self.live_usb_job = bool(extra.get('options', {}).get('android_live'))
+        self.usb_cancel_requested = False
         request = {"action": action, "config": cfg.to_dict(), **extra}
+        if self.live_usb_job: request['cancel_path'] = str(job_path / 'cancel')
         (job_path / "request.json").write_text(json.dumps(request), encoding="utf-8")
         self.cancelled = False
         process = QProcess(self)
@@ -975,6 +998,14 @@ class MainWindow(QMainWindow):
 
     def cancel_task(self):
         if self.process is None:
+            return
+        if getattr(self, 'live_usb_job', False) and not getattr(self, 'usb_cancel_requested', False):
+            self.usb_cancel_requested = True
+            (Path(self.job_dir.name) / 'cancel').touch()
+            self.task_cancel.setEnabled(False); self.cancel_button.setEnabled(False)
+            self.statusBar().showMessage('Stopping USB collection and saving partial observations…')
+            process = self.process
+            QTimer.singleShot(20000, lambda: self.cancel_task() if self.process is process else None)
             return
         self.cancelled = True
         self.task_cancel.setEnabled(False)

@@ -29,3 +29,61 @@ class UsbTests(unittest.TestCase):
         result = summarize_session(value)
         self.assertEqual(result['observations'], 2)
         self.assertEqual(result['repeated_samples'], 1)
+
+    def test_partial_disconnect_keeps_capture_and_cleans_owned_forward(self):
+        from veilbreaker.android_usb import collect_session
+        capture = fixture()
+        calls = []
+        def command(path, *args):
+            calls.append(args)
+            return '41234'
+        replies = [dict(session_id='s', status='collecting'),
+                   dict(session_id='s', status='collecting', capture=capture), OSError('disconnected'), OSError('disconnected')]
+        with patch('veilbreaker.android_usb.list_devices', return_value=[dict(serial='ABC',state='device')]), patch('veilbreaker.android_usb.adb', side_effect=command), patch('veilbreaker.android_usb.request', side_effect=replies), patch('veilbreaker.android_usb.time.sleep'), patch('veilbreaker.android_usb.time.monotonic', return_value=0):
+            result = collect_session('adb', 'ABC', 'a'*32, 5)
+        self.assertEqual(result['collection']['outcome'], 'partial')
+        self.assertEqual(result['observations'], capture['observations'])
+        self.assertEqual(calls[-1], ('-s','ABC','forward','--remove','tcp:41234'))
+
+    def test_no_data_failure_still_cleans_forward(self):
+        from veilbreaker.android_usb import collect_session
+        with patch('veilbreaker.android_usb.list_devices', return_value=[dict(serial='ABC',state='device')]), patch('veilbreaker.android_usb.adb', return_value='41234') as command, patch('veilbreaker.android_usb.request', side_effect=ValueError('bad token')):
+            with self.assertRaisesRegex(ValueError, 'No phone observations'):
+                collect_session('adb', 'ABC', 'a'*32, 5)
+            self.assertEqual(command.call_args.args, ('adb','-s','ABC','forward','--remove','tcp:41234'))
+
+    def test_cancel_preserves_completed_observations(self):
+        from veilbreaker.android_usb import collect_session
+        capture = fixture()
+        replies = [dict(session_id='s', status='collecting',capture=capture), dict(session_id='s',status='cancelled',capture=capture), dict(session_id='s',status='cancelled',capture=capture)]
+        with patch('veilbreaker.android_usb.list_devices', return_value=[dict(serial='ABC',state='device')]), patch('veilbreaker.android_usb.adb', return_value='41234'), patch('veilbreaker.android_usb.request', side_effect=replies):
+            result = collect_session('adb', 'ABC', 'a'*32, 5, cancelled=__import__('unittest.mock', fromlist=['Mock']).Mock(side_effect=[False, False, True]))
+        self.assertEqual(result['collection']['outcome'], 'cancelled')
+
+    def test_invalid_target_and_duration_do_not_start_transport(self):
+        from veilbreaker.android_usb import collect_session
+        with patch('veilbreaker.android_usb.adb') as command:
+            for serial, duration in [('ABC',301), ('192.168.1.1:5555',5), ('ABC',0)]:
+                with self.assertRaises(ValueError): collect_session('adb', serial, 'a'*32, duration)
+            command.assert_not_called()
+
+    def test_windows_usb_discovery_without_bus_path(self):
+        output = 'device {\n serial: "ABC"\n state: DEVICE\n connection_type: USB\n}\ndevice {\n serial: "WIFI"\n state: DEVICE\n connection_type: SOCKET\n}'
+        with patch('veilbreaker.android_usb.adb', return_value=output):
+            self.assertEqual(list_devices('adb'), [{'serial':'ABC','state':'device'}])
+
+    def test_precancelled_session_never_uses_adb(self):
+        from veilbreaker.android_usb import collect_session
+        with patch('veilbreaker.android_usb.adb') as command:
+            with self.assertRaisesRegex(ValueError, 'cancelled'):
+                collect_session('adb','ABC','a'*32,5,cancelled=lambda: True)
+            command.assert_not_called()
+
+    def test_signal_ranges_are_per_cell(self):
+        value = fixture()
+        other = json.loads(json.dumps(value['observations'][0]))
+        other['observation_id'] = 'second'
+        other['cells'][0]['signal']['rsrp']['value'] = -105
+        value['observations'].append(other)
+        signal = summarize_session(value)['registered_cells'][0]['signals']['rsrp']
+        self.assertEqual(signal, dict(min=-105,max=-95,first=-95,last=-105,change=-10,unit='dBm'))

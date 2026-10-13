@@ -4613,9 +4613,12 @@ class VeilbreakerApplication:
     def run(self, *, active: bool = False, sdr: bool = False, throughput: bool = False,
             guided: bool = False, starlink: bool = False, cellular: bool = False,
             metrics_file: Optional[str] = None, note: Optional[str] = None, run_id: Optional[str] = None,
-            android_input: Optional[Dict[str, Any]] = None) -> RunResult:
+            android_input: Optional[Dict[str, Any]] = None, android_live: Optional[Dict[str, Any]] = None,
+            cancelled=None) -> RunResult:
         from .acquisition import Acquisition, collection_summary
         from .android_import import prepare_input
+        if android_input and android_live:
+            raise ValueError('Choose saved Android input or live USB, not both')
         phone = prepare_input(android_input) if android_input else None
         self.acquisition = Acquisition(self.progress)
         run_id = run_id or (_dt.datetime.now().strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6])
@@ -4696,16 +4699,32 @@ class VeilbreakerApplication:
                 report = self.engine.analyze(metrics, context)
                 report.summary.append("Guided diagnostics executed one bounded follow-up test cycle and re-ranked the hypotheses.")
 
+        if android_live:
+            from .android_usb import collect_session
+            from .android_import import prepare_live_input
+            def save_phone(value):
+                temporary = artifact_dir / 'android-capture.tmp'
+                temporary.write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
+                temporary.replace(artifact_dir / 'android-capture.json')
+            def collect_phone():
+                nonlocal phone
+                envelope = collect_session(**android_live, cancelled=cancelled or (lambda: False), checkpoint=save_phone)
+                phone = prepare_live_input(envelope)
+                return ({'phone_' + k: v for k, v in phone['metrics'].items()}, phone['notes'])
+            self.acquisition.collect('android_usb', collect_phone,
+                complete=lambda _: phone is not None and phone['provenance']['collection_outcome'] == 'complete')
         if phone:
             # A saved phone reading is a separate receiver/time context. Never
             # correlate its RF aliases with this computer's live transport tests.
             phone_metrics = {'phone_' + key: value for key, value in phone['metrics'].items()}
             complete = phone['provenance']['collection_outcome'] == 'complete' and phone['provenance']['observation_outcome'] == 'complete'
-            self.acquisition.collect('android_input', lambda: (phone_metrics, phone['notes']), complete=lambda _: complete)
+            if not android_live:
+                self.acquisition.collect('android_input', lambda: (phone_metrics, phone['notes']), complete=lambda _: complete)
             metrics.update(phone_metrics)
             notes.extend(phone['notes'])
             phone_report = self.engine.analyze(phone['metrics'])
-            report.summary.append('Attached Android input: saved phone measurements, evaluated separately from desktop network tests. Capture time: ' + phone['provenance']['received_utc'])
+            report.summary.append(('Live USB Android session' if android_live else 'Saved Android input') + ': phone measurements evaluated separately from desktop network tests. Capture time: ' + phone['provenance']['received_utc'])
+            if android_live: report.summary.extend(phone['notes'])
             report.summary.extend('Phone RF: ' + finding.title + ' — ' + finding.observation for finding in phone_report.findings)
             report.normalized_metrics.update(phone_metrics)
             (artifact_dir / 'android-capture.json').write_bytes(phone['raw_bytes'])

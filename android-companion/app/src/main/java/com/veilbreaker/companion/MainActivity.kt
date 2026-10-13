@@ -37,7 +37,7 @@ class MainActivity : Activity() {
         scroll.addView(layout); setContentView(scroll)
         fun text(value: String) = TextView(this).apply { text = value; setPadding(0,12,0,12); layout.addView(this) }
         fun button(value: String, action: () -> Unit) = Button(this).apply { text = value; setOnClickListener { action() }; layout.addView(this) }
-        text("Veilbreaker Companion • Development snapshot").textSize = 23f
+        text("Veilbreaker Companion â€¢ Development snapshot").textSize = 23f
         text("Read the cellular measurements Android exposes. Phone and precise-location permission allow cell information access; this version does not collect GPS coordinates. No raw modem feed or background capture.")
         button("Grant permissions / refresh SIMs") {
             if (allowed()) refresh() else requestPermissions(permissions, 1)
@@ -70,7 +70,7 @@ class MainActivity : Activity() {
         if (usb != null) return
         choices = if (allowed()) try { getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList ?: emptyList() } catch (_: SecurityException) { emptyList() } else emptyList()
         subscriptions.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            listOf("Choose a SIM…") + choices.map { "SIM slot ${it.simSlotIndex + 1} · ${it.displayName}" })
+            listOf("Choose a SIMâ€¦") + choices.map { "SIM slot ${it.simSlotIndex + 1} Â· ${it.displayName}" })
         captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty() && !pending
         if (choices.isEmpty()) status.text = "No available subscription, or permissions are missing. No capture started."
     }
@@ -81,7 +81,7 @@ class MainActivity : Activity() {
     }
 
     private fun takeSnapshot() {
-        if (pending || !allowed()) { status.text = "Grant phone and precise-location permissions first."; return }
+        if (pending || !allowed()) { if (!allowed()) usb?.finish("partial"); status.text = "Grant phone and precise-location permissions first."; return }
         val selected = choices.getOrNull(subscriptions.selectedItemPosition - 1)
         if (selected == null) { status.text = "Choose a SIM explicitly."; return }
         if (!getSystemService(LocationManager::class.java).isLocationEnabled) {
@@ -90,7 +90,7 @@ class MainActivity : Activity() {
         val started = Instant.now().toString()
         val token = ++generation
         pending = true; captureButton.isEnabled = false; exportButton.isEnabled = false; subscriptions.isEnabled = false
-        status.text = "Requesting public cell information…"
+        status.text = "Requesting public cell informationâ€¦"
         fun finish(cells: List<CellInfo>?, error: String?) {
             if (generation != token || !pending) return
             pending = false; subscriptions.isEnabled = usb == null
@@ -109,7 +109,7 @@ class MainActivity : Activity() {
                 snapshot.getJSONObject("collection").put("permissions", JSONObject().put("phone_state", "granted").put("fine_location", "granted"))
                 if (usb != null) {
                     usb!!.accept(snapshot)
-                    if (!stillPresent || !allowed()) usb!!.finish("partial")
+                    if (error != null || !stillPresent || !allowed()) usb!!.finish("partial")
                 } else {
                     capture = snapshot
                     filesDir.resolve("last-capture.json").writeText(snapshot.toString())

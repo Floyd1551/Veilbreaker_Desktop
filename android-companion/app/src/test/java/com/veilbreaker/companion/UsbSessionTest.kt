@@ -30,4 +30,18 @@ class UsbSessionTest {
         session.command("start", session.token, body)
         assertThrows(IllegalArgumentException::class.java) { session.command("start", session.token, body) }
     }
+    @Test fun sessionExportHasNoTokenAndDeadlineStopsSampling() {
+        var clock = 0L
+        var saved: JSONObject? = null
+        val session = UsbSession({clock}, {}, {saved=it})
+        fun cmd(name: String, id: String) = session.command(name, session.token, JSONObject().put("request_id", id).put("session_id", session.id).put("duration_s", 5))
+        cmd("start", "1"); cmd("sample", "2")
+        session.accept(CaptureSerializer.envelope("test", "test", "13", 33, "test", emptyList(), 1, "partial", emptyList()))
+        clock = 5000; session.expire()
+        assertEquals("partial", cmd("status", "3").getString("status"))
+        assertEquals("session", saved!!.getJSONObject("collection").getString("mode"))
+        assertFalse(saved.toString().contains(session.token))
+        val file = java.io.File("build/session-fixture.json")
+        file.parentFile.mkdirs(); file.writeText(saved.toString())
+    }
 }

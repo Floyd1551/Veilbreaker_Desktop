@@ -53,3 +53,31 @@ def prepare_input(selection):
     selected['provenance']['source_kind'] = 'saved_android_capture'
     selected['raw_bytes'] = capture['raw_bytes']
     return selected
+
+
+def prepare_live_input(envelope):
+    from .android_usb import summarize_session
+    from .android_capture import validate_capture
+    validate_capture(envelope)
+    summary = summarize_session(envelope)
+    # Each cell is assessed independently; no strongest-cell selection or averaging.
+    cells = {}
+    for obs in envelope['observations']:
+        for index, cell in enumerate(obs['cells']):
+            if cell.get('registered') is True and cell['radio'] in {'LTE', 'NR'}:
+                key = json.dumps([obs['subscription_key'], cell['radio'], cell['identity']], sort_keys=True)
+                cells[key] = normalize_selection(envelope, obs['observation_id'], index)
+    notes = ['Live USB session: ' + str(summary['observations']) + ' observations; ' + str(summary['repeated_samples']) + ' repeated registered-cell samples; ' + str(summary['unknown_age_samples']) + ' samples with unknown age.']
+    for index, group in enumerate(summary['registered_cells'], 1):
+        notes.append('Phone cell ' + str(index) + ' ' + group['radio'] + ' identity ' + json.dumps(group['identity'], sort_keys=True) + ': ' + str(group['samples']) + ' samples.')
+        for name, stats in group['signals'].items():
+            notes.append(f"Phone cell {index} {name}: {stats['min']} to {stats['max']} {stats['unit']}; first-to-last change {stats['change']}.")
+    engine = core.ProfessionalVeilbreakerEngine()
+    for index, selected in enumerate(cells.values(), 1):
+        notes.extend('Phone cell ' + str(index) + ': ' + f.title + ' â€” ' + f.observation for f in engine.analyze(selected['metrics']).findings)
+    if not cells: notes.append('No registered LTE/NR cell was available for RF assessment.')
+    return {'metrics': {'android_source': 'usb_live', 'observation_count': summary['observations'], 'registered_cell_count': len(cells)},
+            'notes': notes, 'raw_bytes': json.dumps(envelope, ensure_ascii=False).encode('utf-8'),
+            'provenance': {'source_kind': 'live_android_usb', 'capture_id': envelope['capture_id'],
+                           'received_utc': envelope['created_utc'], 'collection_outcome': envelope['collection']['outcome'],
+                           'observation_outcome': 'complete' if cells else 'partial', 'session_summary': summary}}
