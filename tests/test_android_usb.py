@@ -103,3 +103,20 @@ class UsbTests(unittest.TestCase):
             raise ValueError('unsupported or multiple USB devices')
         with patch('veilbreaker.android_usb.adb', side_effect=command):
             self.assertEqual(list_devices('adb'), [])
+
+    def test_pairing_waits_for_phone_and_cleans_forward(self):
+        from veilbreaker.android_usb import pair_device
+        from unittest.mock import Mock
+        display = Mock()
+        replies = [dict(session_id='s',status='armed'), dict(session_id='s',status='armed',paired=False), dict(session_id='s',status='armed',paired=True,token='f'*32)]
+        with patch('veilbreaker.android_usb.list_devices',return_value=[dict(serial='ABC',state='device')]), patch('veilbreaker.android_usb.adb',return_value='41234') as command, patch('veilbreaker.android_usb.request',side_effect=replies) as send, patch('veilbreaker.android_usb.time.sleep'):
+            self.assertEqual(pair_device('adb','ABC',display), 'f'*32)
+        self.assertRegex(display.call_args.args[0], r'^\d{6}$')
+        self.assertEqual(send.call_args_list[0].args[1], '')
+        self.assertEqual(command.call_args.args[-2:], ('--remove','tcp:41234'))
+
+    def test_pairing_rejection_never_returns_credential(self):
+        from veilbreaker.android_usb import pair_device
+        with patch('veilbreaker.android_usb.list_devices',return_value=[dict(serial='ABC',state='device')]), patch('veilbreaker.android_usb.adb',return_value='41234') as command, patch('veilbreaker.android_usb.request',side_effect=ValueError('rejected')):
+            with self.assertRaises(ValueError): pair_device('adb','ABC',lambda _: None)
+            self.assertEqual(command.call_args.args[-2:], ('--remove','tcp:41234'))

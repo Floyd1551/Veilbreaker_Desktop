@@ -155,3 +155,33 @@ def summarize_session(capture):
                 seen.add(stamp)
     return {'observations': len(capture['observations']), 'registered_cells': list(groups.values()),
             'repeated_samples': repeated, 'unknown_age_samples': unknown}
+
+
+def pair_device(adb_path, serial, show_code, cancelled=lambda: False):
+    """Obtain a high-entropy credential only after explicit phone approval."""
+    import secrets
+    if cancelled(): raise ValueError('Pairing cancelled')
+    if {'serial': serial, 'state': 'device'} not in list_devices(adb_path):
+        raise ValueError('Selected authorized USB device is unavailable')
+    allocated = adb(adb_path, '-s', serial, 'forward', 'tcp:0', 'tcp:8765')
+    if not allocated.isdigit() or not 1 <= int(allocated) <= 65535:
+        raise ValueError('ADB did not allocate a valid forwarding port')
+    port = int(allocated)
+    try:
+        pair_id = secrets.token_hex(16)
+        code = f'{secrets.randbelow(1000000):06d}'
+        show_code(code)
+        response = request(port, '', 'pair', pair_id=pair_id, code=code)
+        session = response['session_id']
+        deadline = time.monotonic() + 60
+        while not cancelled() and time.monotonic() < deadline:
+            response = request(port, '', 'pair_status', session, pair_id=pair_id)
+            if response.get('paired'):
+                token = response.get('token', '')
+                if not re.fullmatch('[a-f0-9]{32}', token): raise ValueError('Invalid pairing response')
+                return token
+            time.sleep(.5)
+        raise ValueError('Pairing expired or cancelled. Reconnect in Companion and try again.')
+    finally:
+        try: adb(adb_path, '-s', serial, 'forward', '--remove', 'tcp:' + str(port))
+        except Exception: pass

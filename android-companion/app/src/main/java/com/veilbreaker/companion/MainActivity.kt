@@ -45,8 +45,8 @@ class MainActivity : Activity() {
         subscriptions = Spinner(this); layout.addView(subscriptions)
         captureButton = button("Capture selected SIM snapshot") { takeSnapshot() }
         button("Stop pending request / USB session") { stopUsb(); cancelPending() }
-        button("Arm USB session for selected SIM") { armUsb() }
-        usbStatus = text("USB collection is disarmed. Select a SIM, arm here, then enter the token in Desktop. Keep this app visible.")
+        button("Connect to Veilbreaker") { armUsb() }
+        usbStatus = text("USB collection is disconnected. Select a SIM and tap Connect to Veilbreaker. Keep this app visible.")
         exportButton = button("Export capture JSON") {
             capture?.let {
                 exportText = it.toString(2)
@@ -105,7 +105,7 @@ class MainActivity : Activity() {
                 if (source.size > 256) notes.add("Cell list limited to first 256 entries.")
                 val outcome = if (error != null || source.isEmpty() || source.size > 256) "partial" else "complete"
                 val snapshot = CaptureSerializer.envelope(Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE,
-                    Build.VERSION.SDK_INT, "0.2.0-dev", source.take(256).map { CellularSnapshot.cell(it,elapsed) }, elapsed, outcome, notes, started)
+                    Build.VERSION.SDK_INT, "0.3.0-dev", source.take(256).map { CellularSnapshot.cell(it,elapsed) }, elapsed, outcome, notes, started)
                 val selectedManager = getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected.subscriptionId)
                 snapshot.getJSONArray("subscriptions").getJSONObject(0)
                     .put("network_operator", selectedManager.networkOperatorName)
@@ -158,19 +158,42 @@ class MainActivity : Activity() {
             showCapture()
         })
         usb = session
+        val pairing = UsbPairing({ SystemClock.elapsedRealtime() }, session.token)
         try {
             endpoint = LoopbackEndpoint { name, token, body ->
                 val latch = java.util.concurrent.CountDownLatch(1)
                 var response: JSONObject? = null
                 handler.post {
                     try {
-                        if (usb === session) response = session.command(name, token, body)
+                        if (usb === session) {
+                            if (name == "pair" || name == "pair_status") {
+                                val pairId = body.getString("pair_id")
+                                response = JSONObject().put("protocol", 1).put("request_id", body.getString("request_id"))
+                                    .put("session_id", session.id).put("status", "armed")
+                                if (name == "pair") {
+                                    val code = body.getString("code")
+                                    pairing.begin(pairId, code)
+                                    android.app.AlertDialog.Builder(this)
+                                        .setTitle("Connect to Veilbreaker?")
+                                        .setMessage("Confirm this code matches Desktop: $code\nOnly approve the connection you just requested.")
+                                        .setPositiveButton("Codes match - connect") { _, _ ->
+                                            runCatching { if (usb === session) pairing.approve(pairId) }
+                                        }
+                                        .setNegativeButton("Reject") { _, _ -> pairing.deny() }
+                                        .setOnCancelListener { pairing.deny() }.show()
+                                } else {
+                                    val credential = pairing.poll(pairId)
+                                    response!!.put("paired", credential != null)
+                                    if (credential != null) response!!.put("token", credential)
+                                }
+                            } else response = session.command(name, token, body)
+                        }
                     } catch (_: Exception) { } finally { latch.countDown() }
                 }
                 require(latch.await(2, java.util.concurrent.TimeUnit.SECONDS))
                 response ?: throw IllegalArgumentException("Session unavailable")
             }
-            usbStatus.text = "USB token: ${session.token}\nKeep this app visible. USB debugging must be authorized on this phone."
+            usbStatus.text = "Ready for Desktop. Select Live Android USB, then Connect. Confirm the matching six-digit code here. Keep this app visible."
             usbStatus.setTextIsSelectable(true)
             subscriptions.isEnabled = false; captureButton.isEnabled = false; exportButton.isEnabled = false
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -188,7 +211,7 @@ class MainActivity : Activity() {
     private fun stopUsb() {
         endpoint?.close(); endpoint = null
         usb?.finish("cancelled"); usb = null
-        usbStatus.text = "USB session stopped. Arm again for a new token."
+        usbStatus.text = "USB session stopped. Tap Connect to Veilbreaker for a new connection."
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
     override fun onStop() { stopUsb(); cancelPending(); super.onStop() }
