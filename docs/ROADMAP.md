@@ -220,3 +220,7 @@ Added an initial snapshot-only Kotlin companion and Android CI workflow. Include
 ## Android diagnostic input — 0.30.0rc1
 
 Saved Android captures now attach to Run diagnostic instead of starting a standalone import. Phone measurements, source time and original evidence share the run with selected collectors while retaining separate RF interpretation. Clear the attachment to remove it. Live USB sessions and survey queue attachment remain pending; USB design is in docs/superpowers/specs/2026-10-13-android-usb-input-design.md.
+
+## Android live USB input — 0.31.0rc1
+
+Companion 0.2 adds armed foreground USB sessions. Desktop selects an authorized USB device, requests bounded samples and retains raw sessions plus per-cell ranges/change/age summaries in the normal diagnostic evidence bundle. Saved captures remain an alternative input. Tokens are ephemeral and excluded from retry history. Physical-device qualification, survey-queue attachment and stable APK signing remain pending.

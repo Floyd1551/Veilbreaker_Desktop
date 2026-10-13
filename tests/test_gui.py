@@ -225,10 +225,6 @@ class GuiTests(unittest.TestCase):
         self.assertEqual(page.comparison.item(0, 1).text(), "0")
         self.assertEqual(page.comparison.item(0, 2).text(), "—")
 
-
-if __name__ == "__main__":
-    unittest.main()
-
     def test_android_attachment_is_passed_to_run_and_can_be_cleared(self):
         self.window.android_input = {'path': 'capture.json', 'expected_sha256': 'hash', 'observation_id': 'snapshot-1', 'cell_index': 0}
         self.window.android_input_caption = 'Synthetic phone'
@@ -239,3 +235,21 @@ if __name__ == "__main__":
             self.assertEqual(start.call_args.kwargs['options']['android_input']['path'], 'capture.json')
         self.window.clear_android_input()
         self.assertNotIn('saved Android input', self.window.run_plan.text())
+
+    def test_close_waits_for_usb_cleanup(self):
+        from unittest.mock import Mock
+        process = Mock()
+        self.window.process = process
+        self.window.live_usb_job = True
+        event = Mock()
+        with patch.object(self.window, 'cancel_task') as cancel:
+            self.window.closeEvent(event)
+            self.window.process = None
+            event.ignore.assert_called_once()
+            event.accept.assert_not_called()
+            cancel.assert_called_once()
+        self.window.process = None
+
+
+if __name__ == "__main__":
+    unittest.main()

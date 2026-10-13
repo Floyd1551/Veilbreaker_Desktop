@@ -1,33 +1,11 @@
-# Veilbreaker Android companion — development snapshot
+# Veilbreaker Android companion 0.2 development build
 
-Initial snapshot-only implementation for Android 10/API 29 and newer. This is not a qualified modem scanner or a raw baseband feed. Public Android APIs may return cached, incomplete or no measurements, especially on some 5G NSA devices.
+Android 10/API 29 or newer. Public LTE/NR snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. No raw modem feed or GPS collection.
 
-## Implemented source
+[Setup and USB workflow](../docs/android-companion-install.md).
 
-- Explicit SIM selection and phone/precise-location permission request.
-- One bounded cell-info request with 15-second timeout; stop/backgrounding invalidates pending callbacks.
-- LTE and NR identity/signal conversion, unavailable-value handling and modem sample age.
-- Separate neighboring/serving roles, SS/CSI metrics and subscription-local data.
-- Local last-capture persistence and document-picker JSON export. Export does not acquire new data.
-- No GPS collection, network service, background permission, IMEI/IMSI or traffic capture.
+USB collection requires current platform-tools, an authorized USB debugging connection, explicit on-phone arming and a temporary token. The endpoint binds only to 127.0.0.1. Sessions last 5–300 seconds with requests at least five seconds apart. Foreground exit, stop, timeout and permission/SIM loss end collection. Completed observations remain locally exportable; cached sample ages are retained.
 
-Open the app, grant permissions, enable Android location services, refresh SIMs, choose a SIM and capture. Export JSON, transfer it using USB file transfer, then use **Diagnostics → Import Android capture** in Desktop 0.29.0rc1 or newer. No USB debugging is required for capture-file transfer. Optional GPS fields remain reserved for later work.
+Build using JDK 17, Android SDK 35 and Gradle 8.9: `gradle testDebugUnitTest assembleDebug`. AGP 8.7.3/Kotlin 2.0.21 are pinned. The Android companion workflow builds the debug APK and validates both snapshot and session fixtures with Desktop's importer. No Gradle wrapper or stable release signing yet.
 
-## Build
-
-JDK 17, Android SDK platform 35 and Gradle 8.9. From this folder run `gradle testDebugUnitTest assembleDebug`. Android Gradle Plugin 8.7.3 and Kotlin 2.0.21 are pinned. A Gradle wrapper is not yet included; use the specified installed Gradle or the CI workflow.
-
-The **Android companion** GitHub Actions workflow builds a debug-signed APK, executes serializer tests and validates a Kotlin-generated capture using Desktop's Python importer. Download its artifact only after that workflow succeeds. Debug signing is for development, not a stable production update/signing strategy.
-
-The local development host did not have Java, Gradle or Android SDK available when this source was created. Local APK compilation, emulator testing and physical-device qualification have not been performed. Check CI for compilation results; source presence alone is not a successful build.
-
-## Remaining work
-
-- Verify compilation and contract tests; resolve any CI findings.
-- Exercise permission denial/revocation, SIM removal, rotation, backgrounding, timeout and document-picker cancellation on emulator/device.
-- Add timed sessions (at least five seconds between requests, maximum five minutes), fresh/cached deduplication and full lifecycle tests.
-- Expand legacy-radio metrics; current non-LTE/NR entries retain type/registration/age but no detailed identity/signal fields.
-- Qualify the exact Samsung model, Android version and carrier, and record returned/unavailable fields.
-- Production signing, a reproducible Gradle wrapper, visual polish and survey-point attachment.
-
-Build compatibility reference: https://developer.android.com/build/releases/agp-8-7-0-release-notes
+Physical Samsung qualification, detailed legacy-radio fields, production USB transport/signing, GPS and survey-point attachment remain future work. A passing build does not establish device compatibility.

@@ -995,6 +995,8 @@ class MainWindow(QMainWindow):
             self.job_dir.cleanup()
             self.job_dir = None
         self.set_busy(False)
+        if getattr(self, 'close_after_job', False):
+            QTimer.singleShot(0, self.close)
 
     def cancel_task(self):
         if self.process is None:
@@ -1484,6 +1486,11 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Veilbreaker", message)
 
     def closeEvent(self, event):
+        if self.process is not None and getattr(self, 'live_usb_job', False):
+            self.close_after_job = True
+            event.ignore()
+            if not getattr(self, 'usb_cancel_requested', False): self.cancel_task()
+            return
         if self.process is not None:
             self.cancel_task()
             self.process.waitForFinished(5000)
