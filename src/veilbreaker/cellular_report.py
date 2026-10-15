@@ -32,11 +32,17 @@ def build_report(envelope):
                 omitted += 1; continue
             sub = subscriptions[obs['subscription_key']]
             carrier = sub.get('network_operator') or identity.get('operator_alpha_long') or MISSING
-            band = ', '.join(str(b) for b in identity.get('bands', []))
+            band = ', '.join(str(b) for b in (identity.get('bands') or []))
             group = groups.setdefault(key, dict(radio=cell['radio'], subscription=obs['subscription_key'],
                 carrier=str(carrier), sim_carrier=str(sub.get('sim_carrier') or MISSING),
                 band=(cell['radio'] + ' ' + band + ' (reported)') if band else MISSING,
-                identity=identity, roles=[], samples=[], signals={}))
+                identity=dict(identity), roles=[], samples=[], signals={}))
+            # Keep the latest exposed metadata without losing earlier evidence to nulls.
+            group['identity'].update({k:v for k,v in identity.items() if v is not None and v != [] and v != ''})
+            if band:
+                group['band'] = cell['radio'] + ' ' + band + ' (reported)'
+            if carrier != MISSING:
+                group['carrier'] = str(carrier)
             role = cell['connection_status']
             if role not in group['roles']: group['roles'].append(role)
             age = cell.get('age_ms')
