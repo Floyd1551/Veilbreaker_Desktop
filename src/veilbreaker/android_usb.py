@@ -74,7 +74,7 @@ def request(port, token, command, session_id=None, **fields):
         connection.close()
 
 
-def collect_session(adb_path, serial, token, duration_s, cancelled=lambda: False, progress=None, checkpoint=None):
+def collect_session(adb_path, serial, token, duration_s, cancelled=lambda: False, progress=None, checkpoint=None, cellular=True, location=False):
     if cancelled(): raise ValueError('USB session cancelled before collection')
     if type(duration_s) is not int or not 5 <= duration_s <= 300:
         raise ValueError('USB session duration must be 5Ã¢â‚¬â€œ300 seconds')
@@ -91,7 +91,7 @@ def collect_session(adb_path, serial, token, duration_s, cancelled=lambda: False
     outcome = 'partial'
     try:
         if cancelled(): raise ValueError('USB session cancelled before collection')
-        response = request(port, token, 'start', duration_s=duration_s)
+        response = request(port, token, 'start', duration_s=duration_s, cellular=cellular, location=location)
         session = response['session_id']
         deadline = time.monotonic() + duration_s
         next_sample = 0
@@ -158,6 +158,10 @@ def summarize_session(capture):
 
 
 def pair_device(adb_path, serial, show_code, cancelled=lambda: False):
+    return pair_connection(adb_path, serial, show_code, cancelled)['token']
+
+
+def pair_connection(adb_path, serial, show_code, cancelled=lambda: False):
     """Obtain a high-entropy credential only after explicit phone approval."""
     import secrets
     if cancelled(): raise ValueError('Pairing cancelled')
@@ -179,7 +183,10 @@ def pair_device(adb_path, serial, show_code, cancelled=lambda: False):
             if response.get('paired'):
                 token = response.get('token', '')
                 if not re.fullmatch('[a-f0-9]{32}', token): raise ValueError('Invalid pairing response')
-                return token
+                capabilities = response.get('capabilities') or {}
+                return {'token': token,
+                        'cellular': capabilities.get('cellular_enabled', True) is True,
+                        'location': capabilities.get('location_enabled', False) is True}
             time.sleep(.5)
         raise ValueError('Pairing expired or cancelled. Reconnect in Companion and try again.')
     finally:

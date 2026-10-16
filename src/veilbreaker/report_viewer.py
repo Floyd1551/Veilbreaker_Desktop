@@ -20,7 +20,7 @@ def read_reports(path):
         return data
     if path.is_dir():
         result = []
-        for name in ('report.html', 'sdr_report.html', 'survey_report.html', 'cellular_report.html'):
+        for name in ('report.html', 'sdr_report.html', 'survey_report.html', 'cellular_report.html', 'location_report.html'):
             source = path / name
             if source.is_file():
                 with source.open('rb') as stream:
@@ -91,6 +91,9 @@ class ReportViewer(QDialog):
         self.selector = QComboBox()
         self.selector.setAccessibleName('Report to view')
         for name, _ in reports:
+            if Path(name).name == 'location_report.html':
+                self.selector.addItem('Location evidence', name)
+                continue
             friendly = {'report.html': 'Diagnostic report', 'cellular_report.html': 'Cellular field report', 'sdr_report.html': 'SDR survey report', 'survey_report.html': 'Site survey report'}.get(Path(name).name, name)
             self.selector.addItem(friendly, name)
         layout.addWidget(self.selector)

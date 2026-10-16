@@ -5,12 +5,12 @@ import shutil
 import threading
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QComboBox, QSpinBox, QPushButton
-from .android_usb import list_devices, pair_device
+from .android_usb import list_devices, pair_connection
 
 
 class PairWorker(QThread):
     code = Signal(str)
-    paired = Signal(str)
+    paired = Signal(object)
     failed = Signal(str)
 
     def __init__(self, path, serial, parent):
@@ -20,7 +20,7 @@ class PairWorker(QThread):
 
     def run(self):
         try:
-            token = pair_device(self.path, self.serial, self.code.emit, self.cancelled.is_set)
+            token = pair_connection(self.path, self.serial, self.code.emit, self.cancelled.is_set)
             if not self.cancelled.is_set(): self.paired.emit(token)
         except Exception:
             self.failed.emit('Connection not approved or unavailable. Stop and reconnect in Companion 0.3+, keep it visible, and try again.')
@@ -30,6 +30,7 @@ class AndroidUsbDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.worker = None
+        self.phone_inputs = {'cellular': True, 'location': False}
         self.dismiss_pending = False
         self.accept_pending = False
         self.setWindowTitle('Live Android USB input')
@@ -79,7 +80,8 @@ class AndroidUsbDialog(QDialog):
 
     def paired(self, token):
         if not self.dismiss_pending:
-            self.token.setText(token)
+            self.token.setText(token['token'])
+            self.phone_inputs = {key: token[key] for key in ('cellular', 'location')}
             self.accept_pending = True
 
     def finished_pairing(self):
@@ -104,4 +106,4 @@ class AndroidUsbDialog(QDialog):
         else: super().closeEvent(event)
 
     def selection(self):
-        return dict(adb_path=self.path.text().strip(), serial=self.devices.currentData(), token=self.token.text(), duration_s=self.duration.value())
+        return dict(adb_path=self.path.text().strip(), serial=self.devices.currentData(), token=self.token.text(), duration_s=self.duration.value(), **self.phone_inputs)

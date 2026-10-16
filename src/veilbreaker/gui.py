@@ -546,6 +546,9 @@ class MainWindow(QMainWindow):
         self.cellular_report_view = OfflineReportBrowser()
         self.cellular_report_view.setHtml('<p>No Android cellular evidence in this run.</p>')
         self.tabs.addTab(self.cellular_report_view, 'Cellular')
+        self.location_report_view = OfflineReportBrowser()
+        self.location_report_view.setHtml('<p>No location evidence loaded.</p>')
+        self.tabs.addTab(self.location_report_view, 'Location')
         self.tabs.currentChanged.connect(self.compact_diagnostics)
         layout.addWidget(self.tabs, 1)
         self.add_scroll_page(widget)
@@ -1066,6 +1069,7 @@ class MainWindow(QMainWindow):
         self.spectrum_readout.clear()
         self.refresh_sdr_report()
         self.cellular_report_view.setHtml('<p>No Android cellular evidence loaded.</p>')
+        self.location_report_view.setHtml('<p>No location evidence loaded.</p>')
         self.select_followup()
         for control in (self.export_button, self.view_report_button, self.retry_button):
             control.setEnabled(False)
@@ -1127,6 +1131,9 @@ class MainWindow(QMainWindow):
                 if source.exists(): cellular = build_report(load_capture(source)['envelope'])
             except (ValueError, OSError): pass
         self.cellular_report_view.setHtml(cellular_html(cellular) if cellular else '<p>No Android cellular evidence in this run.</p>')
+        from .location_report import report_html as location_html
+        locations = report.get('normalized_metrics', {}).get('location_report')
+        self.location_report_view.setHtml(location_html(locations) if locations else '<p>No location evidence in this run.</p>')
         self.compact_diagnostics(self.tabs.currentIndex())
 
     def filter_metrics(self):

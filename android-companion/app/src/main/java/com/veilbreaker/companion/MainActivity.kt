@@ -144,7 +144,18 @@ class MainActivity : Activity() {
             if(target==null) location.stop()
             lockInputs(connection!=null);showCapture()
         }
-        if(!useCell) { handler.postDelayed({ finish(emptyList(),null) },1500);return }
+        if(!useCell) {
+            val deadline=SystemClock.elapsedRealtime()+30000
+            val waitForFix=object:Runnable {
+                override fun run() {
+                    if(epoch!=generation || !pending) return
+                    val state=location.atReceipt(SystemClock.elapsedRealtime()).optString("status")
+                    if(target!=null || state!="unavailable" || SystemClock.elapsedRealtime()>=deadline) finish(emptyList(),null)
+                    else { status.text="Waiting for GPS fix… Keep the phone near a clear view of the sky.";handler.postDelayed(this,1000) }
+                }
+            }
+            handler.postDelayed(waitForFix,1000);return
+        }
         handler.postDelayed({ finish(null,"Cell request timed out") },15000)
         try {
             getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected!!.subscriptionId).requestCellInfoUpdate(mainExecutor,object:TelephonyManager.CellInfoCallback() {

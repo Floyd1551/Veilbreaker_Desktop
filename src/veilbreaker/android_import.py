@@ -63,6 +63,7 @@ def prepare_live_input(envelope):
     from .receiver_assessment import build_phone_assessments
     validate_capture(envelope)
     summary = summarize_session(envelope)
+    location_only = envelope['collection'].get('inputs', {}).get('cellular') is False
     # Each cell is assessed independently; no strongest-cell selection or averaging.
     cells = {}
     for obs in envelope['observations']:
@@ -78,10 +79,12 @@ def prepare_live_input(envelope):
     engine = core.ProfessionalVeilbreakerEngine()
     for index, selected in enumerate(cells.values(), 1):
         notes.extend('Phone cell ' + str(index) + ': ' + f.title + ' â€” ' + f.observation for f in engine.analyze(selected['metrics']).findings)
-    if not cells: notes.append('No registered LTE/NR cell was available for RF assessment.')
+    if not cells and not location_only: notes.append('No registered LTE/NR cell was available for RF assessment.')
+    if location_only: notes.append('Location-only input; cellular measurements were not requested.')
     return {'metrics': {'android_source': 'usb_live', 'observation_count': summary['observations'], 'registered_cell_count': len(cells)},
-            'assessments': build_phone_assessments(envelope),
+            'assessments': [] if location_only else build_phone_assessments(envelope),
+            'location_only': location_only,
             'notes': notes, 'raw_bytes': json.dumps(envelope, ensure_ascii=False).encode('utf-8'),
             'provenance': {'source_kind': 'live_android_usb', 'capture_id': envelope['capture_id'],
                            'received_utc': envelope['created_utc'], 'collection_outcome': envelope['collection']['outcome'],
-                           'observation_outcome': 'complete' if cells else 'partial', 'session_summary': summary}}
+                           'observation_outcome': 'complete' if cells or location_only else 'partial', 'session_summary': summary}}

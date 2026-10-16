@@ -4502,6 +4502,10 @@ def report_to_html(report: DiagnosticReport, metadata: Mapping[str, Any]) -> str
     from .cellular_report import report_html as cellular_html
     cellular = report.normalized_metrics.get('android_cellular_report')
     cellular_section = cellular_html(cellular, fragment=True) if cellular else '' 
+    from .location_report import report_html as location_html
+    locations = report.normalized_metrics.get('location_report')
+    if locations:
+        cellular_section += location_html(locations, fragment=True)
     return f"""<!doctype html><html><head><meta charset='utf-8'><title>Veilbreaker {esc(metadata.get('run_id',''))}</title>
 <style>body{{font-family:system-ui,-apple-system,sans-serif;max-width:1100px;margin:40px auto;padding:0 20px;color:#13202b}}h1{{margin-bottom:0}}.muted{{color:#617181}}table{{border-collapse:collapse;width:100%}}td,th{{border-bottom:1px solid #ddd;padding:9px;text-align:left}}section{{border-left:4px solid #778899;padding-left:14px;margin:20px 0}}code{{background:#eef2f4;padding:2px 5px}}</style></head><body>
 <h1>Veilbreaker Field Diagnostic Report</h1><p class='muted'>Run {esc(metadata.get('run_id'))} · Site {esc(metadata.get('site_id'))} · {esc(metadata.get('timestamp'))}</p>
@@ -4518,9 +4522,16 @@ def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, An
     if phone_source.exists():
         from .android_capture import load_capture
         from .cellular_report import build_report, report_html as cellular_html
-        cellular = build_report(load_capture(phone_source)['envelope'])
+        envelope = load_capture(phone_source)['envelope']
+        cellular = build_report(envelope)
         report.normalized_metrics['android_cellular_report'] = cellular
         (run_dir / 'cellular_report.html').write_text(cellular_html(cellular), encoding='utf-8')
+        if any(observation.get('location') for observation in envelope['observations']):
+            from .location_report import location_rows, report_html as location_html, report_csv
+            locations = location_rows(envelope)
+            report.normalized_metrics['location_report'] = locations
+            (run_dir / 'location_report.html').write_text(location_html(locations), encoding='utf-8')
+            (run_dir / 'location.csv').write_text(report_csv(locations), encoding='utf-8')
     (run_dir / "metrics.json").write_text(json.dumps(dict(metrics), indent=2, default=str) + "\n", encoding="utf-8")
     (run_dir / "report.json").write_text(report.to_json() + "\n", encoding="utf-8")
     (run_dir / "report.txt").write_text(render_professional_console(report, metadata) + "\n", encoding="utf-8")
@@ -4751,7 +4762,8 @@ class VeilbreakerApplication:
             metrics.update(phone_metrics)
             notes.extend(phone['notes'])
             from .receiver_assessment import apply_phone_assessments
-            apply_phone_assessments(report, phone.get('assessments', []))
+            if not phone.get('location_only'):
+                apply_phone_assessments(report, phone.get('assessments', []))
             report.summary.append(('Live USB Android session' if android_live else 'Saved Android input') + ': phone measurements evaluated separately from desktop network tests. Capture time: ' + phone['provenance']['received_utc'])
             if android_live: report.summary.append('See Cellular report for serving-cell details, signal tables, sample freshness and trends.')
             report.normalized_metrics.update(phone_metrics)

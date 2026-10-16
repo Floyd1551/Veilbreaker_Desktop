@@ -91,6 +91,10 @@ def _validate_capture(value):
     utc(collection.get('started_utc')); utc(collection.get('ended_utc'))
     require(isinstance(collection.get('permissions'),dict) and isinstance(collection.get('notes'),list), 'Collection permissions/notes required')
     subscriptions = value.get('subscriptions')
+    if 'inputs' in collection:
+        require(isinstance(collection['inputs'], dict), 'Invalid input selection')
+        for key in ('cellular', 'location'):
+            require(type(collection['inputs'].get(key)) is bool, 'Invalid input selection')
     require(isinstance(subscriptions,list) and len(subscriptions) <= 32, 'Invalid subscriptions')
     keys = []
     for sub in subscriptions:
