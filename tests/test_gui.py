@@ -125,7 +125,7 @@ class GuiTests(unittest.TestCase):
         self.window.open_history()
         self.assertEqual(self.window.metrics.rowCount(), len(DEMO_METRICS))
         self.assertEqual(self.window.collection_table.rowCount(), 1)
-        self.assertEqual(self.window.metrics.item(0, 2).text(), "imported_metrics")
+        self.assertEqual(self.window.metrics.item(0, 2).text(), "Imported measurements")
         collection_file = Path(self.window.history_rows[0]["artifact_dir"]) / "collection.json"
         collection_file.unlink()
         self.window.open_history()

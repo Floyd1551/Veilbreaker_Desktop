@@ -62,7 +62,8 @@ def collection_summary(collection):
         return "Collection details unavailable for this run."
     if collection.get("status") == "interrupted":
         return "Interrupted acquisition — recovered data is incomplete. Reconnect hardware and repeat collection."
-    failed = [r["source"] for r in collection["collectors"] if r["required"] and r["status"] != "collected"]
+    from .display_labels import source_label
+    failed = [source_label(r["source"]) for r in collection["collectors"] if r["required"] and r["status"] != "collected"]
     if failed:
         return "Partial collection — missing or incomplete requested evidence: " + ", ".join(failed) + "."
     return "Collection complete — this describes acquisition, not network health or measurement accuracy."

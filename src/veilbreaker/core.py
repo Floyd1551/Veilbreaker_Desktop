@@ -4497,7 +4497,8 @@ def report_to_html(report: DiagnosticReport, metadata: Mapping[str, Any]) -> str
         f"<li><b>{esc(t.title)}</b> — {esc(t.purpose)}<br><span>{esc(t.action)}</span></li>"
         for t in report.next_tests
     )
-    summaries = "".join(f"<li>{esc(x)}</li>" for x in report.summary)
+    from .display_labels import readable_text
+    summaries = "".join(f"<li>{esc(readable_text(x))}</li>" for x in report.summary)
     from .cellular_report import report_html as cellular_html
     cellular = report.normalized_metrics.get('android_cellular_report')
     cellular_section = cellular_html(cellular, fragment=True) if cellular else '' 

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QTextBrowser, QVBoxLayout, QWidget,
 )
 from . import __version__, core
+from .display_labels import source_label, status_label, readable_text
 from .jobs import demo_payload
 from .spectrum import SpectrumView
 from .widgets import FlowLayout
@@ -523,7 +524,7 @@ class MainWindow(QMainWindow):
         spectrum_layout.addWidget(self.spectrum_readout)
         for name, panel in [("Summary", self.summary), ("Hypotheses", self.hypotheses),
                             ("Findings", self.findings), ("Next tests", followup_panel),
-                            ("Metrics", metrics_panel), ("Collector notes", self.notes), ("Spectrum", spectrum_panel), ("Collection", self.collection_table)]:
+                            ("Metrics", metrics_panel), ("Collection notes", self.notes), ("Spectrum", spectrum_panel), ("Collection", self.collection_table)]:
             self.tabs.addTab(panel, name)
         sdr_panel = QWidget()
         sdr_layout = QVBoxLayout(sdr_panel)
@@ -923,7 +924,7 @@ class MainWindow(QMainWindow):
             try:
                 event = json.loads(line)
                 if isinstance(event, dict) and event.get("event") == "collection" and not self.cancelled:
-                    self.statusBar().showMessage(f"{event['source']}: {event['status'].replace('_', ' ')}")
+                    self.statusBar().showMessage(f"{source_label(event['source'])}: {status_label(event['status'])}")
             except (ValueError, KeyError, AttributeError):
                 pass
         self.progress_buffer = self.progress_buffer[-65536:]
@@ -1084,7 +1085,7 @@ class MainWindow(QMainWindow):
             item.setText(str(value))
         status_color = {"critical": "#ff8585", "impaired": "#ffb36b", "degraded": "#f3d27a", "healthy": "#6be0ca", "unknown": "#a8b8cc"}.get(report["status"].lower(), "#a8b8cc")
         self.stat_labels[-1].setStyleSheet(f"color: {status_color};")
-        self.summary.setPlainText("\n\n".join(report["summary"]) + "\n\nScores rank competing hypotheses; they are not calibrated probabilities. Review evidence and collector notes before acting.")
+        self.summary.setPlainText("\n\n".join(readable_text(line) for line in report["summary"]) + "\n\nScores rank competing hypotheses; they are not calibrated probabilities. Review evidence and collector notes before acting.")
         fill(self.hypotheses, [[h["title"], f"{h['confidence']:.0%}", h["status"],
                                "\n".join(f"{e['direction']}: {e['statement']}" for e in h["evidence"])] for h in report["hypotheses"]])
         fill(self.findings, [[f["severity"], f["title"], f["observation"], f["recommendation"]] for f in report["findings"]])
@@ -1097,13 +1098,17 @@ class MainWindow(QMainWindow):
         collection = payload.get("collection", {})
         sources = collection.get("metric_sources", {})
         self.summary.setPlainText(collection_summary(collection) + "\n\n" + self.summary.toPlainText())
-        fill(self.collection_table, [[r["source"], "Yes" if r["required"] else "Optional", r["status"],
-                                     r["duration_s"], "\n".join(r.get("missing_measurements", [])) or "None recorded", "\n".join(r["notes"])]
+        fill(self.collection_table, [[source_label(r["source"]), "Required" if r["required"] else "Optional", status_label(r["status"]),
+                                     r["duration_s"], "\n".join(r.get("missing_measurements", [])) or "None recorded", "\n".join(readable_text(note) for note in r["notes"])]
                                     for r in collection.get("collectors", [])])
         fill(self.metrics, [[k, json.dumps(v, ensure_ascii=False) if isinstance(v, (dict, list)) else v,
-                             " → ".join(sources.get(k, [])) or "Not recorded"] for k, v in sorted(payload["metrics"].items())])
+                             " → ".join(source_label(source) for source in sources.get(k, [])) or "Not recorded"] for k, v in sorted(payload["metrics"].items())])
+        for index, record in enumerate(collection.get('collectors', [])):
+            self.collection_table.item(index, 0).setToolTip('Technical source: ' + record['source'])
+        self.collection_table.setSortingEnabled(True)
+        self.metrics.setSortingEnabled(True)
         self.filter_metrics()
-        self.notes.setPlainText("\n".join(payload.get("notes", [])) or "No collector notes recorded.")
+        self.notes.setPlainText("\n".join(readable_text(note) for note in payload.get("notes", [])) or "No collection notes recorded.")
         self.export_button.setEnabled(bool(payload.get("evidence_zip")))
         self.view_report_button.setEnabled(bool(payload.get("evidence_zip") or payload.get("artifact_dir")))
         self.sweep_selector.blockSignals(True)
