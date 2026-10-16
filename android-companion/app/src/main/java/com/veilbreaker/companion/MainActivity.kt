@@ -4,7 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
+import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.*
 import android.telephony.*
 import android.view.View
@@ -12,220 +14,215 @@ import android.widget.*
 import org.json.JSONObject
 import java.time.Instant
 
-/** Snapshot-only first increment. No service, network listener or background collection. */
+/** Explicit foreground equipment connection and bounded captures. */
 class MainActivity : Activity() {
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler=Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var preview: TextView
+    private lateinit var usbStatus: TextView
     private lateinit var subscriptions: Spinner
+    private lateinit var cellularChoice: CheckBox
+    private lateinit var locationChoice: CheckBox
     private lateinit var captureButton: Button
     private lateinit var exportButton: Button
+    private lateinit var location: PhoneLocation
     private var choices: List<SubscriptionInfo> = emptyList()
-    private var generation = 0
-    private var pending = false
-    private var usb: UsbSession? = null
-    private var endpoint: LoopbackEndpoint? = null
-    private lateinit var usbStatus: TextView
-    private var capture: JSONObject? = null
-    private var exportText: String? = null
-    private val permissions = arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION)
+    private var generation=0
+    private var pending=false
+    private var connection: UsbConnection?=null
+    private var endpoint: LoopbackEndpoint?=null
+    private var capture: JSONObject?=null
+    private var exportText: String?=null
+    private var raw=false
+    private val permissions=arrayOf(Manifest.permission.READ_PHONE_STATE,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION)
+    private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
+    private fun background(color:String)=GradientDrawable().apply { setColor(Color.parseColor(color)); cornerRadius=dp(12).toFloat() }
 
-    override fun onCreate(state: Bundle?) {
+    override fun onCreate(state:Bundle?) {
+        setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(state)
-        val scroll = ScrollView(this)
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(24,48,24,32) }
-        scroll.addView(layout); setContentView(scroll)
-        fun text(value: String) = TextView(this).apply { text = value; setPadding(0,12,0,12); layout.addView(this) }
-        fun button(value: String, action: () -> Unit) = Button(this).apply { text = value; setOnClickListener { action() }; layout.addView(this) }
-        text("Veilbreaker Companion â€¢ Development snapshot").textSize = 23f
-        text("Read the cellular measurements Android exposes. Phone and precise-location permission allow cell information access; this version does not collect GPS coordinates. No raw modem feed or background capture.")
-        button("Grant permissions / refresh SIMs") {
-            if (allowed()) refresh() else requestPermissions(permissions, 1)
+        location=PhoneLocation(this)
+        window.statusBarColor=Color.parseColor("#0d1520")
+        window.navigationBarColor=Color.parseColor("#0d1520")
+        val scroll=ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport=true }
+        val root=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(32),dp(20),dp(28)) }
+        scroll.addView(root);setContentView(scroll)
+        fun text(parent:LinearLayout,value:String,size:Float=14f)=TextView(this).apply {
+            text=value;textSize=size;setTextColor(Color.parseColor("#b8c9da"));setPadding(0,dp(6),0,dp(8));parent.addView(this)
         }
-        subscriptions = Spinner(this); layout.addView(subscriptions)
-        captureButton = button("Capture selected SIM snapshot") { takeSnapshot() }
-        button("Stop pending request / USB session") { stopUsb(); cancelPending() }
-        button("Connect to Veilbreaker") { armUsb() }
-        usbStatus = text("USB collection is disconnected. Select a SIM and tap Connect to Veilbreaker. Keep this app visible.")
-        exportButton = button("Export capture JSON") {
+        fun card(title:String):LinearLayout {
+            val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(16));background=background("#152233") }
+            root.addView(box,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(14) })
+            text(box,title,18f).apply { setTextColor(Color.parseColor("#63dec8"));setTypeface(null,Typeface.BOLD) }
+            return box
+        }
+        fun button(parent:LinearLayout,title:String,primary:Boolean=false,action:()->Unit)=Button(this).apply {
+            text=title;isAllCaps=false;minHeight=dp(48)
+            backgroundTintList=android.content.res.ColorStateList.valueOf(Color.parseColor(if(primary) "#58d3be" else "#24364c"))
+            setTextColor(Color.parseColor(if(primary) "#0c2026" else "#e5edf5"));setOnClickListener { action() };parent.addView(this)
+        }
+        text(root,"VEILBREAKER",27f).apply { setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) }
+        text(root,"FIELD COMPANION  /  0.4",12f).setTextColor(Color.parseColor("#63dec8"))
+        text(root,"Your phone is a field sensor. Choose what to share, connect to Desktop, and keep this app visible during your survey.")
+        val inputs=card("1  Choose inputs")
+        cellularChoice=CheckBox(this).apply { text="Cellular measurements";isChecked=true;inputs.addView(this) }
+        locationChoice=CheckBox(this).apply { text="Record phone location (GPS)";isChecked=false;inputs.addView(this) }
+        text(inputs,"Location is optional. Coordinates are recorded only when enabled. No SIM is needed for location-only capture.")
+        button(inputs,"Permissions and refresh SIMs") { if(allowed()) refresh() else requestPermissions(permissions,1) }
+        subscriptions=Spinner(this);inputs.addView(subscriptions)
+        val connect=card("2  Connect to Desktop")
+        button(connect,"Connect to Veilbreaker",true) { armUsb() }
+        usbStatus=text(connect,"Disconnected · USB cable and debugging approval required. No code needs to be typed.")
+        button(connect,"Stop and disconnect") { stopUsb();cancelPending() }
+        val local=card("3  Capture and review")
+        captureButton=button(local,"Capture on phone") { takeSnapshot(null) }
+        status=text(local,"Choose inputs and grant permissions to begin.")
+        preview=text(local,"No saved capture.")
+        button(local,"Show / hide technical details") { raw=!raw;showCapture() }
+        exportButton=button(local,"Export capture") {
             capture?.let {
-                exportText = it.toString(2)
+                exportText=it.toString(2)
                 startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE); type = "application/json"
-                    putExtra(Intent.EXTRA_TITLE, "veilbreaker-${it.getString("capture_id")}.json")
-                }, 2)
+                    addCategory(Intent.CATEGORY_OPENABLE);type="application/json";putExtra(Intent.EXTRA_TITLE,"veilbreaker-${it.getString("capture_id")}.json")
+                },2)
             }
         }
-        status = text("Grant permissions, select a SIM, then capture. Android may return cached or incomplete information.")
-        preview = text("")
-        capture = try { JSONObject(filesDir.resolve("last-capture.json").readText()) } catch (_: Exception) { null }
-        showCapture()
-        refresh()
+        cellularChoice.setOnCheckedChangeListener { _,_->refresh() }
+        locationChoice.setOnCheckedChangeListener { _,_->refresh() }
+        capture=try { JSONObject(filesDir.resolve("last-capture.json").readText()) } catch(_:Exception) { null }
+        showCapture();refresh()
     }
-
-    private fun allowed() = checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED &&
-        checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-
+    private fun allowed() = (!cellularChoice.isChecked || (checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)) &&
+        (!locationChoice.isChecked || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
     private fun refresh() {
-        if (usb != null) return
-        choices = if (allowed()) try { getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList ?: emptyList() } catch (_: SecurityException) { emptyList() } else emptyList()
-        subscriptions.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
-            listOf("Choose a SIMâ€¦") + choices.map { "SIM slot ${it.simSlotIndex + 1} Â· ${it.displayName}" })
-        captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty() && !pending
-        if (choices.isEmpty()) status.text = "No available subscription, or permissions are missing. No capture started."
+        if(connection!=null) return
+        choices=try { if(checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED) getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList ?: emptyList() else emptyList() } catch(_:SecurityException) { emptyList() }
+        val selected=subscriptions.selectedItemPosition
+        subscriptions.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("Choose a SIM")+choices.map { "SIM ${it.simSlotIndex+1} · ${it.displayName}" })
+        if(selected in 1..choices.size) subscriptions.setSelection(selected)
+        subscriptions.isEnabled=cellularChoice.isChecked
+        captureButton.isEnabled=allowed() && (cellularChoice.isChecked || locationChoice.isChecked) && !pending
     }
-
-    override fun onRequestPermissionsResult(code: Int, p: Array<out String>, results: IntArray) {
-        super.onRequestPermissionsResult(code,p,results)
-        if (code == 1) refresh()
-    }
-
-    private fun takeSnapshot() {
-        if (pending || !allowed()) { if (!allowed()) usb?.finish("partial"); status.text = "Grant phone and precise-location permissions first."; return }
-        val selected = choices.getOrNull(subscriptions.selectedItemPosition - 1)
-        if (selected == null) { status.text = "Choose a SIM explicitly."; return }
-        if (!getSystemService(LocationManager::class.java).isLocationEnabled) {
-            status.text = "Enable Android location services to allow cell information access. GPS coordinates will not be recorded."; return
-        }
-        val started = Instant.now().toString()
-        val token = ++generation
-        pending = true; captureButton.isEnabled = false; exportButton.isEnabled = false; subscriptions.isEnabled = false
-        status.text = "Requesting public cell informationâ€¦"
-        fun finish(cells: List<CellInfo>?, error: String?) {
-            if (generation != token || !pending) return
-            pending = false; subscriptions.isEnabled = usb == null
-            val elapsed = SystemClock.elapsedRealtime()
+    override fun onRequestPermissionsResult(code:Int,p:Array<out String>,results:IntArray) { super.onRequestPermissionsResult(code,p,results);if(code==1) refresh() }
+    private fun takeSnapshot(target:UsbSession?) {
+        if(pending) return
+        val useCell=connection?.cellular ?: cellularChoice.isChecked
+        val useLocation=connection?.location ?: locationChoice.isChecked
+        if(!allowed()) { target?.finish("partial");status.text="Permission unavailable. Stop and grant permissions again.";return }
+        val selected=choices.getOrNull(subscriptions.selectedItemPosition-1)
+        if(useCell && selected==null) { target?.finish("partial");status.text="Choose a SIM for cellular measurements.";return }
+        if(!useCell && !useLocation) { status.text="Choose at least one input.";return }
+        if(target==null) location.start(useLocation)
+        val epoch=++generation;pending=true;lockInputs(true)
+        val started=Instant.now().toString()
+        status.text=if(useCell) "Collecting cellular measurements…" else "Collecting location…"
+        fun finish(cells:List<CellInfo>?,error:String?) {
+            if(epoch!=generation || !pending || (target!=null && target!==connection?.session)) return
+            pending=false
+            val elapsed=SystemClock.elapsedRealtime()
             try {
-                val stillPresent = getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId == selected.subscriptionId } == true
-                val notes = mutableListOf("Single public-API snapshot. LTE/NR fields supported; other radio types are reference records only. No continuous sampling.")
-                if (error != null) notes.add(error)
-                if (!stillPresent) notes.add("Selected subscription disappeared; results discarded.")
-                val source = if (stillPresent) cells.orEmpty() else emptyList()
-                if (source.isEmpty()) notes.add("No cell observations returned. Android may rate-limit updates.")
-                if (source.size > 256) notes.add("Cell list limited to first 256 entries.")
-                val outcome = if (error != null || source.isEmpty() || source.size > 256) "partial" else "complete"
-                val snapshot = CaptureSerializer.envelope(Build.MANUFACTURER, Build.MODEL, Build.VERSION.RELEASE,
-                    Build.VERSION.SDK_INT, "0.3.0-dev", source.take(256).map { CellularSnapshot.cell(it,elapsed) }, elapsed, outcome, notes, started)
-                val selectedManager = getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected.subscriptionId)
-                snapshot.getJSONArray("subscriptions").getJSONObject(0)
-                    .put("network_operator", selectedManager.networkOperatorName)
-                    .put("sim_carrier", selected.carrierName?.toString() ?: "")
-                    .put("slot_index", selected.simSlotIndex)
-                snapshot.getJSONObject("collection").put("permissions", JSONObject().put("phone_state", "granted").put("fine_location", "granted"))
-                if (usb != null) {
-                    usb!!.accept(snapshot)
-                    if (error != null || !stillPresent || !allowed()) usb!!.finish("partial")
+                val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
+                val source=if(stillPresent) cells.orEmpty() else emptyList()
+                val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.4.0-dev",
+                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error),started)
+                val observation=snapshot.getJSONArray("observations").getJSONObject(0)
+                snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
+                if(useLocation) observation.put("location",location.atReceipt(elapsed))
+                if(useCell) {
+                    val manager=getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected!!.subscriptionId)
+                    snapshot.getJSONArray("subscriptions").getJSONObject(0).put("network_operator",manager.networkOperatorName).put("sim_carrier",selected.carrierName?.toString() ?: "")
                 } else {
-                    capture = snapshot
-                    filesDir.resolve("last-capture.json").writeText(snapshot.toString())
+                    snapshot.getJSONArray("subscriptions").getJSONObject(0).put("key","location-only").put("kind","location_only")
+                    observation.put("subscription_key","location-only")
                 }
-                status.text = "Snapshot saved locally. Review and export it to Desktop. Completion does not mean every modem field was available."
-            } catch (e: Exception) {
-                usb?.finish("partial")
-                status.text = "Snapshot failed: ${e.message}. Any previous saved capture remains available."
-            }
-            showCapture(); captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty()
+                if(target!=null) { target.accept(snapshot);if(!stillPresent || !allowed()) target.finish("partial") }
+                else save(snapshot)
+                val loc=observation.optJSONObject("location")
+                status.text=if(loc==null) "Capture saved · location off" else "Capture saved · " + locationStatus(loc)
+            } catch(_:Exception) { target?.finish("partial");status.text="Capture unavailable. Previous evidence is retained." }
+            if(target==null) location.stop()
+            lockInputs(connection!=null);showCapture()
         }
-        handler.postDelayed({ finish(null,"Cell-info request timed out after 15 seconds.") }, 15000)
+        if(!useCell) { handler.postDelayed({ finish(emptyList(),null) },1500);return }
+        handler.postDelayed({ finish(null,"Cell request timed out") },15000)
         try {
-            getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected.subscriptionId)
-                .requestCellInfoUpdate(mainExecutor, object : TelephonyManager.CellInfoCallback() {
-                    override fun onCellInfo(cellInfo: MutableList<CellInfo>) { finish(cellInfo,null) }
-                    override fun onError(errorCode: Int, detail: Throwable?) { finish(null,"Cell-info error $errorCode: ${detail?.message ?: "unavailable"}") }
-                })
-        } catch (e: Exception) { finish(null,e.message ?: "Cell information unavailable") }
+            getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected!!.subscriptionId).requestCellInfoUpdate(mainExecutor,object:TelephonyManager.CellInfoCallback() {
+                override fun onCellInfo(info:MutableList<CellInfo>) { finish(info,null) }
+                override fun onError(code:Int,detail:Throwable?) { finish(null,"Cell information unavailable") }
+            })
+        } catch(_:Exception) { finish(null,"Cell information unavailable") }
     }
-
+    private fun locationStatus(loc:JSONObject):String {
+        if(loc.optString("status")!="available") return when(loc.optString("status")) { "permission_denied"->"Location permission unavailable";"disabled"->"Location off";else->"Waiting for fix / no fix" }
+        val quality=when { loc.optBoolean("mock")->"Test location";loc.optLong("fix_age_ms",Long.MAX_VALUE)>10000->"Old fix";loc.optDouble("horizontal_accuracy_m",Double.MAX_VALUE)>25->"Low accuracy";else->"Location ready" }
+        return "$quality · ±${loc.optDouble("horizontal_accuracy_m").toInt()} m · ${loc.optLong("fix_age_ms")/1000}s old"
+    }
+    private fun save(value:JSONObject) { capture=value;filesDir.resolve("last-capture.json").writeText(value.toString());showCapture() }
     private fun showCapture() {
-        preview.text = capture?.toString(2)?.take(20000) ?: "No saved capture."
-        exportButton.isEnabled = capture != null && !pending && usb == null
+        val value=capture
+        preview.text=if(value==null) "No saved capture." else if(raw) value.toString(2).take(20000) else {
+            val observations=value.getJSONArray("observations")
+            val last=if(observations.length()>0) observations.getJSONObject(observations.length()-1) else null
+            val lines=mutableListOf("${observations.length()} observations · ${value.getJSONObject("collection").optString("outcome")}")
+            last?.optJSONObject("location")?.let { lines.add(locationStatus(it));if(it.optString("status")=="available") lines.add("${it.optDouble("latitude_deg")}, ${it.optDouble("longitude_deg")}") }
+            last?.optJSONArray("cells")?.let { cells->for(i in 0 until cells.length()) {
+                val cell=cells.getJSONObject(i)
+                if(cell.optBoolean("registered")) {
+                    lines.add("${cell.optString("radio")} · serving cell ${cell.getJSONObject("identity").optString("cell_id","unknown")}")
+                    val signal=cell.getJSONObject("signal")
+                    for(key in listOf("rsrp","rsrq","rssnr","ss_rsrp","ss_rsrq","ss_sinr")) signal.optJSONObject(key)?.let { q->if(!q.isNull("value")) lines.add("${key.uppercase().replace('_','-')}: ${q.opt("value")} ${q.optString("unit")}") }
+            } }
+            lines.joinToString("\n")
+        }
+        exportButton.isEnabled=value!=null && !pending && connection==null
     }
-    private fun cancelPending() {
-        if (pending) status.text = "Pending request stopped. Previously saved capture is unchanged."
-        generation++; pending = false; handler.removeCallbacksAndMessages(null)
-        subscriptions.isEnabled = true; captureButton.isEnabled = usb == null && allowed() && choices.isNotEmpty(); showCapture()
-    }
+    private fun lockInputs(locked:Boolean) { cellularChoice.isEnabled=!locked;locationChoice.isEnabled=!locked;subscriptions.isEnabled=!locked && cellularChoice.isChecked;captureButton.isEnabled=!locked && allowed() }
+    private fun cancelPending() { generation++;pending=false;location.stop();lockInputs(connection!=null);showCapture() }
     private fun armUsb() {
-        if (pending || usb != null || !allowed() || choices.getOrNull(subscriptions.selectedItemPosition - 1) == null) {
-            status.text = "Grant permissions, choose a SIM and stop any pending request before arming."; return
-        }
-        if (!getSystemService(LocationManager::class.java).isLocationEnabled) {
-            status.text = "Enable Android location services before arming."; return
-        }
-        val session = UsbSession({ SystemClock.elapsedRealtime() }, { takeSnapshot() }, { value ->
-            capture = value
-            filesDir.resolve("last-capture.json").writeText(value.toString())
-            showCapture()
-        })
-        usb = session
-        val pairing = UsbPairing({ SystemClock.elapsedRealtime() }, session.token)
+        if(pending || connection!=null || !allowed() || (!cellularChoice.isChecked && !locationChoice.isChecked) || (cellularChoice.isChecked && subscriptions.selectedItemPosition<1)) { status.text="Choose inputs, grant permissions, and select a SIM if using cellular.";return }
+        val conn=UsbConnection({SystemClock.elapsedRealtime()},cellularChoice.isChecked,locationChoice.isChecked,{session->takeSnapshot(session)},{save(it)},
+            { generation++;pending=false;location.start(locationChoice.isChecked) },{ generation++;pending=false;location.stop() })
+        connection=conn
+        val pairing=UsbPairing({SystemClock.elapsedRealtime()},conn.token)
         try {
-            endpoint = LoopbackEndpoint { name, token, body ->
-                val latch = java.util.concurrent.CountDownLatch(1)
-                var response: JSONObject? = null
+            endpoint=LoopbackEndpoint { name,token,body->
+                val latch=java.util.concurrent.CountDownLatch(1);var response:JSONObject?=null
                 handler.post {
                     try {
-                        if (usb === session) {
-                            if (name == "pair" || name == "pair_status") {
-                                val pairId = body.getString("pair_id")
-                                response = JSONObject().put("protocol", 1).put("request_id", body.getString("request_id"))
-                                    .put("session_id", session.id).put("status", "armed")
-                                if (name == "pair") {
-                                    val code = body.getString("code")
-                                    pairing.begin(pairId, code)
-                                    android.app.AlertDialog.Builder(this)
-                                        .setTitle("Connect to Veilbreaker?")
-                                        .setMessage("Confirm this code matches Desktop: $code\nOnly approve the connection you just requested.")
-                                        .setPositiveButton("Codes match - connect") { _, _ ->
-                                            runCatching { if (usb === session) pairing.approve(pairId) }
-                                        }
-                                        .setNegativeButton("Reject") { _, _ -> pairing.deny() }
-                                        .setOnCancelListener { pairing.deny() }.show()
-                                } else {
-                                    val credential = pairing.poll(pairId)
-                                    response!!.put("paired", credential != null)
-                                    if (credential != null) response!!.put("token", credential)
-                                }
-                            } else response = session.command(name, token, body)
+                        if(connection===conn) {
+                            if(name=="pair" || name=="pair_status") {
+                                val pairId=body.getString("pair_id")
+                                val result=JSONObject().put("protocol",1).put("request_id",body.getString("request_id")).put("session_id",conn.id).put("status","armed").put("capabilities",conn.capabilities())
+                                if(name=="pair") {
+                                    pairing.begin(pairId,body.getString("code"))
+                                    val survey=body.optBoolean("survey_mode",false)
+                                    android.app.AlertDialog.Builder(this).setTitle("Connect to Veilbreaker?")
+                                        .setMessage("Match Desktop code: ${body.getString("code")}\n" + if(survey) "Allow repeated survey tests while this app stays visible? Approval expires after 15 idle minutes or 60 total minutes." else "Allow one diagnostic capture?")
+                                        .setPositiveButton("Codes match — connect") { _,_->runCatching { if(connection===conn) { pairing.approve(pairId);conn.approve(survey) } } }
+                                        .setNegativeButton("Reject") { _,_->pairing.deny() }.setOnCancelListener { pairing.deny() }.show()
+                                } else { val credential=pairing.poll(pairId);result.put("paired",credential!=null);if(credential!=null) result.put("token",credential) }
+                                response=result
+                            } else response=conn.command(name,token,body)
                         }
-                    } catch (_: Exception) { } finally { latch.countDown() }
+                    } catch(_:Exception) { } finally { latch.countDown() }
                 }
-                require(latch.await(2, java.util.concurrent.TimeUnit.SECONDS))
-                response ?: throw IllegalArgumentException("Session unavailable")
+                require(latch.await(2,java.util.concurrent.TimeUnit.SECONDS));response ?: throw IllegalArgumentException("Connection unavailable")
             }
-            usbStatus.text = "Ready for Desktop. Select Live Android USB, then Connect. Confirm the matching six-digit code here. Keep this app visible."
-            usbStatus.setTextIsSelectable(true)
-            subscriptions.isEnabled = false; captureButton.isEnabled = false; exportButton.isEnabled = false
+            lockInputs(true);usbStatus.text="Ready for Desktop · confirm the matching code here. Keep this app visible."
             window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            fun tick() {
-                if (usb !== session) return
-                session.expire()
-                handler.postDelayed({ tick() }, 1000)
-            }
-            tick()
-        } catch (_: Exception) {
-            usb = null; status.text = "Cannot open USB endpoint. Stop another companion instance and try again."
-        }
+            fun tick() { if(connection!==conn) return;conn.expire();handler.postDelayed({tick()},1000) };tick()
+        } catch(_:Exception) { stopUsb();status.text="USB endpoint unavailable. Stop another companion and retry." }
     }
-
-    private fun stopUsb() {
-        endpoint?.close(); endpoint = null
-        usb?.finish("cancelled"); usb = null
-        usbStatus.text = "USB session stopped. Tap Connect to Veilbreaker for a new connection."
-        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    }
-    override fun onStop() { stopUsb(); cancelPending(); super.onStop() }
-
-    @Deprecated("Platform activity result used to keep the initial companion dependency-light")
-    override fun onActivityResult(request: Int, result: Int, data: Intent?) {
+    private fun stopUsb() { endpoint?.close();endpoint=null;connection?.revoke();connection=null;location.stop();usbStatus.text="Disconnected · reconnect for another survey.";window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    override fun onStop() { stopUsb();cancelPending();super.onStop() }
+    @Deprecated("Platform result keeps companion dependency-light")
+    override fun onActivityResult(request:Int,result:Int,data:Intent?) {
         super.onActivityResult(request,result,data)
-        if (request == 2 && result == RESULT_OK && data?.data != null) {
-            try {
-                val bytes = exportText ?: capture?.toString(2) ?: error("No capture to export")
-                contentResolver.openOutputStream(data.data!!, "wt")?.use { it.write(bytes.toByteArray(Charsets.UTF_8)) } ?: error("Cannot open export destination")
-                status.text = "JSON exported. Copy it over USB and choose Import Android capture in Desktop."
-            } catch (e: Exception) { status.text = "Export failed: ${e.message}" }
-        }
-        exportText = null
+        if(request==2 && result==RESULT_OK && data?.data!=null) try {
+            contentResolver.openOutputStream(data.data!!,"wt")?.use { it.write((exportText ?: error("No export")).toByteArray(Charsets.UTF_8)) } ?: error("Cannot export")
+            status.text="Capture exported."
+        } catch(_:Exception) { status.text="Export failed. Saved capture remains available." }
+        exportText=null
     }
 }

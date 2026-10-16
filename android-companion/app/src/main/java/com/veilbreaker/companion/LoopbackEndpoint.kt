@@ -32,7 +32,7 @@ class LoopbackEndpoint(private val command: (String, String, JSONObject) -> JSON
                 }
             }
             val first = line().split(' ')
-            require(first.size == 3 && first[0] == "POST" && first[1] in listOf("/start", "/sample", "/status", "/stop", "/pair", "/pair_status"))
+            require(first.size == 3 && first[0] == "POST" && first[1] in listOf("/start", "/sample", "/status", "/stop", "/pair", "/pair_status", "/disconnect"))
             val headers = mutableMapOf<String, String>()
             while (true) {
                 val item = line(); if (item.isEmpty()) break

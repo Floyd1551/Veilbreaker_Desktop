@@ -63,6 +63,8 @@ class UsbSession(private val now: () -> Long, private val sample: () -> Unit,
         expire()
     }
 
+    fun terminal() = state !in listOf("armed", "collecting")
+
     fun expire() { if (state == "collecting" && now() >= deadline) finish("complete") }
 
     fun finish(outcome: String) {
