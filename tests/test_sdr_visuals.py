@@ -18,6 +18,13 @@ class VisualTests(unittest.TestCase):
             self.assertIn('not a calibrated time axis', visuals_html(result))
             self.assertIn('first 128', visuals_html(result))
 
+    def test_temporal_change_requires_matching_sweeps(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path=Path(folder)/'sweep.csv'
+            path.write_text('d,t,2400000000,2402000000,1000000,2,-70,-60\n' + 'd,t,2400000000,2402000000,1000000,2,-60,-50\n', encoding='utf-8')
+            result=build_visuals(path,[(2400.5,-65,-60),(2401.5,-55,-50)],2400,2402)
+            self.assertEqual(result['temporal_change']['median_delta_db'],10)
+
     def test_blank_power_keeps_its_frequency_gap(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'sweep.csv'

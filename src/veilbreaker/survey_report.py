@@ -29,6 +29,7 @@ def report_html(session):
              'th{background:#e8f3f0;} td{vertical-align:top;} </style></head><body>',
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
+             '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

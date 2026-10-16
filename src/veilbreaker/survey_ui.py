@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QComboBox, QCheckBox, QFileDialog, QHeaderView, QPlainTextEdit, QDialog, QInputDialog, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QSpinBox, QComboBox, QCheckBox, QFileDialog, QHeaderView, QPlainTextEdit, QDialog, QInputDialog, QFrame, QMessageBox
 from .gui import label, button, table, fill
 from .survey_templates import save_template, load_template
 from . import core
@@ -21,12 +21,20 @@ class SurveyPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 22)
         layout.addWidget(label("Site surveys", "title"))
-        layout.addWidget(label("Group up to 20 named diagnostics. Choose test flags on Diagnostics, then add steps here. Site and scenario come from Diagnostics when the survey starts.", "muted"))
+        layout.addWidget(label("Group up to 20 named diagnostics. Choose test flags on Diagnostics, then add steps here. Site and scenario come from Diagnostics when the survey is saved.", "muted"))
         outer = layout
+        self.back_button = button('Back to surveys', self.show_landing)
+        outer.addWidget(self.back_button)
+        self.landing = QWidget()
+        self.detail = QWidget()
+        self.landing_layout = QVBoxLayout(self.landing)
+        outer.addWidget(self.landing)
+        outer.addWidget(self.detail)
+        self.adding_to_session = False
         self.builder = QFrame()
         self.builder.setObjectName('card')
         self.builder_toggle = QCheckBox("Plan a survey")
-        self.builder_toggle.setChecked(True)
+        self.builder_toggle.setChecked(False)
         self.builder_toggle.toggled.connect(self.builder.setVisible)
         outer.addWidget(self.builder_toggle)
         outer.addWidget(self.builder)
@@ -77,7 +85,7 @@ class SurveyPage(QWidget):
         layout.addLayout(survey_options)
         actions = FlowLayout()
         self.remove_button = button("Remove selected step", self.remove_step)
-        self.start_button = button("Run survey", self.start, True)
+        self.start_button = button("Save survey", self.start, True)
         self.start_button.setEnabled(False)
         self.remove_button.setEnabled(False)
         self.queue.itemSelectionChanged.connect(self.update_queue_actions)
@@ -95,7 +103,9 @@ class SurveyPage(QWidget):
         start_actions.addWidget(self.start_button)
         start_actions.addWidget(label("Pause mode lets you move to the next point before continuing.", "muted"), 1)
         layout.addLayout(start_actions)
-        layout = outer
+        layout = self.landing_layout
+        layout.addWidget(button('New survey', self.new_survey, True))
+        layout.addWidget(button('Trash / restore', self.window.open_trash))
         layout.addWidget(label("Saved surveys", "section"))
         self.session_search = QLineEdit()
         self.session_search.setAccessibleName("Search survey sessions")
@@ -103,7 +113,7 @@ class SurveyPage(QWidget):
         self.session_search.setClearButtonEnabled(True)
         self.session_filter = QComboBox()
         self.session_filter.setAccessibleName("Survey session state")
-        self.session_filter.addItems(["All states","paused","complete","partial","interrupted","running"])
+        self.session_filter.addItems(["All states", "Open", "Completed", "paused", "partial", "interrupted", "running"])
         layout.addWidget(self.session_search)
         layout.addWidget(self.session_filter)
         self.session_count = label("", "muted")
@@ -120,7 +130,23 @@ class SurveyPage(QWidget):
         self.open_session_button = button("Open session", self.open_session)
         saved.addWidget(self.open_session_button)
         self.saved.currentIndexChanged.connect(lambda: self.open_session_button.setEnabled(bool(self.saved.currentData())))
+        self.saved.hide()
+        self.open_session_button.hide()
         layout.addLayout(saved)
+        self.session_list = table(['Survey', 'Site', 'Lifecycle', 'Tests complete / total', 'Updated UTC'])
+        self.session_list.itemActivated.connect(self.open_listing)
+        self.session_list.itemClicked.connect(self.open_listing)
+        layout.addWidget(self.session_list)
+        layout = QVBoxLayout(self.detail)
+        detail_actions = FlowLayout()
+        self.configure_button = button('Configure / attributes', self.configure_session)
+        self.add_tests_button = button('Add tests', self.add_to_session)
+        self.complete_button = button('Complete survey', self.toggle_complete)
+        self.delete_survey_button = button('Delete survey', self.delete_session)
+        for control in (self.configure_button,self.add_tests_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
+        layout.addLayout(detail_actions)
+        self.attributes = label('', 'muted')
+        layout.addWidget(self.attributes)
         self.status = label("No survey selected", "muted")
         layout.addWidget(self.status)
         self.compare_visit_button = button("Compare this visit with a baseline…", self.compare_visit)
@@ -159,7 +185,13 @@ class SurveyPage(QWidget):
         self.report_button = button("View survey report / save HTML…", self.view_report)
         self.report_button.setEnabled(False)
         layout.addWidget(self.report_button)
+        report_actions = FlowLayout()
+        for control in (self.report_button, self.export_button, self.compare_visit_button, self.trend_button):
+            layout.removeWidget(control)
+            report_actions.addWidget(control)
+        layout.insertLayout(3, report_actions)
         self.refresh()
+        self.show_landing()
 
     def save_queue_template(self):
         from .survey_templates import validate_template
@@ -183,8 +215,9 @@ class SurveyPage(QWidget):
             self.name.setText(value["name"])
             self.manual.setChecked(value["manual"])
             self.update_queue()
-            self.builder_toggle.setChecked(True)
-            self.template_hint.setText("Template loaded into the queue; no tests started. Review every test, current site/scenario, targets and SDR settings, then Run survey to create a fresh session.")
+            self.landing.hide(); self.detail.hide(); self.back_button.show()
+            self.builder_toggle.setChecked(True); self.builder.show()
+            self.template_hint.setText("Template loaded into the queue; no tests started. Review every test, current site/scenario, targets and SDR settings, then Save survey. Run next starts acquisition from survey details.")
             QTimer.singleShot(0, lambda: self.window.pages.widget(5).ensureWidgetVisible(self.queue))
         except (OSError, ValueError) as exc:
             self.window.error(str(exc))
@@ -233,6 +266,10 @@ class SurveyPage(QWidget):
         self.move_down_button.setEnabled(selected and self.queue.currentRow() < len(self.steps)-1)
 
     def set_busy(self, busy):
+        for control in (self.configure_button,self.add_tests_button,self.complete_button,self.delete_survey_button):
+            control.setEnabled(not busy and bool(self.session) and self.session.get('status')!='running')
+        if self.session and self.session.get('lifecycle')=='completed':
+            self.configure_button.setEnabled(False); self.add_tests_button.setEnabled(False)
         for control in (self.name, self.step_name, self.copies, self.add_button, self.remove_button, self.start_button, self.preset, self.manual, self.save_template_button, self.load_template_button):
             control.setEnabled(not busy)
         self.continue_button.setEnabled(not busy and self.can_continue())
@@ -241,19 +278,108 @@ class SurveyPage(QWidget):
         self.update_queue_actions()
 
     def start(self):
-        from .survey import validate_steps
+        from .survey import validate_steps, create_survey, append_steps
         try:
             steps = validate_steps(self.steps)
-            if not self.name.text().strip():
-                raise ValueError("Name the survey before starting")
-            if any(s["options"]["throughput"] for s in steps) and not self.window.config.iperf3_server:
-                raise ValueError("Configure iperf3_server before running throughput steps")
-            extra = {}
-            if self.preset.isChecked() and any(s["options"]["sdr"] for s in steps):
-                extra["capture_settings"] = self.window.selected_capture_settings()
-            self.window.start_job("survey", name=self.name.text().strip(), steps=steps, manual=self.manual.isChecked(), **extra)
-        except ValueError as exc:
-            self.window.error(str(exc))
+            cfg = core.AppConfig.from_dict(self.window.config.to_dict())
+            cfg.site_id = self.window.site.text().strip() or cfg.site_id
+            cfg.scenario = self.window.scenario.currentData()
+            if self.preset.isChecked() and any(step['options']['sdr'] for step in steps):
+                settings = self.window.selected_capture_settings()
+                from .rf_workflow import apply_preset
+                apply_preset(cfg, **settings)
+            if self.adding_to_session:
+                session = append_steps(cfg, self.session_path, steps)
+                self.show_session(session, self.session_path)
+            else:
+                result = create_survey(cfg, self.name.text().strip(), steps, self.manual.isChecked())
+                self.show_session(result['survey'], result['survey_path'])
+            self.steps = []
+            self.update_queue()
+            self.refresh()
+        except (OSError, ValueError) as exc: self.window.error(str(exc))
+
+    def show_landing(self):
+        self.landing.show(); self.detail.hide(); self.builder.hide()
+        self.builder_toggle.hide(); self.back_button.hide()
+        self.adding_to_session = False
+        self.refresh()
+
+    def new_survey(self):
+        self.adding_to_session = False
+        self.steps = []; self.update_queue()
+        self.name.setEnabled(True); self.name.setText('Site survey')
+        self.start_button.setText('Save survey')
+        self.landing.hide(); self.detail.hide(); self.back_button.show()
+        self.builder_toggle.setChecked(True); self.builder.show()
+
+    def add_to_session(self):
+        if not self.session or self.window.process is not None: return
+        self.new_survey()
+        self.adding_to_session = True
+        self.name.setText(self.session['name']); self.name.setEnabled(False)
+        self.start_button.setText('Add tests to survey')
+        self.queue_hint.setText(str(20-len(self.session['steps'])) + ' test slots remain. Adding tests does not start collection.')
+
+    def open_listing(self, *_):
+        index = self.session_list.currentRow()
+        if 0 <= index < len(self.visible_sessions):
+            path, session = self.visible_sessions[index]
+            self.show_session(session, str(path))
+
+    def configure_session(self):
+        if not self.session or self.window.process is not None: return
+        from .survey import update_survey
+        dialog = QDialog(self); dialog.setWindowTitle('Survey attributes and future tests')
+        body = QVBoxLayout(dialog)
+        body.addWidget(label('Site: ' + self.session['site_id'] + ' — fixed for this survey'))
+        name = QLineEdit(self.session['name']); body.addWidget(name)
+        notes = QPlainTextEdit(self.session.get('notes','')); body.addWidget(notes)
+        manual = QCheckBox('Pause between tests'); manual.setChecked(self.session.get('manual',True)); body.addWidget(manual)
+        settings = QCheckBox('Apply current Settings to unrun tests only'); body.addWidget(settings)
+        body.addWidget(button('Save', dialog.accept)); body.addWidget(button('Cancel', dialog.reject))
+        if dialog.exec() != QDialog.DialogCode.Accepted: return
+        try:
+            changes = dict(name=name.text(), notes=notes.toPlainText(), manual=manual.isChecked())
+            if settings.isChecked(): changes['settings'] = self.window.config.to_dict()
+            self.show_session(update_survey(self.window.config,self.session_path,changes), self.session_path)
+            self.refresh()
+        except (OSError,ValueError) as exc: self.window.error(str(exc))
+
+    def toggle_complete(self):
+        if not self.session or self.window.process is not None: return
+        from .survey import set_lifecycle
+        completed = self.session.get('lifecycle') != 'completed'
+        pending = sum(step['status'] in ('planned','not_run') for step in self.session['steps'])
+        if completed and QMessageBox.question(self,'Complete survey?',f'Complete this survey with {pending} unrun tests? Unrun and failed measurements remain identified; results are not changed to success.') != QMessageBox.StandardButton.Yes: return
+        try:
+            self.show_session(set_lifecycle(self.window.config,self.session_path,completed), self.session_path)
+            self.refresh()
+        except (OSError,ValueError) as exc: self.window.error(str(exc))
+
+    def delete_session(self):
+        if not self.session or self.window.process is not None: return
+        from .library import trash_survey, run_dependencies
+        owned = 0
+        store = core.VeilbreakerStore(self.window.config.db_path)
+        try:
+            for step in self.session['steps']:
+                deps = run_dependencies(self.window.config, step['run_id'], store)
+                if store.get_run(step['run_id']) and not deps['cases'] and not any(owner != self.session['survey_id'] for owner in deps['surveys']):
+                    owned += 1
+        finally: store.close()
+        dialog = QDialog(self); dialog.setWindowTitle('Move survey to Trash')
+        body = QVBoxLayout(dialog)
+        body.addWidget(label('Remove '+self.session['name']+'? By default its tests remain in the test library. Shared/case evidence is preserved.'))
+        include = QCheckBox(f'Also remove up to {owned} exclusively owned saved tests'); body.addWidget(include)
+        body.addWidget(button('Move to Trash',dialog.accept)); body.addWidget(button('Cancel',dialog.reject))
+        if dialog.exec()!=QDialog.DialogCode.Accepted: return
+        try:
+            trash_survey(self.window.config,self.session_path,include.isChecked())
+            self.window.refresh_history()
+            if include.isChecked() and self.window.payload and any(step['run_id']==self.window.payload['run_id'] for step in self.session['steps']): self.window.clear_workspace()
+            self.session=None; self.session_path=None; self.show_landing()
+        except (OSError,ValueError) as exc: self.window.error(str(exc))
 
     def refresh(self):
         self.session_cache = list_sessions(self.window.config)
@@ -263,9 +389,16 @@ class SurveyPage(QWidget):
         from .survey_plans import session_matches
         selected = self.saved.currentData()
         self.saved.clear()
+        self.visible_sessions = []
+        state = self.session_filter.currentText()
         for path, session in self.session_cache:
-            if session_matches(session,self.session_search.text(),self.session_filter.currentText()):
+            lifecycle = session.get('lifecycle', 'completed' if session['status']=='complete' else 'open')
+            if state in ('Open','Completed') and lifecycle != state.lower(): continue
+            if state not in ('All states','Open','Completed') and session['status'] != state: continue
+            if session_matches(session,self.session_search.text(),'All states'):
+                self.visible_sessions.append((path,session))
                 self.saved.addItem(f"{session['name']} • {session['site_id']} • {session['status']} • {session['created_utc']}", str(path))
+        fill(self.session_list, [[v['name'],v['site_id'],v.get('lifecycle','open'),str(sum(s['status']=='complete' for s in v['steps']))+' / '+str(len(v['steps'])),v.get('edit_history',[{}])[-1].get('timestamp',v['created_utc'])] for _,v in self.visible_sessions])
         index = self.saved.findData(selected)
         if index >= 0:
             self.saved.setCurrentIndex(index)
@@ -306,6 +439,13 @@ class SurveyPage(QWidget):
 
     def show_session(self, session, path):
         self.session, self.session_path = session, path
+        self.landing.hide(); self.builder.hide(); self.detail.show(); self.back_button.show()
+        self.builder_toggle.hide()
+        completed = session.get('lifecycle', 'completed' if session['status']=='complete' else 'open')=='completed'
+        self.complete_button.setText('Reopen survey' if completed else 'Complete survey')
+        self.add_tests_button.setEnabled(not completed and len(session['steps'])<20)
+        self.configure_button.setEnabled(not completed)
+        self.attributes.setText('Lifecycle: '+('Completed' if completed else 'Open')+' | Scenario: '+session.get('scenario','Not recorded')+' | '+session.get('notes',''))
         self.results.clearSelection()
         self.results.setCurrentCell(-1, -1)
         self.compare_visit_button.setEnabled(True)
@@ -321,6 +461,7 @@ class SurveyPage(QWidget):
         self.select_point()
         steps = session["steps"]
         keys = sorted({k for s in steps for k in s.get("metrics", {})})
+        self.comparison.setVisible(bool(keys))
         self.comparison.setColumnCount(len(steps) + 1)
         self.comparison.setHorizontalHeaderLabels(["Metric", *[s["label"] for s in steps]])
         fill(self.comparison, [[k, *[json.dumps(s["metrics"][k], ensure_ascii=False) if k in s.get("metrics", {}) else "—" for s in steps]] for k in keys])
@@ -330,7 +471,7 @@ class SurveyPage(QWidget):
             self.comparison.setColumnWidth(index, 135)
 
     def can_continue(self):
-        return bool(self.session and self.session.get("status") != "running" and
+        return bool(self.session and self.session.get("status") != "running" and self.session.get("lifecycle") != "completed" and
                     any(s["status"] in ("planned", "not_run") for s in self.session["steps"]))
 
     def continue_session(self):

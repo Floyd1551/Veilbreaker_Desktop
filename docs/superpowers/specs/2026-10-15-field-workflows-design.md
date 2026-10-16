@@ -1,7 +1,7 @@
 # Field workflows and diagnostic evidence
 
 Date: October 15, 2026
-Status: Scope approved; written design awaiting review.
+Status: Written design approved; implementation authorized.
 
 ## Intent
 

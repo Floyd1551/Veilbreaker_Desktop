@@ -52,12 +52,15 @@ def prepare_input(selection):
     selected['provenance']['source_sha256'] = capture['sha256']
     selected['provenance']['source_kind'] = 'saved_android_capture'
     selected['raw_bytes'] = capture['raw_bytes']
+    from .receiver_assessment import build_phone_assessments
+    selected['assessments'] = build_phone_assessments(capture['envelope'], (selection['observation_id'], selection['cell_index']))
     return selected
 
 
 def prepare_live_input(envelope):
     from .android_usb import summarize_session
     from .android_capture import validate_capture
+    from .receiver_assessment import build_phone_assessments
     validate_capture(envelope)
     summary = summarize_session(envelope)
     # Each cell is assessed independently; no strongest-cell selection or averaging.
@@ -77,6 +80,7 @@ def prepare_live_input(envelope):
         notes.extend('Phone cell ' + str(index) + ': ' + f.title + ' â€” ' + f.observation for f in engine.analyze(selected['metrics']).findings)
     if not cells: notes.append('No registered LTE/NR cell was available for RF assessment.')
     return {'metrics': {'android_source': 'usb_live', 'observation_count': summary['observations'], 'registered_cell_count': len(cells)},
+            'assessments': build_phone_assessments(envelope),
             'notes': notes, 'raw_bytes': json.dumps(envelope, ensure_ascii=False).encode('utf-8'),
             'provenance': {'source_kind': 'live_android_usb', 'capture_id': envelope['capture_id'],
                            'received_utc': envelope['created_utc'], 'collection_outcome': envelope['collection']['outcome'],

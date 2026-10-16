@@ -37,6 +37,45 @@ class GuiTests(unittest.TestCase):
             QTest.qWait(30)
         self.assertIsNone(self.window.process, "Worker timed out")
 
+    def test_library_delete_and_restore_from_gui(self):
+        from veilbreaker.library import list_trash, restore_entry
+        from PySide6.QtWidgets import QMessageBox
+        store=core.VeilbreakerStore(self.window.config.db_path)
+        try:
+            store.save_run('saved','default','field_validation',{},core.ProfessionalVeilbreakerEngine().analyze({}))
+        finally: store.close()
+        self.window.refresh_history()
+        self.window.history.selectRow(0)
+        with patch('veilbreaker.gui.QMessageBox.question',return_value=QMessageBox.StandardButton.No):
+            self.window.delete_history()
+        self.assertEqual(len(self.window.history_rows),1)
+        with patch('veilbreaker.gui.QMessageBox.question',return_value=QMessageBox.StandardButton.Yes):
+            self.window.delete_history()
+        self.assertEqual(len(self.window.history_rows),0)
+        restore_entry(self.window.config,list_trash(self.window.config)[0]['entry_id'])
+        self.window.refresh_history()
+        self.assertEqual(len(self.window.history_rows),1)
+
+    def test_clear_workspace_preserves_settings_and_refuses_busy(self):
+        self.window.show_demo()
+        self.window.android_live = {'token':'secret'}
+        self.window.last_run_request = {'input':'old.json'}
+        site = self.window.site.text()
+        self.window.set_busy(True)
+        self.window.clear_workspace()
+        self.assertIsNotNone(self.window.payload)
+        self.window.set_busy(False)
+        self.window.clear_workspace()
+        self.assertIsNone(self.window.payload)
+        self.assertIsNone(self.window.android_live)
+        self.assertIsNone(self.window.last_run_request)
+        self.assertEqual(self.window.findings.rowCount(), 0)
+        self.assertEqual(self.window.sweep_selector.count(), 0)
+        self.assertFalse(self.window.export_button.isEnabled())
+        self.assertEqual(self.window.site.text(), site)
+        self.window.show_demo()
+        self.assertIsNotNone(self.window.payload)
+
     def test_followup_prepares_options_without_acquisition(self):
         self.window.show_demo()
         test = {'test_id': 'TEST-DNS', 'title': 'DNS', 'purpose': 'Compare', 'action': 'Check', 'priority': 1}
@@ -169,6 +208,7 @@ class GuiTests(unittest.TestCase):
     def test_survey_queue_limit_and_dispatch(self):
         page = self.window.survey_page
         self.window.flags["sdr"].setChecked(True)
+        self.window.scenario.setCurrentIndex(1)
         page.copies.setValue(20)
         page.add_steps()
         self.assertEqual(len(page.steps), 20)
@@ -176,10 +216,15 @@ class GuiTests(unittest.TestCase):
         self.assertIn("at most 20", self.errors[-1])
         with patch.object(self.window, "start_job") as start:
             page.start()
-        self.assertEqual(start.call_args.args[0], "survey")
-        self.assertEqual(len(start.call_args.kwargs["steps"]), 20)
-        self.assertIn("capture_settings", start.call_args.kwargs)
-        self.assertTrue(start.call_args.kwargs["manual"])
+        start.assert_not_called()
+        self.assertEqual(len(page.session['steps']), 20)
+        self.assertTrue(page.session['manual'])
+        self.assertEqual(page.session['lifecycle'], 'open')
+        self.assertEqual(page.session['scenario'], self.window.scenario.currentData())
+        self.assertEqual(page.session['status'], 'paused')
+        self.assertTrue(page.landing.isHidden())
+        page.show_landing()
+        self.assertFalse(page.landing.isHidden())
 
     def test_template_load_reviews_queue_without_starting_worker(self):
         from veilbreaker.survey_templates import save_template

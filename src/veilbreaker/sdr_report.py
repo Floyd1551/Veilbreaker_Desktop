@@ -90,8 +90,17 @@ def build_sdr_report(summaries, metadata, plan=None):
                  'expected_uses': [band_description(b) for b in bands_at(plan, p[0])]}
                 for p in sorted(points, key=lambda p: (-p[2], p[0]))[:10]]
             row['bins_above_floor_plus_10db_pct'] = round(100 * sum(p[1] > floor+10 for p in points)/len(points), 2)
+            activity = row['bins_above_floor_plus_10db_pct']
+            excess = max(p[2] for p in points) - statistics.median(p[1] for p in points)
+            row['notes'].append(f'Observed RF activity: {activity:.1f}% of measured bins exceed the estimated floor by 10 dB; strongest-bin excess is {excess:.1f} dB above the sweep median.')
+            row['notes'].append('Field follow-up: ' + ('Inspect the strongest frequencies against the service band and repeat at another position.' if excess >= 18 else 'Repeat with identical receiver settings and antenna placement to establish a comparable baseline.') + ' This observation alone does not diagnose harmful interference or identify a carrier.')
             from .sdr_visuals import build_visuals
             row['visuals'] = build_visuals(path, points, low, high)
+            change = row['visuals'].get('temporal_change')
+            if change:
+                row['notes'].append(f"Within-capture change: median matched-bin change {change['median_delta_db']:+.1f} dB; largest increase {change['largest_increase_db']:+.1f} dB, first to last displayed reconstructed sweep. This is observed variation, not proof of interference; repeat and correlate with service symptoms.")
+            else:
+                row['notes'].append('Temporal change not assessed: at least two sweeps with matching frequency bins are required.')
             row['notes'].append('Floor estimate: median of lowest 20% of bin medians (at least one). Activity: fraction of observed bin medians > floor + 10 dB; not time occupancy. Strong wideband signals can bias this estimate.')
         except (OSError, ValueError, KeyError, TypeError) as exc:
             row['notes'].append(f'Saved spectrum unavailable: {exc}')

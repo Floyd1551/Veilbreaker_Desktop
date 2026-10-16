@@ -42,6 +42,78 @@ def validate_steps(steps):
     return clean
 
 
+def create_survey(config, name, steps, manual=True):
+    steps = validate_steps(steps)
+    if not isinstance(name, str) or not name.strip() or len(name)>200:
+        raise ValueError('Survey name must contain 1–200 characters')
+    survey_id = 'survey-' + uuid.uuid4().hex[:12]
+    path = config.root / 'surveys' / (survey_id + '.json')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    session = dict(schema_version=1, survey_id=survey_id, name=name.strip(), site_id=config.site_id,
+        scenario=config.scenario, created_utc=core.utcnow_iso(), status='paused', lifecycle='open',
+        manual=manual, pid=os.getpid(), sdr_settings=asdict(config.sdr), steps=[])
+    for index, step in enumerate(steps, 1):
+        session['steps'].append(dict(step, run_id=f'{survey_id}-{index:02d}',status='planned',settings=config.to_dict()))
+    with session_lock(path):
+        (path.parent/'settings').mkdir(exist_ok=True)
+        atomic_json(path.parent/'settings'/path.name, config.to_dict())
+        atomic_json(path,session)
+    return dict(survey=read_session(config,path), survey_path=str(path))
+
+
+def append_steps(config, path, steps):
+    path=_session_path(config,path)
+    added=validate_steps(steps)
+    with session_lock(path):
+        data=_editable_session(config,path)
+        if data.get('lifecycle')=='completed': raise ValueError('Reopen the survey before adding tests')
+        if len(data['steps'])+len(added)>20: raise ValueError('A survey can contain at most 20 tests')
+        settings=config.to_dict()
+        settings['site_id']=data['site_id']; settings['scenario']=data['scenario']
+        for step in added:
+            index=len(data['steps'])+1
+            data['steps'].append(dict(step,run_id=f"{data['survey_id']}-{index:02d}",status='planned',settings=settings))
+        data['status']='paused'
+        data.setdefault('edit_history',[]).append(dict(timestamp=core.utcnow_iso(),action='add tests',count=len(added)))
+        atomic_json(path,data)
+    return read_session(config,path)
+
+
+def set_lifecycle(config,path,completed):
+    if type(completed) is not bool: raise ValueError('Invalid lifecycle')
+    path=_session_path(config,path)
+    with session_lock(path):
+        data=_editable_session(config,path)
+        data['lifecycle']='completed' if completed else 'open'
+        if completed:
+            for step in data['steps']:
+                if step['status']=='planned': step['status']='not_run'
+        data.setdefault('edit_history',[]).append(dict(timestamp=core.utcnow_iso(),action=data['lifecycle']))
+        atomic_json(path,data)
+    return read_session(config,path)
+
+
+def update_survey(config,path,changes):
+    if set(changes)-{'name','notes','manual','settings'}: raise ValueError('Unsupported survey attribute')
+    path=_session_path(config,path)
+    with session_lock(path):
+        data=_editable_session(config,path)
+        if data.get('lifecycle')=='completed': raise ValueError('Reopen before configuring the survey')
+        if 'name' in changes and (not isinstance(changes['name'],str) or not changes['name'].strip() or len(changes['name'])>200): raise ValueError('Name must contain 1–200 characters')
+        if 'notes' in changes and (not isinstance(changes['notes'],str) or len(changes['notes'])>2000): raise ValueError('Notes must contain at most 2000 characters')
+        if 'manual' in changes and type(changes['manual']) is not bool: raise ValueError('Invalid manual progression option')
+        previous={k:data.get(k) for k in changes if k!='settings'}
+        if 'settings' in changes:
+            settings=core.AppConfig.from_dict(changes['settings']).to_dict()
+            settings['site_id']=data['site_id']; settings['scenario']=data['scenario']; settings['data_dir']=str(config.root)
+            for step in data['steps']:
+                if step['status'] in ('planned','not_run'): step['settings']=settings
+        data.update({k:v for k,v in changes.items() if k!='settings'})
+        data.setdefault('edit_history',[]).append(dict(timestamp=core.utcnow_iso(),action='configure',previous=previous))
+        atomic_json(path,data)
+    return read_session(config,path)
+
+
 def execute_survey(config, name, steps, progress=None, manual=False):
     if type(manual) is not bool:
         raise ValueError("Manual progression must be a boolean")
@@ -97,6 +169,7 @@ def resume_survey(config, path, progress=None):
     path = _session_path(config, path)
     with session_lock(path):
         session = _editable_session(config, path)
+        if session.get("lifecycle") == "completed": raise ValueError("Reopen the survey before continuing")
         if not any(step["status"] in ("planned", "not_run") for step in session["steps"]):
             raise ValueError("No unrun tests remain. Completed, failed and interrupted tests are not repeated.")
         snapshot = path.parent / "settings" / path.name
@@ -118,6 +191,9 @@ def _session_path(config, path):
 
 
 def _editable_session(config, path):
+    from .library import list_trash
+    if any(r['kind']=='survey' and r['item_id']==Path(path).stem for r in list_trash(config)):
+        raise ValueError('Restore this survey from Trash before editing')
     raw = json.loads(Path(path).read_text(encoding="utf-8"))
     observed = read_session(config, path)
     if observed["status"] == "running":
@@ -125,6 +201,7 @@ def _editable_session(config, path):
     for original, current in zip(raw["steps"], observed["steps"]):
         original["status"] = current["status"]
     raw["status"] = observed["status"]
+    raw["lifecycle"] = observed["lifecycle"]
     return raw
 
 
@@ -153,7 +230,8 @@ def _run_session(config, path, session, progress):
             if progress:
                 progress({**event, "source": f"Test {index}/{len(session['steps'])} · {step['label']} · {event['source']}"})
         notify({"event": "collection", "source": "starting", "status": "running"})
-        cfg = core.AppConfig.from_dict(config.to_dict())
+        cfg = core.AppConfig.from_dict(step.get("settings", config.to_dict()))
+        cfg.data_dir = str(config.root)
         cfg.cellular.enabled = step["options"]["cellular"]
         cfg.starlink.enabled = step["options"]["starlink"]
         cfg.sdr.enabled = step["options"]["sdr"]
@@ -182,6 +260,7 @@ def read_session(config, path):
     session = json.loads(Path(path).read_text(encoding="utf-8"))
     if session.get("schema_version") != 1:
         raise ValueError("Unsupported survey format")
+    session.setdefault("lifecycle", "completed" if session["status"] == "complete" else "open")
     stopped = session["status"] == "running" and not process_alive(int(session["pid"]))
     if stopped:
         session["status"] = "interrupted"
@@ -193,7 +272,7 @@ def read_session(config, path):
             if row:
                 step["metrics"] = json.loads(row["metrics_json"])
                 step["assessment"] = json.loads(row["report_json"])["status"]
-                collection_file = Path(row["artifact_dir"]) / "collection.json"
+                collection_file = Path(row["artifact_dir"] or config.artifacts_dir / step["run_id"]) / "collection.json"
                 if collection_file.exists():
                     step["status"] = json.loads(collection_file.read_text(encoding="utf-8"))["status"]
                 step["evidence_zip"] = str(config.reports_dir / f"{step['run_id']}_evidence.zip")
@@ -214,10 +293,13 @@ def read_session(config, path):
 
 
 def list_sessions(config):
+    from .library import list_trash
+    removed = {r['item_id'] for r in list_trash(config) if r['kind']=='survey'}
     sessions = []
     for path in sorted((config.root / "surveys").glob("survey-*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
         try:
             session = read_session(config, path)
+            if session["survey_id"] in removed: continue
             sessions.append((path, session))
         except (OSError, ValueError, KeyError, TypeError):
             continue

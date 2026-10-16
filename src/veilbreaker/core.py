@@ -1497,6 +1497,13 @@ class VeilbreakerStore:
                 artifact_dir TEXT,
                 note TEXT
             );
+            CREATE TABLE IF NOT EXISTS trash_entries (
+                entry_id TEXT PRIMARY KEY, kind TEXT NOT NULL, item_id TEXT NOT NULL,
+                removed_utc TEXT NOT NULL, metadata_json TEXT NOT NULL,
+                UNIQUE(kind, item_id)
+            );
+            CREATE VIEW IF NOT EXISTS active_runs AS SELECT * FROM runs
+                WHERE run_id NOT IN (SELECT item_id FROM trash_entries WHERE kind='run');
             CREATE INDEX IF NOT EXISTS idx_runs_site_time ON runs(site_id, ts_utc DESC);
             CREATE TABLE IF NOT EXISTS cases (
                 case_id TEXT PRIMARY KEY,
@@ -1536,37 +1543,37 @@ class VeilbreakerStore:
         self.db.commit()
 
     def get_run(self, run_id: str) -> Optional[sqlite3.Row]:
-        return self.db.execute("SELECT * FROM runs WHERE run_id=?", (run_id,)).fetchone()
+        return self.db.execute("SELECT * FROM active_runs WHERE run_id=?", (run_id,)).fetchone()
 
     def list_runs(self, site_id: Optional[str] = None, limit: int = 20) -> List[sqlite3.Row]:
         if site_id:
-            return list(self.db.execute("SELECT * FROM runs WHERE site_id=? ORDER BY ts_utc DESC LIMIT ?", (site_id, limit)))
-        return list(self.db.execute("SELECT * FROM runs ORDER BY ts_utc DESC LIMIT ?", (limit,)))
+            return list(self.db.execute("SELECT * FROM active_runs WHERE site_id=? ORDER BY ts_utc DESC LIMIT ?", (site_id, limit)))
+        return list(self.db.execute("SELECT * FROM active_runs ORDER BY ts_utc DESC LIMIT ?", (limit,)))
 
     def search_runs(self, query="", limit=200, offset=0):
         if not 1 <= limit <= 200 or offset < 0:
             raise ValueError("Invalid history page")
         # Literal substring matching: %, _ and quotes are not SQL operators.
         where = "instr(lower(run_id || ' ' || ts_utc || ' ' || site_id || ' ' || scenario || ' ' || coalesce(note, '')), lower(?)) > 0"
-        total = self.db.execute("SELECT count(*) FROM runs WHERE " + where, (query.strip(),)).fetchone()[0]
-        rows = self.db.execute("SELECT * FROM runs WHERE " + where + " ORDER BY ts_utc DESC, run_id DESC LIMIT ? OFFSET ?",
+        total = self.db.execute("SELECT count(*) FROM active_runs WHERE " + where, (query.strip(),)).fetchone()[0]
+        rows = self.db.execute("SELECT * FROM active_runs WHERE " + where + " ORDER BY ts_utc DESC, run_id DESC LIMIT ? OFFSET ?",
                                (query.strip(), limit, offset)).fetchall()
         return rows, total
 
     def preceding_run(self, row):
         return self.db.execute(
-            "SELECT * FROM runs WHERE site_id=? AND scenario=? AND (ts_utc < ? OR (ts_utc = ? AND run_id < ?)) ORDER BY ts_utc DESC, run_id DESC LIMIT 1",
+            "SELECT * FROM active_runs WHERE site_id=? AND scenario=? AND (ts_utc < ? OR (ts_utc = ? AND run_id < ?)) ORDER BY ts_utc DESC, run_id DESC LIMIT 1",
             (row["site_id"], row["scenario"], row["ts_utc"], row["ts_utc"], row["run_id"])).fetchone()
 
     def recent_metric_sets(self, site_id: str, scenario: Optional[str], limit: int) -> List[Dict[str, Any]]:
         if scenario:
             rows = self.db.execute(
-                "SELECT metrics_json FROM runs WHERE site_id=? AND scenario=? AND run_id NOT LIKE 'android-%' ORDER BY ts_utc DESC LIMIT ?",
+                "SELECT metrics_json FROM active_runs WHERE site_id=? AND scenario=? AND run_id NOT LIKE 'android-%' ORDER BY ts_utc DESC LIMIT ?",
                 (site_id, scenario, limit),
             )
         else:
             rows = self.db.execute(
-                "SELECT metrics_json FROM runs WHERE site_id=? AND run_id NOT LIKE 'android-%' ORDER BY ts_utc DESC LIMIT ?",
+                "SELECT metrics_json FROM active_runs WHERE site_id=? AND run_id NOT LIKE 'android-%' ORDER BY ts_utc DESC LIMIT ?",
                 (site_id, limit),
             )
         out = []
@@ -4153,8 +4160,9 @@ class ProfessionalVeilbreakerEngine(VeilbreakerLogicEngine):
                               "The sweep contains a strong narrow/clustered emitter relative to the surrounding captured spectrum. A receive-only sweep alone cannot establish that it is harmful interference.",
                               "Compare against a known-good baseline and correlate the emitter with the affected service frequency/time window.",
                               0.73, [med_key, peak_key, peakfreq_key])
-            bmed = baseline.get(med_key) if isinstance(baseline, Mapping) else None
-            bocc = baseline.get(occ_key) if isinstance(baseline, Mapping) else None
+            qualified = bool(m.get("sdr_baseline_qualified"))
+            bmed = baseline.get(med_key) if qualified and isinstance(baseline, Mapping) else None
+            bocc = baseline.get(occ_key) if qualified and isinstance(baseline, Mapping) else None
             if med is not None and isinstance(bmed, Mapping) and bmed.get("n", 0) >= 5:
                 delta = med - float(bmed["median"])
                 if delta >= 8.0:
@@ -4678,6 +4686,15 @@ class VeilbreakerApplication:
             notes.extend(f"hackrf: {x}" for x in n)
             sweep_summaries.extend(summaries)
 
+        if sweep_summaries:
+            from .sdr_assessment import capture_context, compare_capture_context
+            metrics['sdr_capture_context'] = capture_context(self.config.sdr, metrics)
+            prior = self.store.recent_metric_sets(self.config.site_id, self.config.scenario, self.config.baseline_run_count)
+            metrics['sdr_baseline_qualified'] = len(prior) >= self.config.baseline_min_samples and all(
+                compare_capture_context(metrics['sdr_capture_context'], item.get('sdr_capture_context', {}))['compatible'] for item in prior)
+            if not metrics['sdr_baseline_qualified']:
+                notes.append('SDR baseline comparison unqualified: insufficient captures or missing/different receiver, coverage, bin width or gain settings. Repeat with identical settings and antenna placement.')
+
         baseline = self.store.baseline(
             self.config.site_id, self.config.scenario,
             limit=int(self.config.baseline_run_count), min_samples=int(self.config.baseline_min_samples),
@@ -4732,10 +4749,10 @@ class VeilbreakerApplication:
                 self.acquisition.collect('android_input', lambda: (phone_metrics, phone['notes']), complete=lambda _: complete)
             metrics.update(phone_metrics)
             notes.extend(phone['notes'])
-            phone_report = self.engine.analyze(phone['metrics'])
+            from .receiver_assessment import apply_phone_assessments
+            apply_phone_assessments(report, phone.get('assessments', []))
             report.summary.append(('Live USB Android session' if android_live else 'Saved Android input') + ': phone measurements evaluated separately from desktop network tests. Capture time: ' + phone['provenance']['received_utc'])
             if android_live: report.summary.append('See Cellular report for serving-cell details, signal tables, sample freshness and trends.')
-            report.summary.extend('Phone RF: ' + finding.title + ' — ' + finding.observation for finding in phone_report.findings)
             report.normalized_metrics.update(phone_metrics)
             (artifact_dir / 'android-capture.json').write_bytes(phone['raw_bytes'])
             (artifact_dir / 'android-selection.json').write_text(json.dumps(phone['provenance'], indent=2, ensure_ascii=False), encoding='utf-8')

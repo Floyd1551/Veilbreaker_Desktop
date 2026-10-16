@@ -200,6 +200,8 @@ class MainWindow(QMainWindow):
         self.build_settings()
         from .survey_ui import SurveyPage
         self.survey_page = SurveyPage(self)
+        self.nav.currentRowChanged.connect(lambda index: self.survey_page.show_landing() if index == 5 else None)
+        self.nav.itemClicked.connect(lambda item: self.survey_page.show_landing() if self.nav.row(item) == 5 else None)
         self.add_scroll_page(self.survey_page)
         for spin in self.findChildren(QSpinBox):
             spin.lineEdit().setStyleSheet("padding: 0; border: none; background: transparent;")
@@ -404,6 +406,8 @@ class MainWindow(QMainWindow):
         self.retry_button.setEnabled(False)
         self.retry_button.hide()
         actions.addWidget(self.retry_button)
+        self.clear_workspace_button = button("Clear workspace", self.clear_workspace)
+        actions.addWidget(self.clear_workspace_button)
         action_panel = QWidget()
         action_panel.setObjectName("surfaceContainer")
         action_panel.setLayout(actions)
@@ -421,6 +425,7 @@ class MainWindow(QMainWindow):
         self.view_report_button.setEnabled(False)
         result_actions.addWidget(self.view_report_button)
         result_actions.addWidget(self.export_button)
+
         layout.addLayout(result_actions)
         stats = QHBoxLayout()
         self.stat_labels = []
@@ -565,12 +570,17 @@ class MainWindow(QMainWindow):
         self.history_compare = button("Compare to previous", self.compare_history)
         actions.addWidget(self.history_open)
         actions.addWidget(self.history_report)
+        self.history_export = button("Export selected evidence…", self.export_history)
+        actions.addWidget(self.history_export)
         actions.addWidget(button("Open report…", self.open_report_file))
         actions.addWidget(self.history_compare)
+        self.history_delete = button("Delete selected test", self.delete_history)
+        actions.addWidget(self.history_delete)
+        actions.addWidget(button("Trash / restore", self.open_trash))
         from .case_ui import show_cases
         actions.addWidget(button("Confirmed cases…", lambda: show_cases(self)))
         layout.addLayout(actions)
-        self.history = table(["Run", "UTC", "Site", "Scenario", "Note"])
+        self.history = table(["Run", "UTC", "Site", "Scenario", "Collection", "Assessment", "Survey", "Note"])
         self.history.itemActivated.connect(lambda *_: self.open_history())
         self.history.itemSelectionChanged.connect(self.update_history_actions)
         layout.addWidget(self.history, 2)
@@ -923,6 +933,8 @@ class MainWindow(QMainWindow):
             self.task_status.setText(message)
 
     def set_busy(self, busy):
+        self.workspace_busy = busy
+        self.clear_workspace_button.setEnabled(not busy)
         from .followup import guidance
         test = self.selected_followup()
         self.prepare_followup_button.setEnabled(not busy and bool(test and guidance(test.get("test_id", ""))[0]))
@@ -941,6 +953,7 @@ class MainWindow(QMainWindow):
         self.progress.setVisible(busy)
         self.pages.widget(4).setEnabled(not busy)
         self.survey_page.set_busy(busy)
+        self.update_history_actions()
         for control in (self.capture_button, self.rf_preset, self.rf_sweeps, self.rf_bins, self.rf_lna, self.rf_vga):
             control.setEnabled(not busy)
 
@@ -967,8 +980,8 @@ class MainWindow(QMainWindow):
                     self.nav.setCurrentRow(3)
                     self.statusBar().showMessage('Prerequisite check complete. Review missing and untested items; acquisition has not started.')
                 elif "survey" in obj["result"]:
-                    self.survey_page.show_session(obj["result"]["survey"], obj["result"]["survey_path"])
                     self.nav.setCurrentRow(5)
+                    self.survey_page.show_session(obj["result"]["survey"], obj["result"]["survey_path"])
                     self.statusBar().showMessage("Survey " + obj["result"]["survey"]["status"] + " • Evidence saved locally")
                 elif "report" in obj["result"]:
                     self.display_payload(obj["result"])
@@ -1029,6 +1042,38 @@ class MainWindow(QMainWindow):
             except ProcessLookupError:
                 pass
         self.process.kill()
+
+    def clear_workspace(self):
+        if getattr(self, 'workspace_busy', False) or self.process is not None:
+            return
+        self.payload = None
+        self.last_run_request = None
+        self.clear_android_input()
+        self.android_input_caption = ''
+        for view in (self.hypotheses, self.findings, self.next_tests, self.collection_table, self.metrics):
+            view.setRowCount(0)
+        for view in (self.summary, self.notes, self.followup_details):
+            view.clear()
+        self.metric_search.clear()
+        self.filter_metrics()
+        self.result_caption.setText('Workspace clear. Run a diagnostic or open a saved test.')
+        for item in self.stat_labels:
+            item.setText('—')
+            item.setStyleSheet('')
+        self.sweep_selector.clear()
+        self.select_sweep()
+        self.spectrum_readout.clear()
+        self.refresh_sdr_report()
+        self.cellular_report_view.setHtml('<p>No Android cellular evidence loaded.</p>')
+        self.select_followup()
+        for control in (self.export_button, self.view_report_button, self.retry_button):
+            control.setEnabled(False)
+        self.retry_button.hide()
+        self.progress.hide()
+        for name in ('spectrum_dialog', 'comparison_dialog'):
+            dialog = getattr(self, name, None)
+            if dialog: dialog.close()
+        self.statusBar().showMessage('Workspace cleared. Saved tests and reports are unchanged.')
 
     def display_payload(self, payload):
         self.payload = payload
@@ -1301,7 +1346,26 @@ class MainWindow(QMainWindow):
         self.history.clearSelection()
         self.history.setCurrentCell(-1, -1)
         self.comparison.clear()
-        fill(self.history, [[r["run_id"], r["ts_utc"], r["site_id"], r["scenario"], r["note"] or ""] for r in self.history_rows])
+        from .library import list_trash
+        removed = {entry['item_id'] for entry in list_trash(self.config) if entry['kind']=='survey'}
+        links = {}
+        for path in (self.config.root/'surveys').glob('survey-*.json'):
+            try:
+                survey = json.loads(path.read_text(encoding='utf-8'))
+                if survey['survey_id'] in removed: continue
+                for step in survey['steps']: links.setdefault(step['run_id'], []).append(survey['name'])
+            except (OSError,ValueError,KeyError,TypeError): continue
+        history_values=[]
+        for row in self.history_rows:
+            collection='Not recorded'
+            try:
+                folder=Path(row['artifact_dir'] or self.config.artifacts_dir/row['run_id'])
+                collection=json.loads((folder/'collection.json').read_text(encoding='utf-8')).get('status','Not recorded')
+            except (OSError,ValueError,TypeError): pass
+            try: assessment=json.loads(row['report_json']).get('status','Not assessed')
+            except (ValueError,TypeError): assessment='Unavailable'
+            history_values.append([row['run_id'],row['ts_utc'],row['site_id'],row['scenario'],collection,assessment,', '.join(links.get(row['run_id'],[])) or 'Standalone',row['note'] or ''])
+        fill(self.history, history_values)
         self.history_previous.setEnabled(self.history_offset > 0)
         self.history_next.setEnabled(self.history_offset + len(self.history_rows) < total)
         first = self.history_offset + 1 if self.history_rows else 0
@@ -1317,7 +1381,47 @@ class MainWindow(QMainWindow):
         selected = bool(self.history.selectedItems())
         self.history_open.setEnabled(selected)
         self.history_report.setEnabled(selected)
+        self.history_export.setEnabled(selected)
         self.history_compare.setEnabled(selected)
+        self.history_delete.setEnabled(selected and not getattr(self, "workspace_busy", False))
+
+    def export_history(self):
+        row = self.selected_run()
+        if not row: return
+        source = self.config.reports_dir / (row['run_id'] + '_evidence.zip')
+        if not source.is_file():
+            self.error('Evidence ZIP is unavailable for this test. Open the report to inspect retained evidence.')
+            return
+        target, _ = QFileDialog.getSaveFileName(self, 'Export test evidence', source.name, 'ZIP (*.zip)')
+        if target:
+            try:
+                if Path(target).resolve() != source.resolve(): shutil.copy2(source, target)
+            except OSError as exc: self.error(str(exc))
+
+    def delete_history(self):
+        if getattr(self, 'workspace_busy', False): return
+        row = self.selected_run()
+        if not row: return
+        from .library import trash_run, run_dependencies
+        try:
+            deps = run_dependencies(self.config, row['run_id'])
+            if deps['cases'] or deps['surveys']:
+                self.error('Test is referenced by ' + ', '.join(deps['surveys'] + deps['cases']) + '. Manage the survey from Site surveys; case evidence must be retained.')
+                if deps['surveys']: self.nav.setCurrentRow(5)
+                return
+            if QMessageBox.question(self, 'Delete saved test?', 'Move ' + row['run_id'] + ' and its reports to Trash? Evidence is retained and can be restored.') != QMessageBox.StandardButton.Yes:
+                return
+            trash_run(self.config, row['run_id'])
+            if self.payload and self.payload['run_id'] == row['run_id']: self.clear_workspace()
+            self.refresh_history()
+        except (OSError, ValueError) as exc: self.error(str(exc))
+
+    def open_trash(self):
+        if getattr(self, 'workspace_busy', False): return
+        from .library_ui import TrashDialog
+        TrashDialog(self.config, self).exec()
+        self.refresh_history()
+        self.survey_page.refresh()
 
     def selected_run(self):
         row = self.history.currentRow()

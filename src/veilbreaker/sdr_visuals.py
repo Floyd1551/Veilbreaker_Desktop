@@ -2,6 +2,7 @@
 import base64
 import csv
 import math
+import statistics
 import struct
 import zlib
 
@@ -115,7 +116,16 @@ def build_visuals(path, points, low, high):
     for _ in range(16):
         for px in range(WIDTH):
             legend.extend(color(water_floor+(water_top-water_floor)*px/(WIDTH-1)))
-    return {'spectrum_png': png(spectrum), 'waterfall_png': png(waterfall, WIDTH, water_height),
+    temporal = None
+    if len(sweeps) >= 2:
+        first = {(a,b):power for a,b,power in sweeps[0]}
+        last = {(a,b):power for a,b,power in sweeps[-1]}
+        # Partial/mismatched frequency coverage cannot establish a sweep-wide change.
+        if first and first.keys() == last.keys():
+            deltas = [last[key]-power for key,power in first.items()]
+            temporal = dict(median_delta_db=round(statistics.median(deltas),2),
+                            largest_increase_db=round(max(deltas),2), matched_bins=len(deltas))
+    return {'temporal_change': temporal, 'spectrum_png': png(spectrum), 'waterfall_png': png(waterfall, WIDTH, water_height),
             'legend_png': png(legend, WIDTH, 16), 'water_floor_db': water_floor, 'water_top_db': water_top,
             'sweep_count': len(sweeps), 'floor_db': floor, 'ceiling_db': ceiling,
             'record_count': len(records), 'truncated': truncated,

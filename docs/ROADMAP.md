@@ -1,8 +1,10 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 15, 2026. Current working version: **0.32.0rc1**.
+Updated October 15, 2026. Current working version: **0.33.0rc1**.
 
-Latest increment: phone-approved six-digit USB pairing, automatic credential exchange, and an in-app Cellular field report with per-cell identity, signal statistics and trends. Phone qualification, production signing and GPS remain pending.
+Latest field-workflow increment: source-labelled phone findings and hypotheses, qualified SDR baseline comparisons, Clear workspace, recoverable test/survey removal, and survey landing/detail lifecycle. See [field workflow guide](field-workflows.md).
+
+Previous increment: phone-approved six-digit USB pairing, automatic credential exchange, and an in-app Cellular field report with per-cell identity, signal statistics and trends. Phone qualification, production signing and GPS remain pending.
 
 Build a dependable local diagnostic companion for Windows and Linux: capture a problem, understand what the evidence supports, choose the next measurement, and compare results after a change. The desktop and CLI share one engine. Missing measurements remain unknown.
 
