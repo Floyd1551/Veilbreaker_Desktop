@@ -172,7 +172,7 @@ class MainActivity : Activity() {
                     lines.add("${cell.optString("radio")} · serving cell ${cell.getJSONObject("identity").optString("cell_id","unknown")}")
                     val signal=cell.getJSONObject("signal")
                     for(key in listOf("rsrp","rsrq","rssnr","ss_rsrp","ss_rsrq","ss_sinr")) signal.optJSONObject(key)?.let { q->if(!q.isNull("value")) lines.add("${key.uppercase().replace('_','-')}: ${q.opt("value")} ${q.optString("unit")}") }
-            } }
+            } } }
             lines.joinToString("\n")
         }
         exportButton.isEnabled=value!=null && !pending && connection==null
