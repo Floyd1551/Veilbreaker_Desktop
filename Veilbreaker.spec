@@ -7,8 +7,8 @@ a = Analysis(
     [str(root / 'tools/cli_entry.py'), str(root / 'tools/gui_entry.py')],
     pathex=[str(root / 'src')],
     datas=[(str(root / 'src/veilbreaker/assets'), 'veilbreaker/assets')],
-    hiddenimports=['serial.tools.list_ports'],
-    excludes=['tkinter', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets'],
+    hiddenimports=['serial.tools.list_ports', 'veilbreaker.map_web', 'PySide6.QtWebChannel', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets'],
+    excludes=['tkinter'],
 )
 pyz = PYZ(a.pure)
 icon = str(root / 'src/veilbreaker/assets/app.ico') if sys.platform == 'win32' else None

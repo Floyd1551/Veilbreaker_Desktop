@@ -33,3 +33,9 @@ class MapDataTests(unittest.TestCase):
     def test_stored_quality_not_trusted(self):
         m=self.model(fix(mock=True,quality={'qualified':True}))
         self.assertEqual(m['representatives'],[])
+
+    def test_extreme_numbers_and_malformed_run_preserve_neighbors(self):
+        model=build_map_data([dict(run_id='bad',locations=[fix(latitude_deg=10**400),fix(horizontal_accuracy_m=10**400)]),dict(run_id='null',locations=[None]),dict(run_id='good',locations=[fix()])])
+        self.assertEqual(model['counts']['mapped'],1)
+        self.assertIn('null',{r['run_id'] for r in model['rows']})
+        json.dumps(model,allow_nan=False)

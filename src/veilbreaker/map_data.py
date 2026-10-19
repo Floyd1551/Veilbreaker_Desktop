@@ -6,13 +6,15 @@ from .location_report import qualify_location
 MERCATOR_LIMIT = 85.05112878
 
 def finite(value):
-    return type(value) in (int, float) and math.isfinite(value)
+    try: return type(value) in (int, float) and math.isfinite(value)
+    except OverflowError: return False
 
 def build_map_data(runs):
     rows, features, representatives, warnings = [], [], [], []
     unpositioned = 0
     for run in runs:
         representative = None
+        start_count = len(rows)
         locations = run.get('locations') or []
         if not isinstance(locations, list):
             locations = []; warnings.append('Invalid location evidence: ' + str(run.get('run_id')))
@@ -38,7 +40,7 @@ def build_map_data(runs):
         if representative is not None: representatives.append(representative)
         else:
             unpositioned += 1
-            if not locations:
+            if len(rows)==start_count:
                 rows.append(dict(id='p'+str(len(rows)),run_id=str(run.get('run_id','')),label=str(run.get('label') or run.get('run_id','')),
                                  observation_id='No GPS evidence',quality=qualify_location({}),renderable=False))
     return dict(features=dict(type='FeatureCollection',features=features), rows=rows,representatives=representatives,warnings=warnings,

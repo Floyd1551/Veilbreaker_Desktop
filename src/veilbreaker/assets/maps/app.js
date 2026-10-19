@@ -36,12 +36,12 @@ async function refresh(){
   if(map)map.remove();
   const style={version:8,sources:{},layers:[{id:'background',type:'background',paint:{'background-color':'#152333'}}]};
   if(model.pack){
-   style.sources.basemap={type:'vector',tiles:['pmtiles://'+base+'pack.pmtiles/{z}/{x}/{y}'],minzoom:model.pack.minzoom,maxzoom:model.pack.maxzoom};
+   style.sources.basemap={type:'vector',tiles:['pmtiles://'+base+model.pack.resource+'/{z}/{x}/{y}'],minzoom:model.pack.minzoom,maxzoom:model.pack.maxzoom};
    style.glyphs=base+'fonts/{fontstack}/{range}.pbf';style.sprite=base+'sprites/v4/dark';
    style.layers=basemaps.layers('basemap',basemaps.namedFlavor('dark'),{lang:'en'});
   }
   notice.textContent=(model.pack?'Offline basemap · '+model.pack.name:'Basemap unavailable · Coordinate-only view')+(model.features.features.length?'':' · No plottable fixes in this view');
-  map=new maplibregl.Map({container:'map',style,center:[-98,39],zoom:3,attributionControl:false,renderWorldCopies:false});
+  map=new maplibregl.Map({container:'map',style,center:[-98,39],zoom:3,attributionControl:false,renderWorldCopies:true});
   map.addControl(new maplibregl.NavigationControl(),'top-right');
   map.addControl(new maplibregl.AttributionControl({customAttribution:'Receiver positions · GPS quality evidence',compact:false}));
   map.on('error',()=>{notice.textContent='Basemap or rendering error · GPS evidence remains in the point list';bridge.failed('local basemap or rendering error');});

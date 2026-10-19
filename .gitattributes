@@ -5,3 +5,6 @@
 *.ps1 text eol=crlf
 *.png binary
 *.ico binary
+
+# Preserve upstream bytes used by the map asset integrity manifest.
+src/veilbreaker/assets/maps/** -text

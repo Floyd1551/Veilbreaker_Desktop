@@ -420,11 +420,14 @@ class MainWindow(QMainWindow):
         self.progress.hide()
         layout.addWidget(self.progress)
         self.result_caption = label("No assessment yet • Run a diagnostic or import a JSON metric snapshot.", "muted")
-        result_actions = QHBoxLayout()
-        result_actions.addWidget(self.result_caption, 1)
+        layout.addWidget(self.result_caption)
+        result_actions = FlowLayout()
         self.view_report_button = button("View report", self.view_current_report)
         self.view_report_button.setEnabled(False)
         result_actions.addWidget(self.view_report_button)
+        self.map_button = button('Map GPS evidence', self.view_current_map)
+        self.map_button.setEnabled(False)
+        result_actions.addWidget(self.map_button)
         result_actions.addWidget(self.export_button)
 
         layout.addLayout(result_actions)
@@ -1071,7 +1074,7 @@ class MainWindow(QMainWindow):
         self.cellular_report_view.setHtml('<p>No Android cellular evidence loaded.</p>')
         self.location_report_view.setHtml('<p>No location evidence loaded.</p>')
         self.select_followup()
-        for control in (self.export_button, self.view_report_button, self.retry_button):
+        for control in (self.export_button, self.view_report_button, self.retry_button, self.map_button):
             control.setEnabled(False)
         self.retry_button.hide()
         self.progress.hide()
@@ -1115,6 +1118,7 @@ class MainWindow(QMainWindow):
         self.notes.setPlainText("\n".join(readable_text(note) for note in payload.get("notes", [])) or "No collection notes recorded.")
         self.export_button.setEnabled(bool(payload.get("evidence_zip")))
         self.view_report_button.setEnabled(bool(payload.get("evidence_zip") or payload.get("artifact_dir")))
+        self.map_button.setEnabled(bool(payload.get("run_id")))
         self.sweep_selector.blockSignals(True)
         self.sweep_selector.clear()
         for sweep in payload.get("sweeps", []):
@@ -1468,6 +1472,28 @@ class MainWindow(QMainWindow):
         pack = self.config.reports_dir / f"{row['run_id']}_evidence.zip"
         self.show_report_file(pack if pack.exists() else Path(row.get('artifact_dir') or self.config.artifacts_dir / row['run_id']))
 
+    def open_map_run(self, run_id):
+        store = core.VeilbreakerStore(self.config.db_path)
+        try:
+            row = store.get_run(run_id)
+            if row: self.display_saved_run(dict(row))
+            else: self.error('This diagnostic is unavailable or in Trash.')
+        finally: store.close()
+
+    def show_map(self, model):
+        from .map_ui import MapWindow
+        if not hasattr(self, 'map_windows'): self.map_windows = []
+        window = MapWindow(self, model, self.open_map_run)
+        self.map_windows.append(window)
+        window.destroyed.connect(lambda *_: self.map_windows.remove(window) if window in self.map_windows else None)
+        window.show()
+
+    def view_current_map(self):
+        if self.payload:
+            from .map_sources import load_run_map_data
+            try: self.show_map(load_run_map_data(self.config, self.payload['run_id']))
+            except (OSError, ValueError) as exc: self.error(str(exc))
+
     def view_current_report(self):
         if not self.payload:
             return
@@ -1622,6 +1648,7 @@ class MainWindow(QMainWindow):
         if self.process is not None:
             self.cancel_task()
             self.process.waitForFinished(5000)
+        for window in list(getattr(self, 'map_windows', [])): window.close()
         event.accept()
 
 
@@ -1671,6 +1698,10 @@ def smoke(destination):
 
 
 def main():
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
+    if len(sys.argv) > 1 and sys.argv[1] == '--map-smoke':
+        from .map_smoke import smoke as map_smoke
+        return map_smoke(sys.argv[2])
     if len(sys.argv) > 1 and sys.argv[1] == "--smoke-test":
         return smoke(sys.argv[2])
     app = QApplication.instance() or QApplication(sys.argv)

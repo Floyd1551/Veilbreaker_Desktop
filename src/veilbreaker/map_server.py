@@ -18,6 +18,7 @@ class MapServer:
     def set_model(self,model):self.model=json.loads(json.dumps(model,allow_nan=False))
     def set_pack(self,path):
         pack=inspect_pack(path) if path else None
+        if pack: pack['resource']='pack-'+secrets.token_hex(16)+'.pmtiles'
         self.pack=pack
         return pack
     def start(self):
@@ -39,7 +40,7 @@ class MapServer:
                 try:
                     if name=='model.json':
                         data=json.dumps(owner.model,allow_nan=False).encode();size=len(data);mime='application/json'
-                    elif name=='pack.pmtiles':
+                    elif owner.pack and name==owner.pack['resource']:
                         pack=owner.pack
                         if not pack or signature(pack['path'])!=pack['signature']:self.send_error(409,'Map changed or unavailable');return
                         stream=open(pack['path'],'rb')

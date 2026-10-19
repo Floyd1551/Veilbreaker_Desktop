@@ -34,3 +34,15 @@ class PackTests(unittest.TestCase):
             with self.assertRaises(ValueError):inspect_pack(p)
             p.unlink()
             with self.assertRaises(OSError):inspect_pack(p)
+
+    def test_vendored_asset_integrity(self):
+        import hashlib
+        root=Path('src/veilbreaker/assets/maps')
+        manifest=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+        for asset in manifest['files']:
+            self.assertEqual(hashlib.sha256((root/asset['file']).read_bytes()).hexdigest(),asset['sha256'],asset['file'])
+
+    def test_malformed_layer_ids_raise_validation_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            p=Path(d)/'test.pmtiles';p.write_bytes(pack_bytes({'vector_layers':[{'id':[]}]}))
+            with self.assertRaises(ValueError):inspect_pack(p)

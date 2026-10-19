@@ -189,6 +189,8 @@ class SurveyPage(QWidget):
         for control in (self.report_button, self.export_button, self.compare_visit_button, self.trend_button):
             layout.removeWidget(control)
             report_actions.addWidget(control)
+        self.map_button = button('Map survey GPS', self.view_map)
+        report_actions.addWidget(self.map_button)
         layout.insertLayout(3, report_actions)
         self.refresh()
         self.show_landing()
@@ -514,6 +516,12 @@ class SurveyPage(QWidget):
                 self.window.error("This step has no saved diagnostic. Recover interrupted captures in Tools if available.")
         finally:
             store.close()
+
+    def view_map(self):
+        if not self.session_path: return
+        from .map_sources import load_survey_map_data
+        try: self.window.show_map(load_survey_map_data(self.window.config, self.session_path))
+        except (OSError, ValueError, KeyError) as exc: self.window.error(str(exc))
 
     def view_report(self):
         if not self.session_path:

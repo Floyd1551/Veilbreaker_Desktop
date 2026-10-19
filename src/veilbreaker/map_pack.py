@@ -3,8 +3,20 @@ import json
 from pathlib import Path
 import struct
 import zlib
+from html.parser import HTMLParser
 
 MAX_METADATA=1024*1024
+
+def attribution_text(value):
+    class Text(HTMLParser):
+        def __init__(self): super().__init__(convert_charrefs=True);self.parts=[];self.links=[]
+        def handle_data(self,data): self.parts.append(data)
+        def handle_starttag(self,tag,attrs):
+            if tag=='a':
+                link=dict(attrs).get('href','')
+                if link.startswith(('https://','http://')): self.links.append(link)
+    text=Text();text.feed(value)
+    return ' '.join(''.join(text.parts).split()) + ''.join(' ('+url+')' for url in dict.fromkeys(text.links))
 
 def signature(path):
     s=Path(path).stat()
@@ -31,10 +43,10 @@ def inspect_pack(path):
         try: meta=json.loads(data)
         except (ValueError,UnicodeError) as exc:raise ValueError('Invalid map metadata.') from exc
         layers=meta.get('vector_layers') if isinstance(meta,dict) else None
-        if not isinstance(layers,list) or not {'water','roads','buildings'}.issubset({x.get('id') for x in layers if isinstance(x,dict)}):
+        if not isinstance(layers,list) or not {'water','roads','buildings'}.issubset({x.get('id') for x in layers if isinstance(x,dict) and isinstance(x.get('id'),str)}):
             raise ValueError('This map uses an unsupported schema. Select a Protomaps basemap archive.')
         attribution=meta.get('attribution')
         if not isinstance(attribution,str) or not attribution.strip():raise ValueError('Map attribution is missing; obtain a pack with source attribution.')
     if before!=signature(path):raise ValueError('Map changed while opening; select it again.')
-    return dict(name=str(meta.get('name') or path.name)[:500],attribution=attribution[:4000],size=before[2],signature=before,
+    return dict(name=str(meta.get('name') or path.name)[:500],attribution=attribution_text(attribution[:4000]),size=before[2],signature=before,
                 minzoom=header[100],maxzoom=header[101],schema='Protomaps',path=str(path.resolve()))

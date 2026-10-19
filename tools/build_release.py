@@ -67,6 +67,10 @@ def main():
         report = json.loads((ROOT / "test-artifacts/packaged-gui/gui-smoke.json").read_text(encoding="utf-8"))
         if not report.get("passed") or report["version"] != __version__:
             raise RuntimeError("Packaged GUI smoke failed")
+        run(gui, "--map-smoke", ROOT / "test-artifacts/packaged-map", timeout=90)
+        map_report = json.loads((ROOT / "test-artifacts/packaged-map/map-smoke.json").read_text(encoding="utf-8"))
+        if not map_report.get("passed"):
+            raise RuntimeError("Packaged map rendering/selection/offline checks failed")
     licenses = bundle / "third-party-licenses"
     licenses.mkdir(exist_ok=True)
     for package in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "pyserial", "PyInstaller"):
@@ -86,7 +90,7 @@ def main():
         shutil.copy2(ROOT / "installer/uninstall-linux.sh", bundle / "installer/uninstall-linux.sh")
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
-                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages"]}
+                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages", "frozen offline map rendering and selection"]}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"
     archive = Path(shutil.make_archive(str(ROOT / "dist" / name), "zip" if os.name == "nt" else "gztar", ROOT / "dist", "Veilbreaker"))
