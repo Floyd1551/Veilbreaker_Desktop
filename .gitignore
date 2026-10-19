@@ -32,3 +32,5 @@ android-companion/.kotlin/
 android-companion/local.properties
 *.jks
 *.keystore
+
+.superpowers/
