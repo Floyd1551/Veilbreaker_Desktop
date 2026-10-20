@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import shutil
 import threading
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Signal, Slot
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QLineEdit, QComboBox, QSpinBox, QPushButton
 from .android_usb import list_devices, pair_connection
 
@@ -71,19 +71,27 @@ class AndroidUsbDialog(QDialog):
         self.token.clear()
         for control in (self.path, self.devices, self.duration, self.refresh_button, self.use): control.setEnabled(False)
         self.worker = PairWorker(self.path.text().strip(), self.devices.currentData(), self)
-        self.worker.code.connect(lambda value: self.code_label.setText('Confirm on the phone: ' + value))
+        # Use a QObject receiver, not a lambda retaining this dialog: the latter
+        # can crash PySide during deferred worker deletion and cyclic collection.
+        self.worker.code.connect(self.show_pairing_code)
         self.worker.paired.connect(self.paired)
         self.worker.failed.connect(self.message.setText)
         self.worker.finished.connect(self.finished_pairing)
         self.message.setText('Waiting for approval on your phone...')
         self.worker.start()
 
+    @Slot(str)
+    def show_pairing_code(self, value):
+        self.code_label.setText('Confirm on the phone: ' + value)
+
+    @Slot(object)
     def paired(self, token):
         if not self.dismiss_pending:
             self.token.setText(token['token'])
             self.phone_inputs = {key: token[key] for key in ('cellular', 'location')}
             self.accept_pending = True
 
+    @Slot()
     def finished_pairing(self):
         worker, self.worker = self.worker, None
         if worker: worker.deleteLater()

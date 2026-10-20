@@ -8,3 +8,4 @@
 
 # Preserve upstream bytes used by the map asset integrity manifest.
 src/veilbreaker/assets/maps/** -text
+src/veilbreaker/assets/maps/qwebchannel.js whitespace=cr-at-eol
