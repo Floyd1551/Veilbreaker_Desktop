@@ -191,6 +191,8 @@ class SurveyPage(QWidget):
             report_actions.addWidget(control)
         self.map_button = button('Map survey GPS', self.view_map)
         report_actions.addWidget(self.map_button)
+        self.imagery_button = button('Prepare report map…', self.prepare_report_map)
+        report_actions.addWidget(self.imagery_button)
         layout.insertLayout(3, report_actions)
         self.refresh()
         self.show_landing()
@@ -523,15 +525,26 @@ class SurveyPage(QWidget):
         try: self.window.show_map(load_survey_map_data(self.window.config, self.session_path))
         except (OSError, ValueError, KeyError) as exc: self.window.error(str(exc))
 
+    def prepare_report_map(self):
+        if not self.session_path:
+            self.window.error('Open a survey before preparing its map.')
+            return
+        from .survey_imagery_ui import SurveyImageryDialog
+        try:
+            SurveyImageryDialog(self.window, self.window.config, self.session_path).exec()
+        except (OSError, ValueError, KeyError) as exc:
+            self.window.error(str(exc))
+
     def view_report(self):
         if not self.session_path:
             return
         from .report_viewer import ReportViewer
         from .survey_report import report_html
+        from .survey_imagery import report_context
         try:
             session = read_session(self.window.config, self.session_path)
             self.report_viewer = ReportViewer(self.window, self.session_path,
-                reports=[('survey_report.html', report_html(session).encode('utf-8'))])
+                reports=[('survey_report.html', report_html(session, report_context(self.window.config,self.session_path)).encode('utf-8'))])
             self.report_viewer.showMaximized()
         except (OSError, ValueError, KeyError) as exc:
             self.window.error(str(exc))

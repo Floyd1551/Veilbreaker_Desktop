@@ -4,6 +4,7 @@ from html import escape
 import json
 import math
 import statistics
+import base64
 
 
 def text(value):
@@ -20,7 +21,30 @@ def table(headers, rows):
         '<tr>' + ''.join(f'<td>{text(v)}</td>' for v in row) + '</tr>' for row in rows) + '</table>'
 
 
-def report_html(session):
+def imagery_html(imagery):
+    if not imagery:
+        return ''
+    parts = ['<h2>Survey area</h2>']
+    if imagery.get('warning'):
+        parts.append('<p><b>'+text(imagery['warning'])+'</b></p>')
+    if imagery.get('image'):
+        encoded = base64.b64encode(imagery['image']).decode('ascii')
+        parts.append('<p><img width="960" src="data:image/png;base64,'+encoded+'" alt="Survey area with numbered measurement locations"></p>')
+        parts.append(table(['Image type', 'Source', 'Imagery date', 'Prepared (UTC)'], [[
+            imagery.get('imagery_type','reference').capitalize()+' imagery', imagery.get('source'),
+            imagery.get('imagery_date') or 'Unknown (not the preparation date)', imagery.get('prepared_utc')]]))
+        parts.append('<p>'+text(imagery.get('attribution'))+'</p>')
+        parts.append('<p>Extent: '+text(imagery.get('bounds'))+' · '+text(imagery.get('crs'))+
+                     '. '+str(len(imagery.get('points',[])))+' mapped points; '+text(imagery.get('missing_points',0))+' without qualified GPS.</p>')
+        if imagery.get('manual_area'):
+            parts.append('<p>Manually selected area; no receiver position is implied.</p>')
+        if imagery.get('points'):
+            parts.append(table(['Marker', 'Survey point', 'Run'], [[p.get('number'),p.get('label'),p.get('run_id')] for p in imagery['points']]))
+        parts.append('<p>Historical geographic context; imagery does not establish current conditions, tower identity or line of sight.</p>')
+    return '\n'.join(parts)
+
+
+def report_html(session, imagery=None):
     steps = session.get('steps', [])
     states = Counter(s.get('status', 'unknown') for s in steps)
     parts = ['<!doctype html><html><head><meta charset="utf-8"><title>Site survey report</title>',
@@ -30,6 +54,7 @@ def report_html(session):
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
              '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
+             imagery_html(imagery),
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

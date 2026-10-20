@@ -48,5 +48,6 @@ def inspect_pack(path):
         attribution=meta.get('attribution')
         if not isinstance(attribution,str) or not attribution.strip():raise ValueError('Map attribution is missing; obtain a pack with source attribution.')
     if before!=signature(path):raise ValueError('Map changed while opening; select it again.')
-    return dict(name=str(meta.get('name') or path.name)[:500],attribution=attribution_text(attribution[:4000]),size=before[2],signature=before,
+    bounds=[v/1e7 for v in struct.unpack_from('<4i',header,102)]
+    return dict(name=str(meta.get('name') or path.name)[:500],attribution=attribution_text(attribution[:4000]),size=before[2],signature=before,bounds=bounds,
                 minzoom=header[100],maxzoom=header[101],schema='Protomaps',path=str(path.resolve()))

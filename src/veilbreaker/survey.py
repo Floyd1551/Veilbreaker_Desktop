@@ -327,9 +327,16 @@ def export_session(config, path, destination=None):
                 step["export_note"] = "Original evidence ZIP is missing"
         (folder / "comparison.csv").write_text(stream.getvalue(), encoding="utf-8-sig")
         from .survey_report import report_html
-        (folder / "survey_report.html").write_text(report_html(session), encoding="utf-8")
+        from .survey_imagery import report_context
+        imagery = report_context(config, path)
+        (folder / "survey_report.html").write_text(report_html(session, imagery), encoding="utf-8")
+        if imagery and imagery.get('image'):
+            for source, destination_name in (('source.image','survey-map-source.image'),
+                                              ('overlay.png','survey-map.png'),
+                                              ('metadata.json','survey-map-metadata.json')):
+                shutil.copyfile(imagery['asset_dir']/source, folder/destination_name)
         atomic_json(folder / "survey.json", session)
-        (folder / "README.txt").write_text("Each step retains its original evidence. Point notes are annotations; edits retain a history in survey.json and do not rewrite original run evidence. Missing values are blank, never zero. Compare equivalent tests and receiver settings; differing test flags or antenna placement can change results. This session workflow adds no GPS or mapping interface. Recovered/partial measurements remain explicitly labeled.\n", encoding="utf-8")
+        (folder / "README.txt").write_text("Each step retains its original evidence. Point notes and survey imagery are annotations and do not rewrite original run evidence. Imagery source, bounds and preparation date accompany attached map assets. Missing values are blank, never zero. Compare equivalent tests and receiver settings; differing test flags or antenna placement can change results. Recovered/partial measurements remain explicitly labeled.\n", encoding="utf-8")
         write_manifest(folder, {"survey_id": session["survey_id"], "site_id": session["site_id"], "status": session["status"]})
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
             for item in folder.iterdir():

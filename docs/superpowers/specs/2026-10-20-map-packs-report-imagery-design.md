@@ -1,6 +1,6 @@
 # Map packs and survey report imagery
 
-Date: October 20, 2026. Status: proposed design for review; not implemented.
+Date: October 20, 2026. Status: approved; implementation in release qualification.
 
 ## Goal and scope
 

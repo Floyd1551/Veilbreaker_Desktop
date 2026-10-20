@@ -1,7 +1,7 @@
 """Offline map window with native evidence fallback."""
 import json
 from pathlib import Path
-from PySide6.QtCore import QObject,Signal,Slot,Qt,QUrl,QSettings,QTimer
+from PySide6.QtCore import QObject,Signal,Slot,Qt,QUrl,QSettings,QTimer,QStandardPaths
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QCheckBox,QComboBox,QSplitter,QTableWidget,QTableWidgetItem,QHeaderView,QFileDialog,QMessageBox,QWidget)
 from .map_data import map_bounds,export_geojson
 from .map_server import MapServer
@@ -28,6 +28,8 @@ class MapWindow(QDialog):
         self.setWindowTitle('Veilbreaker · Survey map');self.resize(1200,850)
         self.model=model;self.open_run_callback=open_run;self.selected=None;self.ready=False;self.web=None
         self.bridge=MapBridge(self);self.settings=QSettings('Veilbreaker','Maps')
+        from .map_catalog import PackCatalog
+        self.catalog=PackCatalog(Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))/'map-catalog.json')
         self.server=MapServer(Path(__file__).parent/'assets/maps');self.server.start()
         outer=QVBoxLayout(self)
         title=QLabel('Survey map');title.setObjectName('title');outer.addWidget(title)
@@ -41,6 +43,11 @@ class MapWindow(QDialog):
         action('Export GeoJSON…',self.export)
         self.questionable=QCheckBox('Show questionable fixes');actions.addWidget(self.questionable)
         outer.addLayout(actions)
+        packs=QHBoxLayout()
+        self.pack_selector=QComboBox();self.pack_selector.setAccessibleName('Saved offline maps');packs.addWidget(self.pack_selector,1)
+        use_pack=QPushButton('Use selected map');use_pack.clicked.connect(self.use_saved_pack);packs.addWidget(use_pack)
+        remove_pack=QPushButton('Remove registration');remove_pack.clicked.connect(self.remove_saved_pack);packs.addWidget(remove_pack)
+        outer.addLayout(packs);self.refresh_catalog()
         self.run_filter=QComboBox();self.run_filter.addItem('Survey overview · first qualified fix per run',None)
         seen=set()
         for row in model['rows']:
@@ -109,8 +116,33 @@ class MapWindow(QDialog):
     def load_pack(self,path,persist=True):
         pack=self.server.set_pack(Path(path))
         self.pack_status.setText(f"{pack['name']} · {pack['size']/1024/1024:.1f} MiB · {pack['attribution']}")
-        if persist:self.settings.setValue('pack_path',str(Path(path).resolve()))
+        if persist:
+            self.catalog.register(path);self.refresh_catalog()
+            self.settings.setValue('pack_path',str(Path(path).resolve()))
         self.update_view()
+    def refresh_catalog(self):
+        self.pack_selector.clear()
+        try:
+            for row in self.catalog.entries():
+                text=f"{Path(row['path']).name} · z{row.get('minzoom')}–{row.get('maxzoom')} · {row.get('size',0)/1024/1024:.0f} MiB · source {row.get('source_date') or 'date unknown'}"
+                if not row['available']:text+=' · file missing — import its new location'
+                self.pack_selector.addItem(text,row['path'])
+                self.pack_selector.setItemData(self.pack_selector.count()-1,str(row.get('bounds'))+' · '+row['path'],Qt.ItemDataRole.ToolTipRole)
+        except (OSError,ValueError,TypeError) as exc:
+            self.pack_selector.addItem('Catalog unavailable: '+str(exc),None)
+    def use_saved_pack(self):
+        path=self.pack_selector.currentData()
+        if path:
+            try:self.load_pack(path)
+            except (OSError,ValueError) as exc:QMessageBox.warning(self,'Cannot load map',str(exc))
+    def remove_saved_pack(self):
+        path=self.pack_selector.currentData()
+        if path:
+            try:
+                self.catalog.remove(path)
+                if self.settings.value('pack_path','')==path:self.clear_pack()
+                self.refresh_catalog()
+            except (OSError,ValueError) as exc:QMessageBox.warning(self,'Cannot update map list',str(exc))
     def clear_pack(self):
         self.server.set_pack(None);self.settings.remove('pack_path');self.pack_status.setText('Basemap unavailable · Coordinate-only view. Import a Protomaps regional map.');self.update_view()
     def import_pack(self):

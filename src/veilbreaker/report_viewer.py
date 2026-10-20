@@ -56,7 +56,7 @@ class OfflineReportBrowser(QTextBrowser):
         import base64
         value = url.toString()
         prefix = 'data:image/png;base64,'
-        if value.startswith(prefix) and len(value) < 2_000_000:
+        if value.startswith(prefix) and len(value) < 7_000_000:
             try:
                 raw = base64.b64decode(value[len(prefix):], validate=True)
                 import struct

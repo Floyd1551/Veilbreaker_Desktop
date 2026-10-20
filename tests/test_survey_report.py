@@ -21,3 +21,17 @@ class SurveyReportTests(unittest.TestCase):
 
     def test_empty_session(self):
         self.assertIn('No numeric measurements from complete tests', report_html({'steps': []}))
+
+    def test_embedded_imagery_and_stale_warning(self):
+        html = report_html({'steps': []}, dict(image=b'png', source='<source>',
+            attribution='A & B', imagery_date=None, prepared_utc='2026-10-20',
+            bounds=[-97,32,-96,33], crs='EPSG:4326', points=[], missing_points=2,
+            imagery_type='aerial', manual_area=True, warning='Positions changed'))
+        self.assertIn('data:image/png;base64,cG5n', html)
+        self.assertIn('&lt;source&gt;', html)
+        self.assertIn('A &amp; B', html)
+        self.assertIn('Positions changed', html)
+        self.assertIn('Manually selected area', html)
+        self.assertIn('Unknown', html)
+        self.assertIn('Survey imagery unavailable', report_html({'steps': []},
+            dict(image=None, warning='Survey imagery unavailable')))

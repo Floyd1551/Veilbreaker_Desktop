@@ -102,7 +102,7 @@ terrain calculation misleading, so endpoint uncertainty belongs in the result.
 
 ## Next implementation slice
 
-Design the pack-management workflow around the existing importer first. Then
+Map-pack registration and cached report imagery are implemented in 0.36. Next,
 design the local cell database and identity matching together, using imported
 files before adding account/download automation. Keep terrain ingestion and LOS
 as a later subsystem, with a small regional validation fixture before expansion.
