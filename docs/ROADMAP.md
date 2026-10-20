@@ -1,6 +1,15 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 15, 2026. Current working version: **0.33.0rc1**.
+Updated October 20, 2026. Current working version: **0.35.0rc2**.
+
+Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
+The offline GPS viewer is delivered; national basemap preparation, pack management,
+cell-site matching and regional terrain analysis are tracked separately in that queue.
+Survey-area photographic snapshots for native and HTML reports are now prioritized
+with map-pack management; the proposed design is linked from the queue.
+Version 0.35.0rc2 fixes Android USB pairing cleanup; a full phone-fed diagnostic
+was confirmed on the connected device. Historical milestones below retain their
+original scope and qualification notes.
 
 Latest field-workflow increment: source-labelled phone findings and hypotheses, qualified SDR baseline comparisons, Clear workspace, recoverable test/survey removal, and survey landing/detail lifecycle. See [field workflow guide](field-workflows.md).
 
