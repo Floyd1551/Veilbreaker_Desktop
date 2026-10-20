@@ -32,3 +32,7 @@ See [offline map and imagery instructions](offline-maps.md) for import requireme
 Windows portable release qualification passed frozen CLI selftest, Unicode
 analysis-worker/evidence verification, six-page GUI smoke checks and offline map
 rendering/selection. A 20-point native imagery preparation preview also passed.
+
+Windows installer compilation completed successfully; its SHA-256 sidecar was
+verified against the completed executable. Installer has not been installed over
+the current user installation during this task.

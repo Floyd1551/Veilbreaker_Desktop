@@ -1,6 +1,6 @@
 # Map packs and survey report imagery
 
-Date: October 20, 2026. Status: approved; implementation in release qualification.
+Date: October 20, 2026. Status: approved; implemented and Windows release-qualified in 0.36.0rc1.
 
 ## Goal and scope
 

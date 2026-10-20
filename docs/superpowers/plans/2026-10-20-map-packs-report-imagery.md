@@ -96,4 +96,5 @@ corruption and missing-GPS membership staleness; both were corrected.
 Verification: 209 tests passed; real Dallas NAIP download and native report
 inspection passed; 20-point native preparation preview passed. Portable release
 0.36.0rc1 passed frozen CLI, Unicode worker, six-page GUI and offline map checks.
-Installer qualification and GitHub upload are the final delivery steps.
+Windows installer compilation and checksum verification completed. Implementation
+commit 3e1ab51 was fast-forwarded and pushed to GitHub main.
