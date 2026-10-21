@@ -36,7 +36,7 @@ def profile_png(profile):
 
 def assessment_html(value):
     profile=value['profile'];dem=value['terrain']['dem'];context=value['endpoint_context']
-    parts=['<h2>Terrain / path assessment</h2>',table(['Geometric terrain result','Fresnel result','Minimum clearance','First obstruction'],[[profile['status'],profile['fresnel_status'],profile['minimum_clearance_m'],profile['first_obstruction_m']]])]
+    parts=['<h2>Terrain / path assessment</h2>',table(['Geometric terrain result','Fresnel result','Minimum clearance (m)','First obstruction distance (m)'],[[profile['status'],profile['fresnel_status'],profile['minimum_clearance_m'],profile['first_obstruction_m']]])]
     if value.get('profile_png'):
         parts.append('<p><img width="960" src="data:image/png;base64,'+value['profile_png']+'" alt="Terrain profile"></p>')
     parts.append(table(['Receiver AGL m','Site antenna AGL m','Frequency MHz','Earth factor','Fresnel fraction'],[[profile[k] for k in ('receiver_agl_m','site_agl_m','frequency_mhz','earth_factor','fresnel_fraction')]]))

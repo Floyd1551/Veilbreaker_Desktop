@@ -9,6 +9,9 @@ def _path(path):
     if '://' in value or value.startswith(('/vsi','\\\\','//')):raise ValueError('Select a local GeoTIFF, not a URL or virtual/remote path.')
     path=Path(path).resolve()
     if path.suffix.lower() not in ('.tif','.tiff') or not path.is_file():raise ValueError('Select a local GeoTIFF file.')
+    sidecars=[path.with_name(path.name+suffix) for suffix in ('.msk','.aux.xml','.ovr','.aux')]
+    sidecars += [path.with_suffix(suffix) for suffix in ('.tfw','.tifw','.wld')]
+    if any(sidecar.exists() for sidecar in sidecars):raise ValueError('External raster sidecars are unsupported; prepare a self-contained GeoTIFF.')
     if path.stat().st_size>8*1024**3:raise ValueError('Select a regional DEM no larger than 8 GiB.')
     return path
 

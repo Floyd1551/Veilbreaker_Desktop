@@ -37,3 +37,7 @@ Release qualification: 226 tests passed; frozen CLI/worker/GUI/map/terrain check
 passed. Native CONUS candidate/bearing rendering and filter reset passed. The
 independent reviewer reported two actionable issues, both fixed with regressions;
 its follow-up review was unavailable due to the reviewer service usage limit.
+
+Final external-mask test observed RED: disabling GDAL sidecar discovery could
+ignore a separate mask. Explicit sidecar detection now rejects such inputs before
+opening the raster; regression GREEN. Rebuilt release to include this correction.

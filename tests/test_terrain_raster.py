@@ -57,3 +57,13 @@ class RasterTests(unittest.TestCase):
             with rasterio.open(path,'r+') as ds:ds.scales=[.5];ds.offsets=[10]
             result=sample_path(path,[-96.999,32.995],[-96.991,32.995],META,lambda:False)
             self.assertTrue(all(z==60 for z in result['elevations_m']))
+
+    def test_external_mask_is_rejected_not_silently_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'masked.tif';make_dem(path)
+            with rasterio.Env(GDAL_TIFF_INTERNAL_MASK=False):
+                with rasterio.open(path,'r+') as ds:
+                    mask=np.full((100,100),255,dtype='uint8');mask[:,45:55]=0;ds.write_mask(mask)
+            self.assertTrue(path.with_name(path.name+'.msk').exists())
+            with self.assertRaisesRegex(ValueError,'sidecar'):
+                sample_path(path,[-96.999,32.995],[-96.991,32.995],META,lambda:False)
