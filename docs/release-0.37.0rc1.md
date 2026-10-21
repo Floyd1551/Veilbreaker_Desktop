@@ -23,7 +23,7 @@ native profile rendering and a small real USGS 3DEP adapter sample. Release buil
 checks additionally exercise the frozen GIS raster/projection/profile path.
 
 
-226 source tests passed. The frozen CLI successfully read a synthetic GeoTIFF,
+227 source tests passed, including an external-DEM-mask rejection regression. The frozen CLI successfully read a synthetic GeoTIFF,
 transformed coordinates, sampled a blocking ridge, calculated terrain/Fresnel
 results, and rendered the profile. An end-to-end synthetic Android capture,
 reference match, terrain assessment and survey ZIP passed manifest verification.
@@ -31,3 +31,6 @@ reference match, terrain assessment and survey ZIP passed manifest verification.
 Frozen CLI, Unicode worker/evidence, six-page GUI, offline map and terrain smoke
 checks passed. Native CONUS rendering also showed both selected receiver/reference
 endpoints and their bearing line; changing the run filter clears the overlay.
+
+The Windows installer and portable ZIP are built and their SHA-256 sidecars
+verified. This release has not been installed over the current application.

@@ -117,7 +117,7 @@ original capture hashes and matcher version. No original run bundles are rewritt
 ## Execution status — October 21
 
 Implementation and source checks completed; see `docs/cell-terrain-execution.md`
-for task results and explicit scope rulings. Release qualification passed 226 tests
+for task results and explicit scope rulings. Release qualification passed 227 tests
 and the frozen GIS smoke. Final GUI/map and installer qualification are recorded
 in the release notes when complete. Real serving-tower field validation remains
 pending an authorized dataset and surveyed endpoint/antenna heights.

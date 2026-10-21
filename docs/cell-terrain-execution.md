@@ -33,7 +33,7 @@ Final raster review: scale/offset regression observed RED; sampling now applies
 GeoTIFF band scale and offset before unit conversion. Map filter changes clear
 the selected bearing overlay so a previous selection cannot masquerade as a new run.
 
-Release qualification: 226 tests passed; frozen CLI/worker/GUI/map/terrain checks
+Release qualification: 227 tests passed; frozen CLI/worker/GUI/map/terrain checks
 passed. Native CONUS candidate/bearing rendering and filter reset passed. The
 independent reviewer reported two actionable issues, both fixed with regressions;
 its follow-up review was unavailable due to the reviewer service usage limit.
@@ -41,3 +41,9 @@ its follow-up review was unavailable due to the reviewer service usage limit.
 Final external-mask test observed RED: disabling GDAL sidecar discovery could
 ignore a separate mask. Explicit sidecar detection now rejects such inputs before
 opening the raster; regression GREEN. Rebuilt release to include this correction.
+
+Final delivery qualification (2026-10-21): corrected portable build and Windows
+installer completed successfully. Both SHA-256 sidecars were verified against
+the final artifacts, and the build manifest records all six checks passed with
+source tests enabled. Installer is ready for installation; the existing installed
+application was not replaced during this release.
