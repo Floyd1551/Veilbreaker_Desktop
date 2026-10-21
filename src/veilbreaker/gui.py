@@ -1483,7 +1483,7 @@ class MainWindow(QMainWindow):
     def show_map(self, model):
         from .map_ui import MapWindow
         if not hasattr(self, 'map_windows'): self.map_windows = []
-        window = MapWindow(self, model, self.open_map_run)
+        window = MapWindow(self, model, self.open_map_run, config=self.config)
         self.map_windows.append(window)
         window.destroyed.connect(lambda *_: self.map_windows.remove(window) if window in self.map_windows else None)
         window.show()
@@ -1640,6 +1640,8 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Veilbreaker", message)
 
     def closeEvent(self, event):
+        from .background_dialog import defer_background_close
+        if defer_background_close(self,event):return
         if self.process is not None and getattr(self, 'live_usb_job', False):
             self.close_after_job = True
             event.ignore()

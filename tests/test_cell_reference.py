@@ -53,3 +53,14 @@ class ReferenceTests(unittest.TestCase):
             result=ref.import_reference(root,source,dict(source='Operator',license='Private',date='2026-10-20'),lambda:False,lambda _:None)
             ref.activate_reference(root,result['dataset_id'])
             self.assertEqual(ref.lookup_reference(root,ref.identity_key(row))[0]['verification'],'operator-entered')
+
+    def test_pinned_lookup_survives_active_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'refs';source=Path(tmp)/'cells.csv';source.write_text(HEADER+ROW)
+            first=ref.import_reference(root,source,META,lambda:False,lambda _:None)
+            ref.activate_reference(root,first['dataset_id'])
+            source.write_text(HEADER+ROW.replace('-96.8','-95.0'))
+            second=ref.import_reference(root,source,META,lambda:False,lambda _:None)
+            ref.activate_reference(root,second['dataset_id'])
+            pinned=ref.lookup_reference(root,('LTE',311,480,42,12345),first['dataset_id'])
+            self.assertEqual(pinned[0]['lon'],-96.8)

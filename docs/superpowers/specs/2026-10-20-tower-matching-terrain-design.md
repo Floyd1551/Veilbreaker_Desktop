@@ -1,6 +1,6 @@
 # Cell-reference matching and regional terrain assessment
 
-Date: 2026-10-20. Status: proposed implementation design for review.
+Date: 2026-10-20. Status: approved; implemented in 0.37.0rc1 with limits recorded in docs/cell-terrain-execution.md.
 
 ## Intent
 

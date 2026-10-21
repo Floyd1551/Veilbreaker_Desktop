@@ -27,6 +27,14 @@ function install(){
  map.addLayer({id:'selected',type:'circle',source:'measurements',filter:['==',['get','id'],''],paint:{'circle-radius':11,'circle-color':'transparent','circle-stroke-width':3,'circle-stroke-color':'#ffffff'}});
  map.on('click','points',e=>{if(e.features.length)bridge.selectFeature(String(e.features[0].properties.id));});
  map.on('mouseenter','points',()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave','points',()=>map.getCanvas().style.cursor='');
+ if(model.cell_overlay){
+  const o=model.cell_overlay;
+  map.addSource('cell-path',{type:'geojson',data:{type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'LineString',coordinates:[o.receiver,o.candidate]},properties:{}}]}});
+  map.addLayer({id:'cell-bearing',type:'line',source:'cell-path',paint:{'line-color':'#f3ad54','line-width':3,'line-dasharray':[3,2]}});
+  map.addSource('cell-endpoints',{type:'geojson',data:{type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'Point',coordinates:o.receiver},properties:{kind:'receiver'}},{type:'Feature',geometry:{type:'Point',coordinates:o.candidate},properties:{kind:'reference'}}]}});
+  map.addLayer({id:'cell-endpoints',type:'circle',source:'cell-endpoints',paint:{'circle-radius':9,'circle-color':['match',['get','kind'],'receiver','#63dec8','#f3ad54'],'circle-stroke-color':'#ffffff','circle-stroke-width':2}});
+  notice.textContent+=' · Teal: selected receiver; amber: reference estimate; dashed line: bearing, not LOS';
+ }
  fit();if(selected)highlight(selected);bridge.ready();window.veilbreakerMap=map;
 }
 async function refresh(){

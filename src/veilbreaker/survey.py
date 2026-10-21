@@ -328,8 +328,18 @@ def export_session(config, path, destination=None):
         (folder / "comparison.csv").write_text(stream.getvalue(), encoding="utf-8-sig")
         from .survey_report import report_html
         from .survey_imagery import report_context
+        from .cell_context import saved_context_html, load_context
+        cell_html = saved_context_html(config,path)
+        try: saved_cells = load_context(config,path)
+        except (OSError,ValueError,KeyError,TypeError): saved_cells = None
+        if saved_cells:
+            shutil.copyfile(saved_cells["path"],folder/"cell-context.json")
+            import base64
+            for index, assessment in enumerate(saved_cells['context'].get('assessments',[]),1):
+                encoded=assessment.get('profile_png')
+                if encoded:(folder/f'terrain-profile-{index:03}.png').write_bytes(base64.b64decode(encoded,validate=True))
         imagery = report_context(config, path)
-        (folder / "survey_report.html").write_text(report_html(session, imagery), encoding="utf-8")
+        (folder / "survey_report.html").write_text(report_html(session, imagery, cell_html), encoding="utf-8")
         if imagery and imagery.get('image'):
             for source, destination_name in (('source.image','survey-map-source.image'),
                                               ('overlay.png','survey-map.png'),

@@ -541,10 +541,11 @@ class SurveyPage(QWidget):
         from .report_viewer import ReportViewer
         from .survey_report import report_html
         from .survey_imagery import report_context
+        from .cell_context import saved_context_html
         try:
             session = read_session(self.window.config, self.session_path)
             self.report_viewer = ReportViewer(self.window, self.session_path,
-                reports=[('survey_report.html', report_html(session, report_context(self.window.config,self.session_path)).encode('utf-8'))])
+                reports=[('survey_report.html', report_html(session, report_context(self.window.config,self.session_path), saved_context_html(self.window.config,self.session_path)).encode('utf-8'))])
             self.report_viewer.showMaximized()
         except (OSError, ValueError, KeyError) as exc:
             self.window.error(str(exc))

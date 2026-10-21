@@ -15,16 +15,17 @@ def distance_bearing(lon1,lat1,lon2,lat2):
     return distance, bearing if distance>0.001 else None
 
 
-def match_capture(envelope,reference_root):
+def match_capture(envelope,reference_root,cancelled=lambda:False):
     validate_capture(envelope)
     manifest=active_reference(reference_root)
-    rows=[]; omitted=0
+    rows=[]; omitted=0; candidate_count=0
     subscriptions={s['key']:s for s in envelope['subscriptions']}
     cache={}
     for obs in envelope['observations']:
+        if cancelled():raise ValueError('Cell matching cancelled.')
         for index,cell in enumerate(obs['cells']):
             if cell.get('registered') is not True: continue
-            if len(rows)>=1000: omitted+=1;continue
+            if len(rows)>=200: omitted+=1;continue
             location=obs.get('location') or {}
             quality=qualify_location(location)
             row=dict(observation_id=obs['observation_id'],subscription=obs['subscription_key'],cell_index=index,
@@ -40,23 +41,26 @@ def match_capture(envelope,reference_root):
                 except ValueError: row['status']='incomplete identity'
                 else:
                     if manifest is None: row['status']='reference unavailable'
+                    elif candidate_count>=200:
+                        row['status']='candidate display limit reached'
                     else:
-                        if key not in cache: cache[key]=lookup_reference(reference_root,key)
+                        if key not in cache: cache[key]=lookup_reference(reference_root,key,manifest["dataset_id"])
                         candidates=cache[key]
                         # Duplicate rows with identical coordinates do not create a false conflict.
                         coords={(c['lon'],c['lat']) for c in candidates}
-                        row['status']='conflicting references' if len(coords)>1 else 'reference match' if candidates else 'not found'
+                        row['status']='conflicting references' if len(coords)>1 or len(candidates)>200 else 'reference match' if candidates else 'not found'
                         row['candidate_limit_reached']=len(candidates)>200
-                        for candidate in candidates[:200]:
+                        for candidate in candidates[:200-candidate_count]:
                             distance=bearing=None
                             if quality['qualified']:
                                 distance,bearing=distance_bearing(location['longitude_deg'],location['latitude_deg'],candidate['lon'],candidate['lat'])
                             row['candidates'].append(dict(candidate,distance_m=distance,bearing_deg=bearing))
+                            candidate_count+=1
             rows.append(row)
     return dict(schema_version=1,matcher_version=1,capture_id=envelope['capture_id'],dataset=manifest,rows=rows,omitted=omitted)
 
 
-def load_run_matches(config,run_id):
+def load_run_matches(config,run_id,cancelled=lambda:False):
     store=VeilbreakerStore(config.db_path)
     try: row=store.get_run(run_id)
     finally: store.close()
@@ -64,7 +68,7 @@ def load_run_matches(config,run_id):
     path=Path(row['artifact_dir'] or config.artifacts_dir/run_id)/'android-capture.json'
     if not path.is_file(): raise ValueError('This test has no saved Android cellular capture.')
     capture=load_capture(path)
-    result=match_capture(capture['envelope'],config.root/'cell-references')
+    result=match_capture(capture['envelope'],config.root/'cell-references',cancelled)
     import hashlib
     result.update(run_id=run_id,capture_sha256=hashlib.sha256(capture['raw_bytes']).hexdigest())
     return result

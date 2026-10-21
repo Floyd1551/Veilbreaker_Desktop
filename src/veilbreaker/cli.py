@@ -11,6 +11,9 @@ def main(argv=None):
     if args and args[0] == "--desktop-job":
         from .jobs import worker_main
         return worker_main(args[1:])
+    if args and args[0] == "--terrain-smoke":
+        from .terrain_smoke import smoke
+        return smoke(args[1])
     # Also used by packaged GUI smoke verification.
     if args and args[0] == "--gui-smoke":
         from .gui import smoke

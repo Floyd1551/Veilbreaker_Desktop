@@ -22,10 +22,11 @@ class MapBridge(QObject):
         self.window.renderer_status.setText('Map unavailable: '+message[:240]+'. Evidence remains available below.')
 
 class MapWindow(QDialog):
-    def __init__(self,parent,model,open_run,enable_web=True,restore_pack=True):
+    def __init__(self,parent,model,open_run,enable_web=True,restore_pack=True,config=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle('Veilbreaker · Survey map');self.resize(1200,850)
+        self.config=config;self.cell_overlay=None
         self.model=model;self.open_run_callback=open_run;self.selected=None;self.ready=False;self.web=None
         self.bridge=MapBridge(self);self.settings=QSettings('Veilbreaker','Maps')
         from .map_catalog import PackCatalog
@@ -41,6 +42,7 @@ class MapWindow(QDialog):
         action('Import offline map…',self.import_pack)
         action('Clear basemap',self.clear_pack)
         action('Export GeoJSON…',self.export)
+        if config:action('Cell references / assess path…',self.cell_references)
         self.questionable=QCheckBox('Show questionable fixes');actions.addWidget(self.questionable)
         outer.addLayout(actions)
         packs=QHBoxLayout()
@@ -64,7 +66,7 @@ class MapWindow(QDialog):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.splitter.addWidget(self.table);self.splitter.setSizes([460,180])
         self.details=QLabel('Select a measurement to inspect its location evidence.');self.details.setWordWrap(True);self.details.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.details)
         self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);outer.addWidget(self.open_button)
-        self.run_filter.currentIndexChanged.connect(self.update_view);self.questionable.toggled.connect(self.update_view)
+        self.run_filter.currentIndexChanged.connect(self.change_run);self.questionable.toggled.connect(self.update_view)
         self.table.itemSelectionChanged.connect(self.table_selected)
         self.update_view()
         if restore_pack:
@@ -98,8 +100,23 @@ class MapWindow(QDialog):
         if not self.model['rows']:self.details.setText('No GPS evidence. Enable phone location during capture, then open the saved diagnostic or survey here.')
         else:self.details.setText('Select a measurement. Questionable fixes are hidden until enabled.')
         pack=self.server.pack
-        self.server.set_model(dict(features=dict(type='FeatureCollection',features=[f for f in features if f['properties']['renderable']]),bounds=map_bounds(features),pack={k:pack[k] for k in ('name','attribution','minzoom','maxzoom','resource')} if pack else None))
+        self.server.set_model(dict(features=dict(type='FeatureCollection',features=[f for f in features if f['properties']['renderable']]),bounds=self.cell_overlay['bounds'] if self.cell_overlay else map_bounds(features),cell_overlay=self.cell_overlay,pack={k:pack[k] for k in ('name','attribution','minzoom','maxzoom','resource')} if pack else None))
         self.bridge.refresh.emit()
+    def change_run(self):
+        self.cell_overlay=None;self.update_view()
+    def cell_references(self):
+        from .cell_reference_ui import CellReferenceDialog
+        self.reference_dialog=CellReferenceDialog(self,self.config,[r['run_id'] for r in self.model['rows']],self.model.get('survey_path'),self.show_cell_candidate)
+        self.reference_dialog.show()
+    def show_cell_candidate(self,row,candidate):
+        location=row['location']
+        a=[location['longitude_deg'],location['latitude_deg']];b=[candidate['lon'],candidate['lat']]
+        if abs(a[1])>85.05112878 or abs(b[1])>85.05112878:
+            self.details.setText('Selected path is outside the map projection. Numerical context remains available.');return
+        features=[dict(geometry=dict(coordinates=c),properties=dict(renderable=True)) for c in (a,b)]
+        self.cell_overlay=dict(receiver=a,candidate=b,bounds=map_bounds(features))
+        self.update_view()
+        self.details.setText('Selected receiver-to-reference bearing; this line does not establish LOS or a physical tower identity.')
     def select_feature(self,feature_id):
         for i,row in enumerate(self.visible_rows):
             if row['id']==feature_id:
@@ -160,5 +177,7 @@ class MapWindow(QDialog):
         self.web,self.profile,self.interceptor=create_view(self,self.server.url,self.bridge)
         self.map_layout.addWidget(self.web);self.web.load(QUrl(self.server.url+'index.html'))
     def closeEvent(self,event):
+        from .background_dialog import defer_background_close
+        if defer_background_close(self,event):return
         if self.web:self.web.stop();self.web.setUrl(QUrl('about:blank'))
         self.server.close();super().closeEvent(event)

@@ -44,7 +44,7 @@ def imagery_html(imagery):
     return '\n'.join(parts)
 
 
-def report_html(session, imagery=None):
+def report_html(session, imagery=None, cell_context=""):
     steps = session.get('steps', [])
     states = Counter(s.get('status', 'unknown') for s in steps)
     parts = ['<!doctype html><html><head><meta charset="utf-8"><title>Site survey report</title>',
@@ -54,7 +54,7 @@ def report_html(session, imagery=None):
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
              '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
-             imagery_html(imagery),
+             imagery_html(imagery), cell_context,
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

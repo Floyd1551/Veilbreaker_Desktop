@@ -1,13 +1,16 @@
 # Build both entry points against the same bundled libraries.
 from pathlib import Path
 import sys
+from PyInstaller.utils.hooks import collect_all
+terrain_datas, terrain_binaries, terrain_imports = collect_all("rasterio")
 
 root = Path(SPECPATH)
 a = Analysis(
     [str(root / 'tools/cli_entry.py'), str(root / 'tools/gui_entry.py')],
     pathex=[str(root / 'src')],
-    datas=[(str(root / 'src/veilbreaker/assets'), 'veilbreaker/assets')],
-    hiddenimports=['serial.tools.list_ports', 'veilbreaker.map_web', 'PySide6.QtWebChannel', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets'],
+    datas=[(str(root / 'src/veilbreaker/assets'), 'veilbreaker/assets')] + terrain_datas,
+    binaries=terrain_binaries,
+    hiddenimports=['serial.tools.list_ports', 'veilbreaker.map_web', 'PySide6.QtWebChannel', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets'] + terrain_imports,
     excludes=['tkinter'],
 )
 pyz = PYZ(a.pure)

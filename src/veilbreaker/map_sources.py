@@ -37,5 +37,8 @@ def load_survey_map_data(config,survey_path):
     session=json.loads(path.read_text(encoding='utf-8'));steps=session.get('steps')
     if not isinstance(steps,list) or len(steps)>20:raise ValueError('Invalid survey steps.')
     store=core.VeilbreakerStore(config.db_path)
-    try:return _build([_run(config,store,str(s['run_id']),s.get('label')) for s in steps])
+    try:
+        model=_build([_run(config,store,str(s['run_id']),s.get('label')) for s in steps])
+        model['survey_path']=str(path)
+        return model
     finally:store.close()

@@ -45,6 +45,7 @@ def main():
     if not skip_tests:
         run(exe, "--version", timeout=30)
         run(exe, "selftest", timeout=60)
+        run(exe, "--terrain-smoke", ROOT / "test-artifacts/packaged-terrain", timeout=90)
         # Test real frozen worker dispatch and Unicode data paths, without contacting hardware.
         with tempfile.TemporaryDirectory(prefix="veilbreaker-frozen-") as temp:
             folder = Path(temp)
@@ -73,7 +74,7 @@ def main():
             raise RuntimeError("Packaged map rendering/selection/offline checks failed")
     licenses = bundle / "third-party-licenses"
     licenses.mkdir(exist_ok=True)
-    for package in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "pyserial", "PyInstaller"):
+    for package in ("PySide6", "PySide6_Essentials", "PySide6_Addons", "shiboken6", "pyserial", "PyInstaller", "rasterio", "pyproj", "numpy", "affine", "attrs", "click", "cligj", "click-plugins", "pyparsing", "certifi"):
         distribution = importlib.metadata.distribution(package)
         for item in distribution.files or []:
             if any(term in str(item).lower() for term in ("license", "copying", "notice")):
@@ -90,7 +91,7 @@ def main():
         shutil.copy2(ROOT / "installer/uninstall-linux.sh", bundle / "installer/uninstall-linux.sh")
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
-                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages", "frozen offline map rendering and selection"]}
+                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages", "frozen offline map rendering and selection", "frozen terrain raster projection and profile"]}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"
     archive = Path(shutil.make_archive(str(ROOT / "dist" / name), "zip" if os.name == "nt" else "gztar", ROOT / "dist", "Veilbreaker"))

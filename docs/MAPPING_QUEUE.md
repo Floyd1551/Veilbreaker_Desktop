@@ -111,3 +111,13 @@ The requested survey-area image is prioritized alongside map preparation, ahead
 of tower matching: [map packs and report imagery design](superpowers/specs/2026-10-20-map-packs-report-imagery-design.md).
 NAIP is aerial imagery and must be labelled as such; a vector-map snapshot is a
 separate fallback, never labelled satellite imagery.
+
+
+## October 21 implementation update
+
+0.37 implements local LTE/OpenCellID and operator LTE/NR matching plus regional
+GeoTIFF terrain assessment. See [workflow and limits](cell-references-and-terrain.md).
+FCC structure association, NR bulk-provider validation, automated data acquisition,
+multi-file DEM catalogs and building-aware propagation remain later work. A real
+cell-reference dataset and surveyed endpoint heights are still needed for field
+acceptance; synthetic tests do not identify the user's serving tower.

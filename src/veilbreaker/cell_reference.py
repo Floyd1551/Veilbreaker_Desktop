@@ -85,8 +85,8 @@ def activate_reference(root,dataset_id):
     atomic_json(Path(root)/'active.json',{'dataset_id':dataset_id})
 
 
-def lookup_reference(root,key):
-    manifest=active_reference(root)
+def lookup_reference(root,key,dataset_id=None):
+    manifest=_json(_folder(root,dataset_id)/"manifest.json") if dataset_id else active_reference(root)
     if manifest is None: return []
     folder=_folder(root,manifest['dataset_id'])
     with closing(sqlite3.connect((folder/'cells.sqlite').as_uri()+'?mode=ro',uri=True)) as db:
