@@ -140,10 +140,11 @@ class SurveyPage(QWidget):
         layout = QVBoxLayout(self.detail)
         detail_actions = FlowLayout()
         self.configure_button = button('Configure / attributes', self.configure_session)
-        self.add_tests_button = button('Add tests', self.add_to_session)
+        self.add_tests_button = button('Add new tests', self.add_to_session)
+        self.add_existing_button = button('Add existing diagnostics', self.add_existing)
         self.complete_button = button('Complete survey', self.toggle_complete)
         self.delete_survey_button = button('Delete survey', self.delete_session)
-        for control in (self.configure_button,self.add_tests_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
+        for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
         layout.addLayout(detail_actions)
         self.attributes = label('', 'muted')
         layout.addWidget(self.attributes)
@@ -270,10 +271,12 @@ class SurveyPage(QWidget):
         self.move_down_button.setEnabled(selected and self.queue.currentRow() < len(self.steps)-1)
 
     def set_busy(self, busy):
-        for control in (self.configure_button,self.add_tests_button,self.complete_button,self.delete_survey_button):
+        for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.complete_button,self.delete_survey_button):
             control.setEnabled(not busy and bool(self.session) and self.session.get('status')!='running')
+        if self.session and len(self.session['steps']) >= 20:
+            self.add_tests_button.setEnabled(False); self.add_existing_button.setEnabled(False)
         if self.session and self.session.get('lifecycle')=='completed':
-            self.configure_button.setEnabled(False); self.add_tests_button.setEnabled(False)
+            self.configure_button.setEnabled(False); self.add_tests_button.setEnabled(False); self.add_existing_button.setEnabled(False)
         for control in (self.name, self.step_name, self.copies, self.add_button, self.remove_button, self.start_button, self.preset, self.manual, self.save_template_button, self.load_template_button):
             control.setEnabled(not busy)
         self.continue_button.setEnabled(not busy and self.can_continue())
@@ -324,6 +327,17 @@ class SurveyPage(QWidget):
         self.name.setText(self.session['name']); self.name.setEnabled(False)
         self.start_button.setText('Add tests to survey')
         self.queue_hint.setText(str(20-len(self.session['steps'])) + ' test slots remain. Adding tests does not start collection.')
+
+    def add_existing(self):
+        if not self.session or self.window.process is not None: return
+        from .survey_existing_ui import ExistingDiagnosticsDialog
+        from .survey import attach_existing_runs
+        try:
+            dialog = ExistingDiagnosticsDialog(self.window.config, self.session, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted: return
+            self.show_session(attach_existing_runs(self.window.config, self.session_path, dialog.selected_ids()), self.session_path)
+            self.refresh(); self.window.refresh_history()
+        except (OSError, ValueError) as exc: self.window.error(str(exc))
 
     def open_listing(self, *_):
         index = self.session_list.currentRow()
@@ -448,6 +462,7 @@ class SurveyPage(QWidget):
         completed = session.get('lifecycle', 'completed' if session['status']=='complete' else 'open')=='completed'
         self.complete_button.setText('Reopen survey' if completed else 'Complete survey')
         self.add_tests_button.setEnabled(not completed and len(session['steps'])<20)
+        self.add_existing_button.setEnabled(not completed and len(session['steps'])<20)
         self.configure_button.setEnabled(not completed)
         self.attributes.setText('Lifecycle: '+('Completed' if completed else 'Open')+' | Scenario: '+session.get('scenario','Not recorded')+' | '+session.get('notes',''))
         self.results.clearSelection()

@@ -79,6 +79,49 @@ def append_steps(config, path, steps):
     return read_session(config,path)
 
 
+def attach_existing_runs(config, path, run_ids):
+    """Link saved evidence without copying or re-running acquisition."""
+    if not isinstance(run_ids, list) or not run_ids or any(not isinstance(r, str) for r in run_ids):
+        raise ValueError('Select at least one saved diagnostic')
+    if len(set(run_ids)) != len(run_ids):
+        raise ValueError('A diagnostic can only appear once in a survey')
+    path = _session_path(config, path)
+    with session_lock(path):
+        data = _editable_session(config, path)
+        if data['lifecycle'] == 'completed':
+            raise ValueError('Reopen the survey before adding diagnostics')
+        if len(data['steps']) + len(run_ids) > 20:
+            raise ValueError('A survey can contain at most 20 tests')
+        if set(run_ids) & {s['run_id'] for s in data['steps']}:
+            raise ValueError('A selected diagnostic is already in this survey')
+        store = core.VeilbreakerStore(config.db_path)
+        try:
+            with store.db:
+                store.db.execute('BEGIN IMMEDIATE')
+                added = []
+                for run_id in run_ids:
+                    row = store.get_run(run_id)
+                    if row is None:
+                        raise ValueError('Diagnostic is missing or removed: ' + run_id)
+                    artifact = Path(row['artifact_dir'] or config.artifacts_dir / run_id)
+                    collection_path = artifact / 'collection.json'
+                    status = 'complete'
+                    if collection_path.is_file():
+                        status = json.loads(collection_path.read_text(encoding='utf-8')).get('status', 'complete')
+                    if status not in ('complete', 'partial', 'interrupted', 'failed'):
+                        raise ValueError('Diagnostic has not finished: ' + run_id)
+                    added.append(dict(label=(row['note'] or run_id)[:100], notes='', options={},
+                        run_id=run_id, status=status, origin='linked',
+                        source_site_id=row['site_id'], source_scenario=row['scenario']))
+                data['steps'].extend(added)
+                data.setdefault('edit_history', []).append(dict(timestamp=core.utcnow_iso(),
+                    action='link existing diagnostics', run_ids=run_ids))
+                atomic_json(path, data)
+        finally:
+            store.close()
+    return read_session(config, path)
+
+
 def set_lifecycle(config,path,completed):
     if type(completed) is not bool: raise ValueError('Invalid lifecycle')
     path=_session_path(config,path)

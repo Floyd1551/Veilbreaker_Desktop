@@ -581,6 +581,8 @@ class MainWindow(QMainWindow):
         actions.addWidget(self.history_export)
         actions.addWidget(button("Open report…", self.open_report_file))
         actions.addWidget(self.history_compare)
+        self.history_survey = button("Add to survey…", self.add_history_to_survey)
+        actions.addWidget(self.history_survey)
         self.history_delete = button("Delete selected test", self.delete_history)
         actions.addWidget(self.history_delete)
         actions.addWidget(button("Trash / restore", self.open_trash))
@@ -1399,7 +1401,30 @@ class MainWindow(QMainWindow):
         self.history_report.setEnabled(selected)
         self.history_export.setEnabled(selected)
         self.history_compare.setEnabled(selected)
+        self.history_survey.setEnabled(selected and not getattr(self, "workspace_busy", False))
         self.history_delete.setEnabled(selected and not getattr(self, "workspace_busy", False))
+
+    def add_history_to_survey(self):
+        row = self.selected_run()
+        if not row or self.process is not None: return
+        from .survey import list_sessions, attach_existing_runs
+        from PySide6.QtWidgets import QInputDialog
+        try:
+            choices = [(path, session) for path, session in list_sessions(self.config)
+                if session.get('lifecycle') != 'completed' and session['status'] != 'running'
+                and len(session['steps']) < 20 and not any(s['run_id'] == row['run_id'] for s in session['steps'])]
+            if not choices:
+                self.error('No eligible survey. Create or reopen a survey with a free test slot. Tests already in a survey cannot be added twice.')
+                return
+            labels = [f"{s['name']} | {s['site_id']} | {len(s['steps'])}/20 tests | {s['survey_id']}" for _, s in choices]
+            selected, accepted = QInputDialog.getItem(self, 'Add diagnostic to survey', 'Destination survey', labels, 0, False)
+            if not accepted: return
+            path, _ = choices[labels.index(selected)]
+            session = attach_existing_runs(self.config, path, [row['run_id']])
+            self.refresh_history(); self.survey_page.refresh()
+            self.nav.setCurrentRow(5)
+            self.survey_page.show_session(session, str(path))
+        except (OSError, ValueError) as exc: self.error(str(exc))
 
     def export_history(self):
         row = self.selected_run()

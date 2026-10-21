@@ -95,6 +95,7 @@ def trash_survey(config, path, include_owned_runs=False):
                 children=[]
                 if include_owned_runs:
                     for step in data['steps']:
+                        if step.get('origin') == 'linked': continue
                         deps=run_dependencies(config,step['run_id'],store)
                         if deps['cases'] or any(s!=data['survey_id'] for s in deps['surveys']): continue
                         row=store.db.execute('SELECT * FROM active_runs WHERE run_id=?',(step['run_id'],)).fetchone()
