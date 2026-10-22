@@ -51,10 +51,20 @@ from synthetic unit tests and build checks.
 - The APK and Windows payload contain the same shared band-reference content.
 - Regression coverage includes incomplete identities, latest connections after
   long captures, empty latest observations, and narrow Settings layout.
-- Linux CI uses headless Qt rendering, Debian packages declare the required XCB
+- Linux CI uses a virtual display with software rendering, Debian packages declare the required XCB
   keyboard libraries, and installer qualification selects the built version.
 
 Build evidence: [Companion workflow](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39830348606)
-and [desktop packaging workflow](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39831137042).
+and [desktop packaging workflow](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39831429402).
 The desktop workflow link records the current CI outcome; local Windows checks
 are separate from Linux and installer qualification.
+
+## Samsung field check
+
+Update Desktop and Companion separately, then collect a short live USB capture.
+Compare the Companion preview with the Desktop cellular report: latest registered
+cells, channels, exposed signal values and reported bands should agree. Neighbors
+should appear separately, with age and last-seen information. A channel-derived
+band is only a candidate. If the modem supplies no neighbors or no NR identity,
+record that absence rather than interpreting it as proof those signals are absent.
+Repeat after moving to a second survey point; retain both raw captures for comparison.
