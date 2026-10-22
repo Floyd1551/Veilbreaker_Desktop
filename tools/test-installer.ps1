@@ -1,7 +1,11 @@
 param([string]$Installer = '', [switch]$IsolatedIdentity)
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-if (-not $Installer) { $Installer = Join-Path $projectRoot 'dist/Veilbreaker-0.29.0rc1-Setup-x64.exe' }
+if (-not $Installer -or $IsolatedIdentity) {
+    $releaseVersion = (Get-Content -LiteralPath (Join-Path $projectRoot 'dist/Veilbreaker/build-manifest.json') -Raw | ConvertFrom-Json).version
+    if ($releaseVersion -notmatch '^\d+\.\d+\.\d+(?:[A-Za-z0-9.-]+)?$') { throw 'Invalid release version in build manifest.' }
+}
+if (-not $Installer) { $Installer = Join-Path $projectRoot "dist/Veilbreaker-$releaseVersion-Setup-x64.exe" }
 $artifactRoot = Join-Path $projectRoot 'test-artifacts'
 $testRoot = Join-Path $artifactRoot ('installer-' + [Guid]::NewGuid().ToString('N').Substring(0,8))
 $installRoot = [IO.Path]::GetFullPath((Join-Path $testRoot 'installer-check'))
@@ -19,12 +23,12 @@ if ($IsolatedIdentity) {
     $source = $source.Replace('E143EBCB-CF84-4D13-A183-1C91B9D3B76D', $testAppId).Replace('AppName=Veilbreaker', "AppName=$testAppName").Replace('OutputBaseFilename=Veilbreaker-', 'OutputBaseFilename=VeilbreakerValidation-').Replace('Name: "{autoprograms}\Veilbreaker"', 'Name: "{autoprograms}\Veilbreaker Validation"').Replace('Name: "{autodesktop}\Veilbreaker"', 'Name: "{autodesktop}\Veilbreaker Validation"')
     try {
         $source | Set-Content -LiteralPath $validationSource -Encoding utf8
-        & $compiler /Q $validationSource
+        & $compiler /Q "/DAppVersion=$releaseVersion" $validationSource
         if ($LASTEXITCODE -ne 0) { throw 'Validation installer compilation failed.' }
     } finally {
         if (Test-Path -LiteralPath $validationSource) { Remove-Item -LiteralPath $validationSource }
     }
-    $Installer = Join-Path $projectRoot 'dist/VeilbreakerValidation-0.29.0rc1-Setup-x64.exe'
+    $Installer = Join-Path $projectRoot "dist/VeilbreakerValidation-$releaseVersion-Setup-x64.exe"
 }
 $registryKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{$testAppId}_is1"
 $menuLink = Join-Path ([Environment]::GetFolderPath('Programs')) "$testAppName.lnk"
