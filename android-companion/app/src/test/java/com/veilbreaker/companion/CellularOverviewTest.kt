@@ -34,4 +34,13 @@ class CellularOverviewTest {
         assertTrue(label.contains("n48")); assertTrue(label.contains("n77")); assertTrue(label.contains("n78"))
         assertFalse(label.contains("modem reported"))
     }
+    @Test fun incompleteNeighborIdentitiesRemainSeparate() {
+        val data = capture()
+        val cells = data.getJSONArray("observations").getJSONObject(0).getJSONArray("cells")
+        val neighbor = cells.getJSONObject(1)
+        neighbor.put("identity", JSONObject().put("mcc","310").put("mnc","260"))
+        cells.put(JSONObject(neighbor.toString()))
+        val text = CellularOverview.render(data, plan())
+        assertEquals(2, Regex("sim-1 / Neighbor /").findAll(text).count())
+    }
 }

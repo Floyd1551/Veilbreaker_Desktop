@@ -50,12 +50,19 @@ def build_visibility(envelope):
         for index, cell in enumerate(obs['cells']):
             identity = cell['identity']; role = cell_role(cell); radio = cell['radio']
             signature = [identity.get(k) for k in ('mcc','mnc','cell_id','pci','earfcn','nrarfcn')]
-            if not any(v is not None for v in signature): signature += [obs['observation_id'], index]
+            full_id = all(identity.get(k) is not None for k in ('mcc','mnc','cell_id'))
+            channel_id = identity.get('pci') is not None and (identity.get('earfcn') is not None or identity.get('nrarfcn') is not None)
+            if not full_id and not channel_id: signature += [obs['observation_id'], index]
             key = json.dumps([sub, radio, signature, role])
-            if key not in groups and len(groups) >= 1024:
-                omitted += 1; continue
-            band = band_details(radio, identity)
             current = obs['observation_id'] == latest[sub]['observation_id']
+            if key not in groups and len(groups) >= 1024:
+                victim = next((k for k,r in groups.items() if current and not r['latest']), None)
+                if victim is None and current and cell.get('registered') is True:
+                    victim = next((k for k,r in groups.items() if r['role'] in ('Neighbor','Role not exposed','Conflicting serving flags')), None)
+                if victim is None:
+                    omitted += 1; continue
+                omitted += groups.pop(victim)['observations']
+            band = band_details(radio, identity)
             age = cell.get('age_ms'); stamp = (sub, radio, json.dumps(signature), obs['elapsed_realtime_ms']-age) if age is not None else None
             cached = stamp in stamps if stamp else False
             if stamp: stamps.add(stamp)

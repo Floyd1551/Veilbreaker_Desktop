@@ -674,6 +674,7 @@ class MainWindow(QMainWindow):
     def build_settings(self):
         widget, layout = page("Settings", "Configure targets, hardware and storage. Existing CLI configuration is supported.")
         self.settings_location = label("", "muted")
+        self.settings_location.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         layout.addWidget(self.settings_location)
         layout.addWidget(label("Connection settings apply to your next diagnostic. Saving never starts a test. Site and scenario are selected on Diagnostics; receive presets are in Tools.", "muted"))
         self.settings_tabs = QTabWidget()

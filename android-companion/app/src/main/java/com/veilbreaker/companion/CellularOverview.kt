@@ -81,7 +81,7 @@ object CellularOverview {
         val bands = linkedMapOf<String, MutableSet<String>>()
         var omitted = 0
         val chronological = (0 until observations.length()).map { observations.getJSONObject(it) }.sortedBy { it.getLong("elapsed_realtime_ms") }
-        for (obs in chronological) {
+        for (obs in chronological.asReversed()) {
             val sub = obs.getString("subscription_key")
             val cells = obs.getJSONArray("cells"); val current = latest[sub] === obs
             for (j in 0 until cells.length()) {
@@ -93,9 +93,14 @@ object CellularOverview {
                     bands.getOrPut(key) { linkedSetOf() }.add("${role(cell)} / $whenSeen")
                 }
                 if (!cell.optBoolean("registered",false)) {
-                    val key = sub + cell.getString("radio") + identity.toString() + role(cell)
-                    if (neighbors.containsKey(key) || neighbors.size < 1024) neighbors[key] = describe(cell,obs) + " | $whenSeen"
-                    else omitted++
+                    val fullId = listOf("mcc","mnc","cell_id").all { identity.has(it) && !identity.isNull(it) }
+                    val channelId = identity.has("pci") && !identity.isNull("pci") && listOf("earfcn","nrarfcn").any { identity.has(it) && !identity.isNull(it) }
+                    val suffix = if (fullId || channelId) "" else "/${obs.getString("observation_id")}/$j"
+                    val key = sub + cell.getString("radio") + identity.toString() + role(cell) + suffix
+                    if (!neighbors.containsKey(key)) {
+                        if (neighbors.size < 1024) neighbors[key] = describe(cell,obs) + " | $whenSeen"
+                        else omitted++
+                    }
                 }
             }
         }

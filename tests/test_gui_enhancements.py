@@ -48,6 +48,14 @@ class WorkspaceTests(unittest.TestCase):
         self.assertTrue(self.window.sidebar.isVisible())
         self.assertFalse(self.window.compact_navigation.isVisible())
 
+    def test_long_configuration_path_does_not_widen_settings_page(self):
+        self.window.settings_location.setText('Configuration: C:\\' + 'longpath' * 35 + '\\config.json')
+        self.window.resize(760,640)
+        self.window.show()
+        self.window.compact_navigation.setCurrentIndex(4)
+        QTest.qWait(50)
+        self.assertEqual(self.window.pages.widget(4).horizontalScrollBar().maximum(),0)
+
     def test_metric_filter_includes_zero_and_source_without_changing_evidence(self):
         from veilbreaker.jobs import demo_payload
         payload = demo_payload()

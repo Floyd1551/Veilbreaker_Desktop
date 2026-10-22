@@ -4,6 +4,29 @@ from test_android_capture import fixture
 
 
 class VisibilityTests(unittest.TestCase):
+    def test_network_codes_alone_cannot_identify_a_cell(self):
+        from veilbreaker.cell_visibility import build_visibility
+        data=fixture(); cells=data['observations'][0]['cells']
+        cells[0].update(registered=False, connection_status='none', identity={'mcc':'310','mnc':'260'})
+        cells.append(copy.deepcopy(cells[0]))
+        self.assertEqual(len(build_visibility(data)['neighbors']),2)
+
+    def test_latest_serving_cell_has_priority_over_history_cap(self):
+        from veilbreaker.cell_visibility import build_visibility
+        data=fixture(); template=copy.deepcopy(data['observations'][0]); data['observations']=[]
+        for i in range(4):
+            obs=copy.deepcopy(template); obs['observation_id']=str(i); obs['elapsed_realtime_ms']+=i*5000
+            obs['cells']=[]
+            for j in range(256):
+                cell=copy.deepcopy(template['cells'][0]); cell.update(registered=False,connection_status='none')
+                cell['identity']['cell_id']=str(i*256+j); obs['cells'].append(cell)
+            data['observations'].append(obs)
+        latest=copy.deepcopy(template); latest['observation_id']='latest'; latest['elapsed_realtime_ms']+=25000
+        data['observations'].append(latest)
+        result=build_visibility(data)
+        self.assertEqual(len(result['connected']),1)
+        self.assertGreater(result['omitted'],0)
+
     def test_integration_and_boundary_candidates(self):
         from veilbreaker.cellular_report import build_report, report_html
         from veilbreaker.cell_visibility import band_details, channel_plan
