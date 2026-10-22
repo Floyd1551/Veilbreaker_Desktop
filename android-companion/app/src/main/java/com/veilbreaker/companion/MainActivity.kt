@@ -124,8 +124,8 @@ class MainActivity : Activity() {
                 val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
                 val source=if(stillPresent) cells.orEmpty() else emptyList()
                 val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.4.0-dev",
-                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error),started)
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.5.0-dev",
+                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error, if(source.size>256) "Cell list truncated to 256 entries; additional modem entries omitted." else null),started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
                 if(useLocation) observation.put("location",location.atReceipt(elapsed))
@@ -177,13 +177,8 @@ class MainActivity : Activity() {
             val last=if(observations.length()>0) observations.getJSONObject(observations.length()-1) else null
             val lines=mutableListOf("${observations.length()} observations · ${value.getJSONObject("collection").optString("outcome")}")
             last?.optJSONObject("location")?.let { lines.add(locationStatus(it));if(it.optString("status")=="available") lines.add("${it.optDouble("latitude_deg")}, ${it.optDouble("longitude_deg")}") }
-            last?.optJSONArray("cells")?.let { cells->for(i in 0 until cells.length()) {
-                val cell=cells.getJSONObject(i)
-                if(cell.optBoolean("registered")) {
-                    lines.add("${cell.optString("radio")} · serving cell ${cell.getJSONObject("identity").optString("cell_id","unknown")}")
-                    val signal=cell.getJSONObject("signal")
-                    for(key in listOf("rsrp","rsrq","rssnr","ss_rsrp","ss_rsrq","ss_sinr")) signal.optJSONObject(key)?.let { q->if(!q.isNull("value")) lines.add("${key.uppercase().replace('_','-')}: ${q.opt("value")} ${q.optString("unit")}") }
-            } } }
+            val plan=JSONObject(assets.open("channel-bands.json").bufferedReader().use { it.readText() })
+            lines.add(CellularOverview.render(value,plan))
             lines.joinToString("\n")
         }
         exportButton.isEnabled=value!=null && !pending && connection==null

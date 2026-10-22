@@ -1,7 +1,7 @@
 name: Android companion
 on:
   push:
-    paths: ['android-companion/**', '.github/workflows/android.yml', 'src/veilbreaker/android_capture.py']
+    paths: ['android-companion/**', '.github/workflows/android.yml', 'src/veilbreaker/android_capture.py', 'src/veilbreaker/assets/cellular/**']
   workflow_dispatch:
 permissions:
   contents: read

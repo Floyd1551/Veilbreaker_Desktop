@@ -1,0 +1,656 @@
+{
+  "version": "2026-10-22",
+  "source": "https://android.googlesource.com/platform/frameworks/base/+/master/telephony/java/android/telephony/AccessNetworkUtils.java",
+  "source_sha256": "ea30deebfc2f56b744930f2849286041fa33a597171b282e910bc1611d63b1ef",
+  "notice": "Downlink channel-range candidates from AOSP reference; not exhaustive, not carrier identification, and NR overlaps remain ambiguous. Reported modem bands take precedence.",
+  "ranges": [
+    {
+      "radio": "LTE",
+      "band": 1,
+      "min": 0,
+      "max": 599
+    },
+    {
+      "radio": "LTE",
+      "band": 2,
+      "min": 600,
+      "max": 1199
+    },
+    {
+      "radio": "LTE",
+      "band": 3,
+      "min": 1200,
+      "max": 1949
+    },
+    {
+      "radio": "LTE",
+      "band": 4,
+      "min": 1950,
+      "max": 2399
+    },
+    {
+      "radio": "LTE",
+      "band": 5,
+      "min": 2400,
+      "max": 2649
+    },
+    {
+      "radio": "LTE",
+      "band": 6,
+      "min": 2650,
+      "max": 2749
+    },
+    {
+      "radio": "LTE",
+      "band": 7,
+      "min": 2750,
+      "max": 3449
+    },
+    {
+      "radio": "LTE",
+      "band": 8,
+      "min": 3450,
+      "max": 3799
+    },
+    {
+      "radio": "LTE",
+      "band": 9,
+      "min": 3800,
+      "max": 4149
+    },
+    {
+      "radio": "LTE",
+      "band": 10,
+      "min": 4150,
+      "max": 4749
+    },
+    {
+      "radio": "LTE",
+      "band": 11,
+      "min": 4750,
+      "max": 5009
+    },
+    {
+      "radio": "LTE",
+      "band": 12,
+      "min": 5010,
+      "max": 5179
+    },
+    {
+      "radio": "LTE",
+      "band": 13,
+      "min": 5180,
+      "max": 5279
+    },
+    {
+      "radio": "LTE",
+      "band": 14,
+      "min": 5280,
+      "max": 5379
+    },
+    {
+      "radio": "LTE",
+      "band": 17,
+      "min": 5730,
+      "max": 5849
+    },
+    {
+      "radio": "LTE",
+      "band": 18,
+      "min": 5850,
+      "max": 5999
+    },
+    {
+      "radio": "LTE",
+      "band": 19,
+      "min": 6000,
+      "max": 6149
+    },
+    {
+      "radio": "LTE",
+      "band": 20,
+      "min": 6150,
+      "max": 6449
+    },
+    {
+      "radio": "LTE",
+      "band": 21,
+      "min": 6450,
+      "max": 6599
+    },
+    {
+      "radio": "LTE",
+      "band": 22,
+      "min": 6600,
+      "max": 7499
+    },
+    {
+      "radio": "LTE",
+      "band": 23,
+      "min": 7500,
+      "max": 7699
+    },
+    {
+      "radio": "LTE",
+      "band": 24,
+      "min": 7700,
+      "max": 8039
+    },
+    {
+      "radio": "LTE",
+      "band": 25,
+      "min": 8040,
+      "max": 8689
+    },
+    {
+      "radio": "LTE",
+      "band": 26,
+      "min": 8690,
+      "max": 9039
+    },
+    {
+      "radio": "LTE",
+      "band": 27,
+      "min": 9040,
+      "max": 9209
+    },
+    {
+      "radio": "LTE",
+      "band": 28,
+      "min": 9210,
+      "max": 9659
+    },
+    {
+      "radio": "LTE",
+      "band": 29,
+      "min": 9660,
+      "max": 9769
+    },
+    {
+      "radio": "LTE",
+      "band": 30,
+      "min": 9770,
+      "max": 9869
+    },
+    {
+      "radio": "LTE",
+      "band": 31,
+      "min": 9870,
+      "max": 9919
+    },
+    {
+      "radio": "LTE",
+      "band": 32,
+      "min": 9920,
+      "max": 10359
+    },
+    {
+      "radio": "LTE",
+      "band": 33,
+      "min": 36000,
+      "max": 36199
+    },
+    {
+      "radio": "LTE",
+      "band": 34,
+      "min": 36200,
+      "max": 36349
+    },
+    {
+      "radio": "LTE",
+      "band": 35,
+      "min": 36350,
+      "max": 36949
+    },
+    {
+      "radio": "LTE",
+      "band": 36,
+      "min": 36950,
+      "max": 37549
+    },
+    {
+      "radio": "LTE",
+      "band": 37,
+      "min": 37550,
+      "max": 37749
+    },
+    {
+      "radio": "LTE",
+      "band": 38,
+      "min": 37750,
+      "max": 38249
+    },
+    {
+      "radio": "LTE",
+      "band": 39,
+      "min": 38250,
+      "max": 38649
+    },
+    {
+      "radio": "LTE",
+      "band": 40,
+      "min": 38650,
+      "max": 39649
+    },
+    {
+      "radio": "LTE",
+      "band": 41,
+      "min": 39650,
+      "max": 41589
+    },
+    {
+      "radio": "LTE",
+      "band": 42,
+      "min": 41590,
+      "max": 43589
+    },
+    {
+      "radio": "LTE",
+      "band": 43,
+      "min": 43590,
+      "max": 45589
+    },
+    {
+      "radio": "LTE",
+      "band": 44,
+      "min": 45590,
+      "max": 46589
+    },
+    {
+      "radio": "LTE",
+      "band": 45,
+      "min": 46590,
+      "max": 46789
+    },
+    {
+      "radio": "LTE",
+      "band": 46,
+      "min": 46790,
+      "max": 54539
+    },
+    {
+      "radio": "LTE",
+      "band": 47,
+      "min": 54540,
+      "max": 55239
+    },
+    {
+      "radio": "LTE",
+      "band": 48,
+      "min": 55240,
+      "max": 56739
+    },
+    {
+      "radio": "LTE",
+      "band": 49,
+      "min": 56740,
+      "max": 58239
+    },
+    {
+      "radio": "LTE",
+      "band": 50,
+      "min": 58240,
+      "max": 59089
+    },
+    {
+      "radio": "LTE",
+      "band": 51,
+      "min": 59090,
+      "max": 59139
+    },
+    {
+      "radio": "LTE",
+      "band": 52,
+      "min": 59140,
+      "max": 60139
+    },
+    {
+      "radio": "LTE",
+      "band": 53,
+      "min": 60140,
+      "max": 60254
+    },
+    {
+      "radio": "LTE",
+      "band": 65,
+      "min": 65536,
+      "max": 66435
+    },
+    {
+      "radio": "LTE",
+      "band": 66,
+      "min": 66436,
+      "max": 67365
+    },
+    {
+      "radio": "LTE",
+      "band": 67,
+      "min": 67366,
+      "max": 67535
+    },
+    {
+      "radio": "LTE",
+      "band": 68,
+      "min": 67536,
+      "max": 67835
+    },
+    {
+      "radio": "LTE",
+      "band": 70,
+      "min": 68336,
+      "max": 68585
+    },
+    {
+      "radio": "LTE",
+      "band": 71,
+      "min": 68586,
+      "max": 68935
+    },
+    {
+      "radio": "LTE",
+      "band": 72,
+      "min": 68936,
+      "max": 68985
+    },
+    {
+      "radio": "LTE",
+      "band": 73,
+      "min": 68986,
+      "max": 69035
+    },
+    {
+      "radio": "LTE",
+      "band": 74,
+      "min": 69036,
+      "max": 69465
+    },
+    {
+      "radio": "LTE",
+      "band": 85,
+      "min": 70366,
+      "max": 70545
+    },
+    {
+      "radio": "LTE",
+      "band": 87,
+      "min": 70546,
+      "max": 70595
+    },
+    {
+      "radio": "LTE",
+      "band": 88,
+      "min": 70596,
+      "max": 70645
+    },
+    {
+      "radio": "NR",
+      "band": 1,
+      "min": 422000,
+      "max": 434000
+    },
+    {
+      "radio": "NR",
+      "band": 2,
+      "min": 386000,
+      "max": 398000
+    },
+    {
+      "radio": "NR",
+      "band": 3,
+      "min": 361000,
+      "max": 376000
+    },
+    {
+      "radio": "NR",
+      "band": 5,
+      "min": 173800,
+      "max": 178800
+    },
+    {
+      "radio": "NR",
+      "band": 7,
+      "min": 524000,
+      "max": 538000
+    },
+    {
+      "radio": "NR",
+      "band": 8,
+      "min": 185000,
+      "max": 192000
+    },
+    {
+      "radio": "NR",
+      "band": 12,
+      "min": 145800,
+      "max": 149200
+    },
+    {
+      "radio": "NR",
+      "band": 14,
+      "min": 151600,
+      "max": 153600
+    },
+    {
+      "radio": "NR",
+      "band": 18,
+      "min": 172000,
+      "max": 175000
+    },
+    {
+      "radio": "NR",
+      "band": 20,
+      "min": 158200,
+      "max": 164200
+    },
+    {
+      "radio": "NR",
+      "band": 25,
+      "min": 386000,
+      "max": 399000
+    },
+    {
+      "radio": "NR",
+      "band": 26,
+      "min": 171800,
+      "max": 178800
+    },
+    {
+      "radio": "NR",
+      "band": 28,
+      "min": 151600,
+      "max": 160600
+    },
+    {
+      "radio": "NR",
+      "band": 29,
+      "min": 143400,
+      "max": 145600
+    },
+    {
+      "radio": "NR",
+      "band": 30,
+      "min": 470000,
+      "max": 472000
+    },
+    {
+      "radio": "NR",
+      "band": 34,
+      "min": 402000,
+      "max": 405000
+    },
+    {
+      "radio": "NR",
+      "band": 38,
+      "min": 514000,
+      "max": 524000
+    },
+    {
+      "radio": "NR",
+      "band": 39,
+      "min": 376000,
+      "max": 384000
+    },
+    {
+      "radio": "NR",
+      "band": 40,
+      "min": 460000,
+      "max": 480000
+    },
+    {
+      "radio": "NR",
+      "band": 41,
+      "min": 499200,
+      "max": 537999
+    },
+    {
+      "radio": "NR",
+      "band": 46,
+      "min": 743334,
+      "max": 795000
+    },
+    {
+      "radio": "NR",
+      "band": 48,
+      "min": 636667,
+      "max": 646666
+    },
+    {
+      "radio": "NR",
+      "band": 50,
+      "min": 286400,
+      "max": 303400
+    },
+    {
+      "radio": "NR",
+      "band": 51,
+      "min": 285400,
+      "max": 286400
+    },
+    {
+      "radio": "NR",
+      "band": 53,
+      "min": 496700,
+      "max": 499000
+    },
+    {
+      "radio": "NR",
+      "band": 65,
+      "min": 422000,
+      "max": 440000
+    },
+    {
+      "radio": "NR",
+      "band": 66,
+      "min": 422000,
+      "max": 440000
+    },
+    {
+      "radio": "NR",
+      "band": 70,
+      "min": 399000,
+      "max": 404000
+    },
+    {
+      "radio": "NR",
+      "band": 71,
+      "min": 123400,
+      "max": 130400
+    },
+    {
+      "radio": "NR",
+      "band": 74,
+      "min": 295000,
+      "max": 303600
+    },
+    {
+      "radio": "NR",
+      "band": 75,
+      "min": 286400,
+      "max": 303400
+    },
+    {
+      "radio": "NR",
+      "band": 76,
+      "min": 285400,
+      "max": 286400
+    },
+    {
+      "radio": "NR",
+      "band": 77,
+      "min": 620000,
+      "max": 680000
+    },
+    {
+      "radio": "NR",
+      "band": 78,
+      "min": 620000,
+      "max": 653333
+    },
+    {
+      "radio": "NR",
+      "band": 79,
+      "min": 693334,
+      "max": 733333
+    },
+    {
+      "radio": "NR",
+      "band": 90,
+      "min": 499200,
+      "max": 538000
+    },
+    {
+      "radio": "NR",
+      "band": 91,
+      "min": 285400,
+      "max": 286400
+    },
+    {
+      "radio": "NR",
+      "band": 92,
+      "min": 286400,
+      "max": 303400
+    },
+    {
+      "radio": "NR",
+      "band": 93,
+      "min": 285400,
+      "max": 286400
+    },
+    {
+      "radio": "NR",
+      "band": 94,
+      "min": 286400,
+      "max": 303400
+    },
+    {
+      "radio": "NR",
+      "band": 96,
+      "min": 795000,
+      "max": 875000
+    },
+    {
+      "radio": "NR",
+      "band": 257,
+      "min": 2054166,
+      "max": 2104165
+    },
+    {
+      "radio": "NR",
+      "band": 258,
+      "min": 2016667,
+      "max": 2070832
+    },
+    {
+      "radio": "NR",
+      "band": 260,
+      "min": 2229166,
+      "max": 2279165
+    },
+    {
+      "radio": "NR",
+      "band": 261,
+      "min": 2070833,
+      "max": 2084999
+    }
+  ]
+}

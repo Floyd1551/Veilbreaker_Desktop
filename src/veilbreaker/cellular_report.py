@@ -13,6 +13,7 @@ MISSING = 'Not exposed'
 
 def build_report(envelope):
     from .capture_reasoning import cellular_patterns
+    from .cell_visibility import build_visibility
     validate_capture(envelope)
     subscriptions = {s['key']: s for s in envelope['subscriptions']}
     groups, previous, seen = {}, {}, set()
@@ -70,7 +71,7 @@ def build_report(envelope):
                 started_utc=envelope['collection']['started_utc'], ended_utc=envelope['collection']['ended_utc'],
                 observations=len(observations), cells=list(groups.values()), changes=changes,
                 repeated_samples=repeated, unknown_age_samples=unknown, neighbor_observations=neighbors, omitted=omitted,
-                capture_diagnostics=cellular_patterns(envelope))
+                capture_diagnostics=cellular_patterns(envelope), visibility=build_visibility(envelope))
 
 
 def interpretation(name, value):
@@ -116,7 +117,10 @@ def report_html(report, fragment=False):
     parts += ['<h2>Cellular field measurements</h2>',
               f"<p><b>{esc(report['device']['manufacturer'])} {esc(report['device']['model'])}</b> · {esc(report['mode'])} · {esc(report['outcome'])}<br>{esc(report['started_utc'])} to {esc(report['ended_utc'])}</p>",
               f"<p>{report['observations']} observations · {report['repeated_samples']} repeated registered-cell samples · {report['unknown_age_samples']} unknown sample ages · {report['neighbor_observations']} neighbor/reference entries.</p>",
-              '<p>Cell IDs identify reported cells, not physical tower locations. Carrier is the reported network name; SIM provider may differ. Bands are shown only when exposed, without guessing from channel numbers. Signal labels are broad RF guidance, not a throughput diagnosis.</p>']
+              '<p>Cell IDs identify reported cells, not physical tower locations. Carrier is the reported network name; SIM provider may differ. Modem-reported bands and channel-derived candidates are labelled separately. Signal labels are broad RF guidance, not a throughput diagnosis.</p>']
+    if report.get('visibility'):
+        from .cell_visibility import visibility_html
+        parts.append(visibility_html(report['visibility']))
     if report.get('capture_diagnostics'):
         from .capture_reasoning import patterns_html
         parts.append(patterns_html(report['capture_diagnostics']))

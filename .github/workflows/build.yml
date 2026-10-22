@@ -17,7 +17,7 @@ jobs:
       - name: Linux Qt runtime libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon0 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0
-      - run: python -m pip install -e ".[desktop,build]"
+      - run: python -m pip install -e ".[desktop,build,terrain]"
       - run: python tools/build_release.py
       - name: Windows installer
         if: runner.os == 'Windows'
