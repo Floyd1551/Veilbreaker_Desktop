@@ -18,10 +18,18 @@ jobs:
       - name: Linux Qt runtime libraries
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon0 libxkbcommon-x11-0 libxcb-xkb1 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0
-          echo "QT_QPA_PLATFORM=offscreen" >> "$GITHUB_ENV"
+          sudo apt-get update && sudo apt-get install -y xvfb xauth libgl1-mesa-dri libegl1 libopengl0 libxkbcommon0 libxkbcommon-x11-0 libxcb-xkb1 libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 libxcb-xinerama0
       - run: python -m pip install -e ".[desktop,build,terrain]"
-      - run: python tools/build_release.py
+      - name: Linux release and rendered map checks
+        if: runner.os == 'Linux'
+        env:
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          QTWEBENGINE_CHROMIUM_FLAGS: --ignore-gpu-blocklist
+        run: xvfb-run -a -s '-screen 0 1280x1024x24' python tools/build_release.py
+      - name: Windows release checks
+        if: runner.os == 'Windows'
+        run: python tools/build_release.py
       - name: Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
