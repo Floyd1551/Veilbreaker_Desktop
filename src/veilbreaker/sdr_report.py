@@ -96,6 +96,13 @@ def build_sdr_report(summaries, metadata, plan=None):
             row['notes'].append('Field follow-up: ' + ('Inspect the strongest frequencies against the service band and repeat at another position.' if excess >= 18 else 'Repeat with identical receiver settings and antenna placement to establish a comparable baseline.') + ' This observation alone does not diagnose harmful interference or identify a carrier.')
             from .sdr_visuals import build_visuals
             row['visuals'] = build_visuals(path, points, low, high)
+            row['capture_diagnostics'] = row['visuals']['capture_diagnostics']
+            settings = (row['capture'] or {}).get('settings')
+            settings_known = isinstance(settings, dict) and all(settings.get(k) is not None for k in
+                ('lna_gain_db', 'vga_gain_db', 'amp_enable', 'antenna_power', 'bin_width_hz'))
+            if not row['capture'] or row['capture'].get('returncode') != 0 or not settings_known:
+                row['capture_diagnostics']['findings'] = []
+                row['capture_diagnostics']['reason'] = 'Capture completion/settings unavailable or acquisition failed; repeat a recorded capture before interpreting persistence.'
             change = row['visuals'].get('temporal_change')
             if change:
                 row['notes'].append(f"Within-capture change: median matched-bin change {change['median_delta_db']:+.1f} dB; largest increase {change['largest_increase_db']:+.1f} dB, first to last displayed reconstructed sweep. This is observed variation, not proof of interference; repeat and correlate with service symptoms.")
@@ -130,6 +137,9 @@ def report_html(report, interactive=False, technical=True):
                   'partial': 'Partial capture', 'unavailable': 'Evidence unavailable'}.get(row['status'], row['status'])
         parts.extend(['<section><h2>' + esc(row['label']) + '</h2>',
                       '<p class="muted">' + esc(status) + ' &nbsp; · &nbsp; ' + str(row['bin_count']) + ' observed bins &nbsp; · &nbsp; ' + esc(row['requested_min_mhz']) + '–' + esc(row['requested_max_mhz']) + ' MHz</p>'])
+        if row.get('capture_diagnostics'):
+            from .capture_reasoning import patterns_html
+            parts.append(patterns_html(row['capture_diagnostics']))
         if row.get('visuals'):
             from .sdr_visuals import visuals_html
             parts.append(visuals_html(row['visuals']))

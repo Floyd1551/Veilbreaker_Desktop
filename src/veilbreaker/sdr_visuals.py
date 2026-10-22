@@ -125,7 +125,11 @@ def build_visuals(path, points, low, high):
             deltas = [last[key]-power for key,power in first.items()]
             temporal = dict(median_delta_db=round(statistics.median(deltas),2),
                             largest_increase_db=round(max(deltas),2), matched_bins=len(deltas))
-    return {'temporal_change': temporal, 'spectrum_png': png(spectrum), 'waterfall_png': png(waterfall, WIDTH, water_height),
+    from .capture_reasoning import spectrum_patterns
+    patterns = spectrum_patterns(sweeps, low, high)
+    if truncated:
+        patterns['limitation'] += ' Analysis is limited to the first 128 reconstructed sweeps.'
+    return {'capture_diagnostics': patterns, 'temporal_change': temporal, 'spectrum_png': png(spectrum), 'waterfall_png': png(waterfall, WIDTH, water_height),
             'legend_png': png(legend, WIDTH, 16), 'water_floor_db': water_floor, 'water_top_db': water_top,
             'sweep_count': len(sweeps), 'floor_db': floor, 'ceiling_db': ceiling,
             'record_count': len(records), 'truncated': truncated,

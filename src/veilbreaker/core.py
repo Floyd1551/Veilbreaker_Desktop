@@ -4524,6 +4524,8 @@ def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, An
         from .cellular_report import build_report, report_html as cellular_html
         envelope = load_capture(phone_source)['envelope']
         cellular = build_report(envelope)
+        from .capture_reasoning import apply_patterns
+        apply_patterns(report, cellular['capture_diagnostics'], 'Phone capture')
         report.normalized_metrics['android_cellular_report'] = cellular
         (run_dir / 'cellular_report.html').write_text(cellular_html(cellular), encoding='utf-8')
         if any(observation.get('location') for observation in envelope['observations']):
@@ -4556,6 +4558,14 @@ def write_evidence_pack(config: AppConfig, run_id: str, metrics: Mapping[str, An
     except (OSError, ValueError):
         band_plan = default_plan()
     sdr_report = build_sdr_report([asdict(s) for s in sweep_summaries], {**metadata, 'collection': collection}, band_plan)
+    from .capture_reasoning import apply_patterns
+    for index, sweep in enumerate(sdr_report['ranges']):
+        if sweep.get('capture_diagnostics'):
+            apply_patterns(report, sweep['capture_diagnostics'], f"SDR {index+1} {sweep['label']}")
+    # Persist the final findings consistently in native, HTML and evidence views.
+    (run_dir / 'report.json').write_text(report.to_json() + '\n', encoding='utf-8')
+    (run_dir / 'report.txt').write_text(render_professional_console(report, metadata) + '\n', encoding='utf-8')
+    (run_dir / 'report.html').write_text(report_to_html(report, metadata), encoding='utf-8')
     (run_dir / 'sdr_report.json').write_text(json.dumps(sdr_report, indent=2) + '\n', encoding='utf-8')
     (run_dir / 'sdr_report.html').write_text(report_html(sdr_report), encoding='utf-8')
     from .band_summary import band_csv
