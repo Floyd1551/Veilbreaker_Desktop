@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Veilbreaker desktop emblem adapted for Android adaptive-icon safe bounds. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="512" android:viewportHeight="512">
+    <group android:scaleX="0.64" android:scaleY="0.64" android:pivotX="256" android:pivotY="256">
+        <path android:pathData="M256 58 L415 116 L391 358 L256 452 L121 358 L97 116 Z" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="18" />
+        <path android:pathData="M148 143 L226 342 L256 393 L286 342 L364 143 L314 163 L256 300 L198 163 Z" android:fillColor="#FFFFFF" />
+        <path android:pathData="M105 265 H153 L173 231 L199 300 L224 265 H288 L313 300 L339 231 L359 265 H407" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="10" android:strokeLineCap="round" android:strokeLineJoin="round" />
+        <path android:pathData="M256 126 A64 64 0 0 1 320 190 M256 100 A90 90 0 0 1 346 190 M256 75 A115 115 0 0 1 371 190" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="8" android:strokeLineCap="round" />
+        <path android:pathData="M242,190 A14,14 0,1 0,270,190 A14,14 0,1 0,242,190" android:fillColor="#FFFFFF" />
+        <path android:pathData="M256 205 V280" android:strokeColor="#FFFFFF" android:strokeWidth="8" android:strokeLineCap="round" android:fillColor="#00000000" />
+        <path android:pathData="M198 388 V334 H174 M314 388 V334 H338 M232 397 V346 M280 397 V346" android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    </group>
+</vector>

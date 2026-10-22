@@ -124,7 +124,7 @@ class MainActivity : Activity() {
                 val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
                 val source=if(stillPresent) cells.orEmpty() else emptyList()
                 val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.5.0-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.5.1-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error, if(source.size>256) "Cell list truncated to 256 entries; additional modem entries omitted." else null),started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
