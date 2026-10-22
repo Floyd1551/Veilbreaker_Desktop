@@ -41,3 +41,20 @@ raw capture contracts remain compatible; inferred bands never overwrite them.
 The Windows installer and Companion APK must be updated separately. Companion
 remains a development/debug build; physical Samsung qualification is separate
 from synthetic unit tests and build checks.
+
+## Qualification
+
+- Desktop: 250 tests passed; the local Windows frozen release passed CLI,
+  Unicode worker/evidence, six-page GUI, offline map, and terrain checks.
+- Companion: all 16 Android tests passed, including four cellular-visibility
+  tests; Kotlin-generated captures passed Desktop contract validation.
+- The APK and Windows payload contain the same shared band-reference content.
+- Regression coverage includes incomplete identities, latest connections after
+  long captures, empty latest observations, and narrow Settings layout.
+- Linux CI uses headless Qt rendering, Debian packages declare the required XCB
+  keyboard libraries, and installer qualification selects the built version.
+
+Build evidence: [Companion workflow](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39830348606)
+and [desktop packaging workflow](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39831137042).
+The desktop workflow link records the current CI outcome; local Windows checks
+are separate from Linux and installer qualification.

@@ -246,3 +246,7 @@ Verified against the connected Samsung: Windows platform-tools 37.0.1 omits USB 
 ## Capture reasoning and saved survey inputs - 0.38.0rc1
 
 Implemented freshness-qualified phone capture patterns (repeated weak signal, recovered quality dips, primary-cell identity changes) and complete-sweep SDR persistence, brief activity and broad power-rise findings. Findings retain source labels, counts, limitations and field follow-ups in native and exported reports. Saved diagnostics can now be linked into open surveys from history or survey details. See [release behavior and thresholds](release-0.38.0rc1.md). Physical receiver qualification and validated phone-bound service correlation remain future work; these rules do not prove interference or alter desktop health scores.
+
+## Cellular visibility — 0.39.0rc1 / Companion 0.5.0-dev
+
+Desktop reports and Companion previews now separate latest registered connections, observed neighbors, and an observed-band inventory. Modem-reported bands remain distinct from channel-derived candidates, including unresolved NR overlaps. Incomplete identities remain separate and current connections take priority over historical display entries. See [release behavior and limits](release-0.39.0rc1.md). Physical Samsung qualification and production APK signing remain open; Android's public API is not an exhaustive all-band scan.
