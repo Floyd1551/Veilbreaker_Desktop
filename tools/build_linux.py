@@ -20,7 +20,7 @@ def build_deb(root, version):
         (control / "control").write_text(
             f"Package: veilbreaker-desktop\nVersion: {version.replace('rc', '~rc')}\nArchitecture: {arch}\n"
             "Maintainer: Outpost Relay\nSection: net\nPriority: optional\n"
-            "Depends: libc6 (>= 2.39), libegl1, libopengl0, libxkbcommon0, libxcb-cursor0, libxcb-icccm4, libxcb-keysyms1, libxcb-shape0, libxcb-xinerama0\n"
+            "Depends: libc6 (>= 2.39), libegl1, libopengl0, libxkbcommon0, libxkbcommon-x11-0, libxcb-xkb1, libxcb-cursor0, libxcb-icccm4, libxcb-keysyms1, libxcb-shape0, libxcb-xinerama0\n"
             "Description: Explainable field network diagnostics and evidence\n", encoding="utf-8")
         binaries = stage / "usr/bin"
         binaries.mkdir(parents=True)
