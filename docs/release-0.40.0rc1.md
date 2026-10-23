@@ -26,3 +26,8 @@ Regression coverage includes point-setting precedence, legacy snapshots, missing
 settings, changed-context rejection, completed states, real-worker delivery,
 manual/batch labels, failed-point review, cancellation cleanup and narrow layouts.
 Physical device qualification remains separate from automated checks.
+
+
+Qualification: 259 source tests and local frozen Windows CLI/worker/GUI/map/terrain
+checks passed. Windows installer SHA-256 verified. Windows and Ubuntu 24.04 CI
+passed release and installer lifecycle checks in [run 40005674345](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/40005674345).

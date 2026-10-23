@@ -1,6 +1,6 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 23, 2026. Current working versions: **Desktop 0.39.0rc1**, **Companion 0.5.1-dev**.
+Updated October 23, 2026. Current working versions: **Desktop 0.40.0rc1**, **Companion 0.5.1-dev**.
 
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
 The offline GPS viewer, map-pack registration, report imagery, local cell-reference
@@ -253,3 +253,8 @@ Desktop reports and Companion previews now separate latest registered connection
 ## Platform qualification follow-through — October 23, 2026
 
 [Linux CI](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39833926282/job/120017114783) passed for 0.39.0rc1, including software-rendered offline maps and Debian installation/removal. Windows CI stopped at map rendering; a local frozen check passed with explicit software rendering. CI now retains qualification artifacts even on failure and prints map failure reports from the windowed executable. These runner settings do not change normal application rendering. [Windows and Linux qualification](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39963411791) now passes release checks and installer lifecycles. Neither CI nor local synthetic tests replace physical device acceptance.
+
+
+## Guided field survey detail — 0.40.0rc1
+
+Added next-point guidance, passive readiness against saved point settings, explicit manual/batch capture actions, and review of the latest attempted point. Worker completion/cancellation refreshes the current survey journal. Stale readiness responses are discarded and completed surveys remain protected. See [release behavior](release-0.40.0rc1.md). Live phone capture directly inside survey queues remains separate work; phone diagnostics can already be attached as existing runs. The broader end-to-end investigation milestone remains open.
