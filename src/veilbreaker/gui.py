@@ -882,6 +882,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("A task is already running. Finish or cancel it first.")
             return
         cfg = self.effective_config()
+        self.active_survey_path = extra.get('survey_path') if action == 'survey_resume' else None
         if action == "run":
             self.last_run_request = None if extra.get('options', {}).get('android_live') else json.loads(json.dumps(extra))
         preset = extra.pop("capture_settings", None)
@@ -983,6 +984,9 @@ class MainWindow(QMainWindow):
                 obj = json.loads(result_path.read_text(encoding="utf-8"))
                 if not obj["ok"]:
                     self.error(obj["error"])
+                elif "survey_readiness" in obj["result"]:
+                    self.survey_page.flow.accept(obj['result']['survey_readiness'])
+                    self.statusBar().showMessage('Survey prerequisite check finished. No acquisition started.')
                 elif "readiness" in obj["result"]:
                     check = obj['result']['readiness']
                     fill(self.readiness_table, [[r['item'], r['state'], r['detail']] for r in check['rows']])
@@ -1020,6 +1024,18 @@ class MainWindow(QMainWindow):
         if self.job_dir:
             self.job_dir.cleanup()
             self.job_dir = None
+        survey_path = getattr(self, 'active_survey_path', None)
+        self.active_survey_path = None
+        if survey_path and str(self.survey_page.session_path) == str(survey_path):
+            from .survey import read_session
+            try:
+                session = read_session(self.config, survey_path)
+                if not self.survey_page.detail.isHidden():
+                    self.survey_page.show_session(session, survey_path)
+                else:
+                    self.survey_page.session = session
+            except (OSError, ValueError, KeyError) as exc:
+                self.statusBar().showMessage('Could not refresh survey results: ' + str(exc))
         self.set_busy(False)
         if getattr(self, 'close_after_job', False):
             QTimer.singleShot(0, self.close)

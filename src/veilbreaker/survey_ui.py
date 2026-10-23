@@ -195,6 +195,11 @@ class SurveyPage(QWidget):
         self.imagery_button = button('Prepare report map…', self.prepare_report_map)
         report_actions.addWidget(self.imagery_button)
         layout.insertLayout(3, report_actions)
+        from .survey_flow_ui import SurveyFlowPanel
+        self.flow = SurveyFlowPanel(self)
+        layout.removeWidget(self.continue_button)
+        self.flow.body.addWidget(self.continue_button)
+        layout.insertWidget(0, self.flow)
         self.refresh()
         self.show_landing()
 
@@ -283,6 +288,7 @@ class SurveyPage(QWidget):
         self.point_notes.setEnabled(not busy and bool(self.session) and self.session.get("status") != "running" and self.results.currentRow() >= 0)
         self.save_notes.setEnabled(self.point_notes.isEnabled())
         self.update_queue_actions()
+        self.flow.refresh(busy)
 
     def start(self):
         from .survey import validate_steps, create_survey, append_steps
@@ -478,6 +484,7 @@ class SurveyPage(QWidget):
         fill(self.results, [[i, s["label"], s["status"], s.get("assessment", s.get("error", "—")), s["run_id"]] for i, s in enumerate(session["steps"], 1)])
         QTimer.singleShot(0, lambda: self.window.pages.widget(5).ensureWidgetVisible(self.continue_button if self.can_continue() else self.comparison))
         self.select_point()
+        self.flow.refresh(self.window.process is not None)
         steps = session["steps"]
         keys = sorted({k for s in steps for k in s.get("metrics", {})})
         self.comparison.setVisible(bool(keys))

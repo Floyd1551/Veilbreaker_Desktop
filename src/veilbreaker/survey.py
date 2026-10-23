@@ -263,6 +263,16 @@ def update_point_notes(config, path, index, notes):
     return read_session(config, path)
 
 
+def effective_step_config(config, step):
+    """Use the same saved point settings for readiness and acquisition."""
+    cfg = core.AppConfig.from_dict(step.get("settings", config.to_dict()))
+    cfg.data_dir = str(config.root)
+    cfg.cellular.enabled = step["options"]["cellular"]
+    cfg.starlink.enabled = step["options"]["starlink"]
+    cfg.sdr.enabled = step["options"]["sdr"]
+    return cfg
+
+
 def _run_session(config, path, session, progress):
     for index, step in enumerate(session["steps"], 1):
         if step["status"] not in ("planned", "not_run"):
@@ -273,11 +283,7 @@ def _run_session(config, path, session, progress):
             if progress:
                 progress({**event, "source": f"Test {index}/{len(session['steps'])} · {step['label']} · {event['source']}"})
         notify({"event": "collection", "source": "starting", "status": "running"})
-        cfg = core.AppConfig.from_dict(step.get("settings", config.to_dict()))
-        cfg.data_dir = str(config.root)
-        cfg.cellular.enabled = step["options"]["cellular"]
-        cfg.starlink.enabled = step["options"]["starlink"]
-        cfg.sdr.enabled = step["options"]["sdr"]
+        cfg = effective_step_config(config, step)
         app = core.VeilbreakerApplication(cfg, progress=notify)
         try:
             result = app.run(**step["options"], run_id=step["run_id"], note=f"{session['name']} / {step['label']} — {step.get('notes', '')}")
