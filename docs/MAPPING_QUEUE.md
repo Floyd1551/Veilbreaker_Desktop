@@ -100,12 +100,13 @@ and structure height must not silently substitute for these. Show assumptions
 and unavailable inputs. Estimated cell coordinates can make an otherwise precise
 terrain calculation misleading, so endpoint uncertainty belongs in the result.
 
-## Next implementation slice
+## Implemented foundation and remaining work
 
-Map-pack registration and cached report imagery are implemented in 0.36. Next,
-design the local cell database and identity matching together, using imported
-files before adding account/download automation. Keep terrain ingestion and LOS
-as a later subsystem, with a small regional validation fixture before expansion.
+Map-pack registration and cached report imagery are implemented in 0.36. Local
+cell-reference imports, identity matching and regional terrain assessment followed
+in 0.37. The remaining queue is national/regional data acquisition, field validation,
+FCC structure association and multi-file terrain catalogs; implementation of the
+existing local matching and terrain workflows does not need to restart.
 
 The requested survey-area image is prioritized alongside map preparation, ahead
 of tower matching: [map packs and report imagery design](superpowers/specs/2026-10-20-map-packs-report-imagery-design.md).

@@ -1,19 +1,18 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 20, 2026. Current working version: **0.35.0rc2**.
+Updated October 23, 2026. Current working versions: **Desktop 0.39.0rc1**, **Companion 0.5.1-dev**.
 
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
-The offline GPS viewer is delivered; national basemap preparation, pack management,
-cell-site matching and regional terrain analysis are tracked separately in that queue.
-Survey-area photographic snapshots for native and HTML reports are now prioritized
-with map-pack management; the proposed design is linked from the queue.
+The offline GPS viewer, map-pack registration, report imagery, local cell-reference
+matching and regional terrain assessment are implemented. National basemap acquisition,
+real reference data and field qualification remain tracked in that queue.
 Version 0.35.0rc2 fixes Android USB pairing cleanup; a full phone-fed diagnostic
 was confirmed on the connected device. Historical milestones below retain their
 original scope and qualification notes.
 
 Latest field-workflow increment: source-labelled phone findings and hypotheses, qualified SDR baseline comparisons, Clear workspace, recoverable test/survey removal, and survey landing/detail lifecycle. See [field workflow guide](field-workflows.md).
 
-Previous increment: phone-approved six-digit USB pairing, automatic credential exchange, and an in-app Cellular field report with per-cell identity, signal statistics and trends. Phone qualification, production signing and GPS remain pending.
+Previous increment: phone-approved six-digit USB pairing, automatic credential exchange, and an in-app Cellular field report with per-cell identity, signal statistics and trends. Broader phone qualification and production signing remain pending; phone/GPS position evidence and offline maps are implemented.
 
 Build a dependable local diagnostic companion for Windows and Linux: capture a problem, understand what the evidence supports, choose the next measurement, and compare results after a change. The desktop and CLI share one engine. Missing measurements remain unknown.
 
@@ -27,10 +26,10 @@ This roadmap consolidates the recovered inventory, current source, README, local
 | Evidence integrity and acquisition recovery | Implemented and regression tested | Physical failure qualification across supported devices and OSes |
 | HackRF receive workflows | Implemented; bounded live 2.4 GHz captures verified | Reconnect, busy/timeout, broader bands, firmware and endurance qualification |
 | Cellular and Starlink | Collectors and reasoning implemented | Live device qualification and sanitized regression fixtures |
-| Survey investigations | Sessions, templates, repeat visits, trends and organization implemented | GPS/maps and a complete guided investigation flow |
+| Survey investigations | Sessions, templates, repeat visits, maps, report imagery and saved-run attachment implemented | Complete guided investigation flow and field qualification |
 | Settings and advanced tools | Network and common hardware forms implemented; advanced JSON and CLI available | Remaining advanced forms and guided workflows |
 | Windows distribution | Local frozen build and installer lifecycle recorded as passing | Clean-machine testing, locale coverage, signing and update decisions |
-| Linux distribution | Source, build scripts, installers and CI implemented | Native runtime, desktop and installation qualification |
+| Linux distribution | Ubuntu 24.04 x64 CI passed source/frozen checks, rendered maps and Debian lifecycle | Physical Linux desktop and Wayland qualification |
 | Public release | Local release-candidate artifacts available | Qualification gates and publication; no remote release documented |
 
 The 0.19.0rc1 source consolidates the work since the original recovery baseline. Local Windows validation is recorded below; public release availability and GitHub CI results are separate from local qualification.
@@ -141,7 +140,7 @@ Dependencies: physical devices, host tools/drivers and repeatable test condition
 - [x] **P2 — Searchable history:** full run history in 0.16; survey search/state filtering in 0.19.
 - [x] **P2 — Baseline and long-term trends:** per-point numeric trends across visits with gaps, exclusion reasons, guarded statistics and JSON/CSV exports in 0.19.
 - [x] **P2 — Desktop confirmed-case management:** entry/review/withdrawal in 0.18; event history, search/paging, export and source reopening in 0.19.
-- [ ] **P2 — GPS and maps:** integrate point positions into survey progression and review when suitable hardware is available. Existing optional gpsd collection does not complete mapped surveys.
+- [x] **P2 — GPS and maps foundation:** phone/receiver location evidence, offline survey maps, report imagery and local references are implemented. Real field accuracy and broader device qualification remain open.
 - [ ] Add dedicated forms for remaining advanced CLI workflows where needed to complete the investigation journey.
 
 Dependencies: stable collection metadata/settings snapshots; GPS hardware for field qualification. Exit: complete and reopen a before/after investigation without CLI commands or JSON editing; comparable evidence, uncertainty and missing data stay explicit.
@@ -155,7 +154,7 @@ Dependencies: stable collection metadata/settings snapshots; GPS hardware for fi
 - [ ] **P2 — Real network test qualification:** forward/reverse throughput against actual iperf3 servers, PMTU and failure scenarios on carrier/private networks.
 - [ ] **P2 — Explicit interface selection/binding:** establish which link is measured before adding simultaneous multi-WAN comparison workflows.
 - [ ] **P3 — Separate engine components:** split collectors, reasoning and persistence behind existing regression coverage as workflow complexity warrants.
-- [ ] **P3 — Mobile interoperability contract:** define a versioned import format before implementing synchronization; Mobile integration is not currently delivered.
+- [x] **P3 — Android interoperability contract:** versioned captures, saved inputs and bounded live USB sessions are implemented. General synchronization and production APK signing remain open.
 - [ ] Compare recovered Desktop source with newer NetworkHub material if it becomes available and reconcile any missing work.
 
 Platform qualification can proceed alongside Phase 2 when machines are available. Exit: reproducible artifacts, native evidence for each supported OS/device combination, intended-link measurements and data-preserving upgrades.
@@ -250,3 +249,7 @@ Implemented freshness-qualified phone capture patterns (repeated weak signal, re
 ## Cellular visibility — 0.39.0rc1 / Companion 0.5.0-dev
 
 Desktop reports and Companion previews now separate latest registered connections, observed neighbors, and an observed-band inventory. Modem-reported bands remain distinct from channel-derived candidates, including unresolved NR overlaps. Incomplete identities remain separate and current connections take priority over historical display entries. See [release behavior and limits](release-0.39.0rc1.md). Physical Samsung qualification and production APK signing remain open; Android's public API is not an exhaustive all-band scan.
+
+## Platform qualification follow-through — October 23, 2026
+
+[Linux CI](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39833926282/job/120017114783) passed for 0.39.0rc1, including software-rendered offline maps and Debian installation/removal. Windows CI stopped at map rendering; a local frozen check passed with explicit software rendering. CI now retains qualification artifacts even on failure and prints map failure reports from the windowed executable. These runner settings do not change normal application rendering. [Windows and Linux qualification](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39963411791) now passes release checks and installer lifecycles. Neither CI nor local synthetic tests replace physical device acceptance.

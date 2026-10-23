@@ -153,3 +153,15 @@ The packaged CLI repeated the real 2.4 GHz capture successfully as run `20260930
 
 - Final October 5 validation passed: 104 source tests, frozen CLI and both console/windowed GUI smoke, and isolated install/reinstall/uninstall lifecycle for 0.19.0rc1. Logs: `installer-993fd578`. Existing installation preserved.
 - Frozen CLI trend fixture returned 3 comparable observations across 5 visits, retained missing/incompatible gaps, and preserved all 10 original survey/run bundles byte-for-byte. Result: `test-artifacts/field-workflows-frozen-trend.json`.
+
+
+## October 23, 2026 — 0.39.0rc1 platform qualification
+
+[CI run](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/39963411791), source commit `e482885`:
+
+- Windows: 250 source tests, frozen CLI/Unicode worker, six GUI pages, terrain and offline map checks passed. Installer lifecycle passed install, installed CLI/GUI, reinstall with preserved configuration, and uninstall with preserved user data.
+- Ubuntu 24.04 x64: release checks, rendered offline maps, per-user installer checks, and Debian installation/selftest/removal passed.
+- Windows CI uses explicit SwiftShader rendering; Linux uses Xvfb and software rendering. These are test-environment settings, not application defaults or proof of hardware GPU compatibility.
+- Qualification artifacts upload on failure as well as success. Windowed map-check failures print their JSON report before the build fails.
+- Local frozen Windows map check also passed with the CI renderer settings: three points, point selection, tile reads, external-request rejection, and two antimeridian points.
+- No user installation was changed. Physical Samsung/HackRF failure qualification, Wayland, clean consumer-machine testing, and production signing remain open.
