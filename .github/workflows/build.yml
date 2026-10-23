@@ -29,6 +29,8 @@ jobs:
         run: xvfb-run -a -s '-screen 0 1280x1024x24' python tools/build_release.py
       - name: Windows release checks
         if: runner.os == 'Windows'
+        env:
+          QTWEBENGINE_CHROMIUM_FLAGS: --use-angle=swiftshader --enable-unsafe-swiftshader
         run: python tools/build_release.py
       - name: Windows installer
         if: runner.os == 'Windows'
@@ -44,6 +46,13 @@ jobs:
           sudo apt-get install -y ./dist/*.deb
           /usr/bin/veilbreaker selftest
           sudo apt-get remove -y veilbreaker-desktop
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Qualification-${{ runner.os }}
+          path: |
+            test-artifacts/packaged-*/
+            test-artifacts/*installer-report.json
       - uses: actions/upload-artifact@v4
         with:
           name: Veilbreaker-${{ runner.os }}

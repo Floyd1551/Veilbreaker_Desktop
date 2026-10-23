@@ -68,7 +68,15 @@ def main():
         report = json.loads((ROOT / "test-artifacts/packaged-gui/gui-smoke.json").read_text(encoding="utf-8"))
         if not report.get("passed") or report["version"] != __version__:
             raise RuntimeError("Packaged GUI smoke failed")
-        run(gui, "--map-smoke", ROOT / "test-artifacts/packaged-map", timeout=90)
+        try:
+            run(gui, "--map-smoke", ROOT / "test-artifacts/packaged-map", timeout=90)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            # The Windows GUI executable has no console. Retain its actual
+            # renderer results in CI logs before propagating the failure.
+            diagnostic = ROOT / "test-artifacts/packaged-map/map-smoke.json"
+            if diagnostic.exists():
+                print(diagnostic.read_text(encoding="utf-8"), flush=True)
+            raise
         map_report = json.loads((ROOT / "test-artifacts/packaged-map/map-smoke.json").read_text(encoding="utf-8"))
         if not map_report.get("passed"):
             raise RuntimeError("Packaged map rendering/selection/offline checks failed")
