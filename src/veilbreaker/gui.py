@@ -882,9 +882,11 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage("A task is already running. Finish or cancel it first.")
             return
         cfg = self.effective_config()
-        self.active_survey_path = extra.get('survey_path') if action == 'survey_resume' else None
+        self.active_survey_path = extra.get('survey_path') if action in ('survey_resume', 'survey_phone') else None
         if action == "run":
             self.last_run_request = None if extra.get('options', {}).get('android_live') else json.loads(json.dumps(extra))
+        elif action == 'survey_phone':
+            self.last_run_request = None  # Reconnect explicitly; never retry transient credentials.
         preset = extra.pop("capture_settings", None)
         if preset:
             from .rf_workflow import apply_preset

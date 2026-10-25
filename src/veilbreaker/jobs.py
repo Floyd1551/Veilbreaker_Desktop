@@ -39,6 +39,14 @@ def execute(request, progress=None):
     if action == "survey_resume":
         from .survey import resume_survey
         return resume_survey(cfg, request["survey_path"], progress)
+    if action == "survey_phone":
+        from .survey import resume_survey
+        marker = request.get('cancel_path')
+        phone = request.get('options', {}).get('android_live')
+        if phone is None: raise ValueError('Connect the phone before capturing a survey point.')
+        return resume_survey(cfg, request['survey_path'], progress, android_live=phone,
+                             expected_context=request.get('expected_context'),
+                             cancelled=lambda: bool(marker and Path(marker).exists()))
     if action == "recover":
         from .recovery import recover_runs
         result = recover_runs(cfg)

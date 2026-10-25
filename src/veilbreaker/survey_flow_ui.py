@@ -1,5 +1,5 @@
 """Next-point guidance; acquisition remains in the existing survey worker."""
-from PySide6.QtWidgets import QWidget, QVBoxLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QDialog
 from .gui import label, button, table, fill
 from .widgets import FlowLayout
 from .survey_flow import next_point_context
@@ -20,7 +20,9 @@ class SurveyFlowPanel(QWidget):
         actions = FlowLayout()
         self.check_button = button('Check next point readiness', self.check_readiness)
         self.review_button = button('Review latest attempted point', self.review_latest)
+        self.phone_button = button('Capture next point with phone…', self.capture_phone)
         actions.addWidget(self.check_button); actions.addWidget(self.review_button)
+        actions.addWidget(self.phone_button)
         self.body.addLayout(actions)
         self.caption = label('Readiness has not been checked.', 'muted')
         self.body.addWidget(self.caption)
@@ -28,7 +30,7 @@ class SurveyFlowPanel(QWidget):
         self.rows.setMaximumHeight(180)
         self.rows.hide()
         self.body.addWidget(self.rows)
-        self.body.addWidget(label('Phone input: capture in Diagnostics, then use Add existing diagnostics here. Live phone collection is not queued. Readiness checks prerequisites, not device connectivity or signal.', 'muted'))
+        self.body.addWidget(label('Phone capture: connect and approve USB access for this point. Collects phone cellular/location inputs alongside saved point tests, then pauses—even in batch mode. Laptop network tests measure the laptop connection. Readiness is not proof of connectivity.', 'muted'))
 
     def refresh(self, busy=False):
         session = self.page.session
@@ -64,6 +66,7 @@ class SurveyFlowPanel(QWidget):
             self.caption.setText('Readiness check not completed. Check again when ready.')
         self.summary.setText(message)
         self.check_button.setEnabled(not busy and context is not None)
+        self.phone_button.setEnabled(not busy and context is not None)
         self.review_button.setEnabled(not busy and bool(session) and any(s['status'] in ('complete','partial','failed','interrupted') for s in session['steps']))
         self.page.continue_button.setText('Capture next point and pause' if not session or session.get('manual') else 'Capture remaining points')
         self.page.continue_button.setEnabled(not busy and context is not None)
@@ -79,6 +82,26 @@ class SurveyFlowPanel(QWidget):
         self.rows.setRowCount(0); self.rows.hide()
         self.caption.setText('Checking saved point prerequisites… No acquisition starts.')
         self.page.window.start_job('survey_readiness', survey_path=str(self.page.session_path))
+
+    def capture_phone(self):
+        if self.page.window.process is not None:
+            return
+        from .android_usb_ui import AndroidUsbDialog
+        try:
+            context = next_point_context(self.page.window.config, self.page.session_path)
+        except (OSError, ValueError, KeyError) as exc:
+            self.page.window.error(str(exc)); return
+        dialog = AndroidUsbDialog(self.page.window)
+        dialog.setWindowTitle('Capture survey point: ' + context['label'])
+        dialog.use.setText('Connect and capture this point')
+        try:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                # The worker rechecks this fingerprint under the survey lock.
+                self.page.window.start_job('survey_phone', survey_path=context['survey_path'],
+                                           expected_context=context['context'],
+                                           options={'android_live': dialog.selection()})
+        finally:
+            dialog.token.clear()
 
     def accept(self, result):
         try:

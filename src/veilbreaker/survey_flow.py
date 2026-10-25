@@ -5,6 +5,12 @@ from . import core
 from .survey import _session_path, _editable_session, session_lock, effective_step_config
 
 
+def point_fingerprint(path, step, cfg, manual):
+    identity = dict(path=str(path), run_id=step['run_id'], options=step['options'],
+                    settings=cfg.to_dict(), manual=manual)
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+
+
 def _next_point(config, path):
     path = _session_path(config, path)
     with session_lock(path):
@@ -21,9 +27,7 @@ def _next_point(config, path):
         base.data_dir = str(config.root)
         index, step = pending[0]
         cfg = effective_step_config(base, step)
-        identity = dict(path=str(path), run_id=step['run_id'], options=step['options'],
-                        settings=cfg.to_dict(), manual=session.get('manual', False))
-        fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        fingerprint = point_fingerprint(path, step, cfg, session.get('manual', False))
         context = dict(context=fingerprint, survey_path=str(path), run_id=step['run_id'],
                        index=index, label=step['label'], options=dict(step['options']),
                        manual=session.get('manual', False), remaining=len(pending))

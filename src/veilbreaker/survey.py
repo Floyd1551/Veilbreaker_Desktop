@@ -208,7 +208,14 @@ def session_lock(path):
                 fcntl.flock(stream, fcntl.LOCK_UN)
 
 
-def resume_survey(config, path, progress=None):
+def resume_survey(config, path, progress=None, *, android_live=None, expected_context=None, cancelled=None):
+    if android_live is not None:
+        from .survey_phone import validate_phone
+        android_live = validate_phone(android_live)
+        if not expected_context:
+            raise ValueError('Select the next survey point before connecting the phone.')
+    if cancelled and cancelled():
+        raise ValueError('Survey phone capture cancelled before collection.')
     path = _session_path(config, path)
     with session_lock(path):
         session = _editable_session(config, path)
@@ -220,10 +227,16 @@ def resume_survey(config, path, progress=None):
             raise ValueError("This older session has no settings snapshot. Start a new survey to continue safely.")
         cfg = core.AppConfig.from_dict(json.loads(snapshot.read_text(encoding="utf-8")))
         cfg.data_dir = str(config.root)
+        if android_live is not None:
+            from .survey_flow import point_fingerprint
+            step = next(s for s in session['steps'] if s['status'] in ('planned','not_run'))
+            current = point_fingerprint(path, step, effective_step_config(cfg, step), session.get('manual', False))
+            if current != expected_context:
+                raise ValueError('Survey point or settings changed. Review the next point and reconnect the phone.')
         session["pid"] = os.getpid()
         session["status"] = "running"
         atomic_json(path, session)
-        return _run_session(cfg, path, session, progress)
+        return _run_session(cfg, path, session, progress, android_live=android_live, cancelled=cancelled)
 
 
 def _session_path(config, path):
@@ -273,7 +286,7 @@ def effective_step_config(config, step):
     return cfg
 
 
-def _run_session(config, path, session, progress):
+def _run_session(config, path, session, progress, *, android_live=None, cancelled=None):
     for index, step in enumerate(session["steps"], 1):
         if step["status"] not in ("planned", "not_run"):
             continue
@@ -286,15 +299,20 @@ def _run_session(config, path, session, progress):
         cfg = effective_step_config(config, step)
         app = core.VeilbreakerApplication(cfg, progress=notify)
         try:
-            result = app.run(**step["options"], run_id=step["run_id"], note=f"{session['name']} / {step['label']} — {step.get('notes', '')}")
+            transient = {}
+            if android_live is not None:
+                transient = dict(android_live=android_live, cancelled=cancelled)
+                step['phone_capture'] = {k: android_live[k] for k in ('duration_s','cellular','location')}
+            result = app.run(**step["options"], **transient, run_id=step["run_id"], note=f"{session['name']} / {step['label']} — {step.get('notes', '')}")
             step["status"] = result.collection.get("status", "complete")
         except Exception as exc:
             step["status"] = "failed"
-            step["error"] = f"{type(exc).__name__}: {exc}"
+            step["error"] = ('Phone point capture failed. Review retained evidence and reconnect before a new attempt.'
+                             if android_live is not None else f"{type(exc).__name__}: {exc}")
         finally:
             app.close()
         atomic_json(path, session)
-        if session.get("manual"):
+        if session.get("manual") or android_live is not None:
             break
     pending = any(s["status"] in ("planned", "not_run") for s in session["steps"])
     session["status"] = "paused" if pending else ("complete" if all(s["status"] == "complete" for s in session["steps"]) else "partial")

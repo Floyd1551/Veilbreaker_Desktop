@@ -1,6 +1,6 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 23, 2026. Current working versions: **Desktop 0.40.0rc1**, **Companion 0.5.1-dev**.
+Updated October 24, 2026. Current working versions: **Desktop 0.41.0rc1**, **Companion 0.5.1-dev**.
 
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
 The offline GPS viewer, map-pack registration, report imagery, local cell-reference
@@ -258,3 +258,8 @@ Desktop reports and Companion previews now separate latest registered connection
 ## Guided field survey detail — 0.40.0rc1
 
 Added next-point guidance, passive readiness against saved point settings, explicit manual/batch capture actions, and review of the latest attempted point. Worker completion/cancellation refreshes the current survey journal. Stale readiness responses are discarded and completed surveys remain protected. See [release behavior](release-0.40.0rc1.md). Live phone capture directly inside survey queues remains separate work; phone diagnostics can already be attached as existing runs. The broader end-to-end investigation milestone remains open.
+
+
+## Live phone survey points — 0.41.0rc1
+
+Survey details can now pair an authorized USB phone and capture directly into the next unrun point, using its saved diagnostic settings. Each phone capture pauses after one point, including in batch surveys; pairing credentials are transient and changed point/settings contexts are rejected before acquisition. Partial phone evidence stays attached to its point. See [workflow and limits](release-0.41.0rc1.md). Real Samsung survey qualification and automatic multi-point phone sessions remain open.
