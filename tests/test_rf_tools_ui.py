@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
 from veilbreaker.rf_tools_ui import RFToolsDialog
+from veilbreaker.rf_tools import TOOLS, calculate, format_snapshot
 
 
 class RFToolsUITests(unittest.TestCase):
@@ -70,4 +71,50 @@ class RFToolsUITests(unittest.TestCase):
             self.assertFalse(exact.with_suffix('.json').exists())
         dialog.inputs['power'].setText('30')
         self.assertFalse(dialog.save_button.isEnabled())
+        dialog.close()
+
+    def test_every_tool_displays_and_exports_exact_snapshot(self):
+        dialog = RFToolsDialog()
+        with tempfile.TemporaryDirectory() as folder:
+            for tool in TOOLS:
+                with self.subTest(tool=tool.key):
+                    dialog.selector.setCurrentIndex(dialog.selector.findData(tool.key))
+                    dialog.run_calculation()
+                    expected = calculate(tool.key, {f.key: f.default for f in tool.fields})
+                    self.assertEqual(dialog.snapshot, expected)
+                    self.assertEqual(dialog.result.toPlainText(), format_snapshot(expected))
+                    dialog.copy_result()
+                    self.assertEqual(self.app.clipboard().text(), format_snapshot(expected))
+                    path = Path(folder) / (tool.key + '.json')
+                    with patch('veilbreaker.rf_tools_ui.QFileDialog.getSaveFileName', return_value=(str(path), 'JSON snapshot (*.json)')):
+                        dialog.save_result()
+                    self.assertEqual(json.loads(path.read_text(encoding='utf-8')), expected)
+                    first = next(iter(dialog.inputs.values()))
+                    first.setText('nan')
+                    dialog.run_calculation()
+                    self.assertIsNone(dialog.snapshot)
+                    self.assertFalse(dialog.copy_button.isEnabled())
+                    self.assertFalse(dialog.save_button.isEnabled())
+        dialog.close()
+
+    def test_cancel_export_and_invalid_result_do_not_write(self):
+        dialog = RFToolsDialog()
+        dialog.run_calculation()
+        original = dialog.snapshot
+        with patch('veilbreaker.rf_tools_ui.QFileDialog.getSaveFileName', return_value=('', '')):
+            dialog.save_result()
+        self.assertEqual(dialog.snapshot, original)
+        dialog.inputs['power'].setText('')
+        with patch('veilbreaker.rf_tools_ui.QFileDialog.getSaveFileName') as chooser:
+            dialog.save_result()
+            chooser.assert_not_called()
+        dialog.close()
+
+    def test_fresnel_applicability_warning_is_visible(self):
+        dialog = RFToolsDialog()
+        dialog.selector.setCurrentIndex(dialog.selector.findData('fresnel'))
+        for key, value in dict(frequency='1', distance='.001', position='.0005').items():
+            dialog.inputs[key].setText(value)
+        dialog.run_calculation()
+        self.assertIn('WARNING', dialog.status.text())
         dialog.close()

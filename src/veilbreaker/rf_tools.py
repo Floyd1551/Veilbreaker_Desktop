@@ -60,7 +60,7 @@ TOOLS = (
     Tool('fresnel', 'Fresnel clearance', 'Find the first Fresnel zone radius at a point along a path.',
          (FREQUENCY,) + PATH,
          'Radius = sqrt(wavelength × d1 × d2 / (d1 + d2)); clearance guide = 0.6 × radius.',
-         'Radius is measured around the direct ray. No obstacle heights are supplied; this does not establish clearance or LOS. Uses the same geometry as the terrain engine.'),
+         'Paraxial radius approximation around the direct ray, requiring distances large relative to wavelength. No obstacle heights are supplied; this does not establish clearance or LOS. Uses the same geometry as the terrain engine.'),
     Tool('curvature', 'Earth curvature / bulge', 'Compare geometric and 4/3 effective Earth bulge at a path point.',
          PATH, 'Bulge = d1 × d2 / (2 × k × Earth radius); radius = 6371008.8 m.',
          'Small-angle path approximation, limited to 100 km. k=1 is geometric; k=4/3 is an explicit refraction assumption, not observed weather. Terrain and obstacles are excluded.'),
@@ -96,6 +96,7 @@ def calculate(tool_id, inputs):
             raise ValueError(f'{field.label}: enter a finite value from {field.minimum:g} to {field.maximum:g}.')
         values[field.key] = value
     v = values
+    limitations = tool.limitations
     if tool_id.startswith('power_'):
         mw = 10 ** (v['power'] / 10) if tool_id == 'power_dbm' else v['power'] * (1000 if tool_id == 'power_w' else 1)
         outputs = {'Power (dBm)': 10 * math.log10(mw), 'Power (mW)': mw, 'Power (W)': mw / 1000}
@@ -115,6 +116,16 @@ def calculate(tool_id, inputs):
         if tool_id == 'fresnel':
             radius = profile['fresnel_radius_m'][1]
             outputs = {'First Fresnel radius (m)': radius, '60% clearance radius (m)': .6 * radius}
+            # Compare with the first Fresnel ellipsoid at this axial position.
+            wavelength = 299792458 / (v['frequency'] * 1e6)
+            length, position = distances[-1], distances[1]
+            major = (length + wavelength / 2) / 2
+            minor_squared = wavelength * length / 4 + wavelength ** 2 / 16
+            axial = position - length / 2
+            exact = math.sqrt(minor_squared * ((major - axial) / major) * ((major + axial) / major))
+            if abs(radius - exact) / exact > .01:
+                limitations = ('WARNING: This approximation differs from exact first-ellipsoid geometry by more than 1% at these inputs. '
+                               'Do not use this result for clearance decisions; the path is too short relative to wavelength at this position. ' + limitations)
         else:
             refracted = assess_profile(distances, [0, 0, 0], 0, 0, earth_factor=4/3)
             outputs = {'Geometric Earth bulge (m)': profile['terrain_effective_m'][1],
@@ -136,7 +147,7 @@ def calculate(tool_id, inputs):
                             'Margin above sensitivity (dB)': received - v['sensitivity']})
     return {'tool_id': tool_id, 'version': 1, 'title': tool.title, 'kind': 'calculated estimate',
             'inputs': values, 'input_labels': {f.key: f.label for f in tool.fields},
-            'outputs': outputs, 'method': tool.method, 'limitations': tool.limitations}
+            'outputs': outputs, 'method': tool.method, 'limitations': limitations}
 
 
 def format_snapshot(snapshot):

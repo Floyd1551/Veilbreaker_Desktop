@@ -115,7 +115,9 @@ class RFToolsDialog(QDialog):
         self.result.setPlainText(format_snapshot(self.snapshot))
         self.copy_button.setEnabled(True)
         self.save_button.setEnabled(True)
-        self.status.setText('Calculated estimate. Review the assumptions below before applying it to a survey.')
+        self.status.setText('WARNING: Approximation is unsuitable for clearance decisions at these inputs. See limitations below.'
+                            if self.snapshot['limitations'].startswith('WARNING:') else
+                            'Calculated estimate. Review the assumptions below before applying it to a survey.')
 
     def copy_result(self):
         if self.snapshot is not None:
