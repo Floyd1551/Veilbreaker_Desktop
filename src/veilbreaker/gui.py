@@ -611,7 +611,9 @@ class MainWindow(QMainWindow):
         self.add_scroll_page(widget)
 
     def build_tools(self):
-        widget, layout = page("Tools & readiness", "Inspect local dependencies and supported modem families before field work.")
+        widget, layout = page("Tools & readiness", "Calculate RF estimates, prepare equipment and check field readiness.")
+        layout.addWidget(button("RF field calculators…", self.open_rf_calculators, True))
+        layout.addWidget(label("Power conversion, wavelength, free-space loss, EIRP and link budget. Available offline.", "muted"))
         actions = FlowLayout()
         for title, action in [("Check readiness", "doctor"), ("List serial ports", "ports"),
                               ("Modem driver matrix", "drivers"), ("Engine self-test", "selftest")]:
@@ -665,6 +667,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.tool_output, 1)
         layout.addWidget(button("Cancel running task", self.cancel_task))
         self.add_scroll_page(widget)
+
+    def open_rf_calculators(self):
+        from .rf_tools_ui import RFToolsDialog
+        dialog = RFToolsDialog(self)
+        dialog.exec()
 
     def verify_evidence(self):
         source, _ = QFileDialog.getOpenFileName(self, "Verify evidence bundle", "", "ZIP archive (*.zip)")

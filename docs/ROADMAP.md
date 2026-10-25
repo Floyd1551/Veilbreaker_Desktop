@@ -1,6 +1,19 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 24, 2026. Current working versions: **Desktop 0.41.0rc1**, **Companion 0.5.1-dev**.
+Updated October 25, 2026. Current working versions: **Desktop 0.41.0rc1**, **Companion 0.5.1-dev**.
+
+**Revised 1.0 requirement:** usable terrain, LOS and tower information are release
+requirements. Integrated calculators, references and operator environmental observations
+extend the field survey workflow. See the [requirements and proposed delivery sequence](planning/V1_FIELD_PLATFORM.md)
+and [WLAN Pros capability inventory](planning/WLANPROS_FEATURE_INVENTORY.md).
+The inventory is research, not a claim that its features are implemented. The user
+selected in-app downloadable data packs; detailed pack-manager design and the initial
+toolbox scope remain to be finalized.
+
+First toolbox increment (source): [offline RF field calculators](rf-field-calculators.md)
+provide power conversion, wavelength, free-space loss, EIRP and link budget/margin,
+with copyable inputs and assumptions. Survey attachment and installer packaging of
+this increment remain pending.
 
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
 The offline GPS viewer, map-pack registration, report imagery, local cell-reference
