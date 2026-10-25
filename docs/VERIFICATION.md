@@ -165,3 +165,14 @@ The packaged CLI repeated the real 2.4 GHz capture successfully as run `20260930
 - Qualification artifacts upload on failure as well as success. Windowed map-check failures print their JSON report before the build fails.
 - Local frozen Windows map check also passed with the CI renderer settings: three points, point selection, tile reads, external-request rejection, and two antimeridian points.
 - No user installation was changed. Physical Samsung/HackRF failure qualification, Wayland, clean consumer-machine testing, and production signing remain open.
+
+
+## October 24, 2026 — 0.41.0rc1 live phone survey points
+
+267 source tests and frozen Windows checks passed. Eight phone-survey tests cover
+one-point batch behavior, stale context, cancellation before start, invalid input,
+partial evidence, credential-safe failure records, completed surveys and GUI dispatch.
+Independent review found no actionable regressions. Local installer compile and
+SHA-256 verification passed. [Windows and Ubuntu CI](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/40152222415)
+both passed release and installer lifecycle checks for source commit `3b28e78`.
+No physical Samsung survey capture or user installation change was performed.

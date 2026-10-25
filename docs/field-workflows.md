@@ -19,4 +19,15 @@ Configure edits the name, notes and progression; applying current Settings chang
 
 Delete survey defaults to retaining its tests in Run history. The optional owned-test choice also removes eligible tests; shared and case-referenced tests stay available. If a retained test is later independently removed, restore that test before restoring the survey.
 
-GPS and direct phone attachments to survey queues remain future work. Physical phone/SDR qualification is separate from automated tests.
+GPS evidence and offline maps are available. Live USB phone capture can now be started for the next survey point; physical phone/SDR qualification remains separate from automated tests.
+
+
+## Capture a survey point with the phone
+
+1. Open an existing survey with an unrun point. Review the next point and saved test selections.
+2. Choose **Capture next point with phone…**. Connect the phone by USB and keep Companion visible.
+3. In Companion, choose cellular observations, location, or both and open its connection screen.
+4. Select the authorized USB device in Desktop, then **Connect and capture this point** and approve the matching code on the phone.
+5. Review the point's result. The phone evidence is already part of that diagnostic and survey; no separate import or attachment is needed.
+
+This action always pauses after one point, even for a batch survey. Reconnect explicitly for the next phone point. Other selected tests run first and measure their own receivers/connections; they are not simultaneous phone-network tests. Cancellation/disconnect can leave partial evidence, which remains identified. Completed surveys must be reopened before capture.

@@ -5,7 +5,7 @@ USB device, approve the pairing code in Companion, and connect to capture that
 point. Cellular observations and optional location follow the inputs selected on
 the phone. Keep Companion visible during collection.
 
-The capture runs alongside the point's saved diagnostic selections and saves its
+The capture runs after the point's saved desktop tests and saves its
 report and original phone evidence directly under that point's run. Laptop network
 tests still measure the laptop connection, not the phone's cellular data path.
 The ordinary capture button retains its previous behavior and does not use the phone.
@@ -29,3 +29,11 @@ are not automatically repeated, and completed surveys must first be reopened.
 Companion 0.5.1 remains compatible; no phone update is needed. Automated tests use
 synthetic captures and mocked USB transport; a real Samsung survey capture remains
 a separate field qualification step.
+
+
+Qualification: 267 source tests and frozen Windows CLI/worker/GUI/map/terrain checks
+passed. The independent review found no actionable regressions; its seven non-GUI
+phone tests passed, and all eight phone tests (including GUI dispatch) passed in
+the project environment. Windows/Linux release and installer lifecycle checks passed in [run 40152222415](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/40152222415).
+
+The local Windows installer compiled successfully and its SHA-256 sidecar was verified.
