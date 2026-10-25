@@ -1,6 +1,10 @@
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import unittest
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
 from veilbreaker.rf_tools_ui import RFToolsDialog
 
@@ -36,4 +40,34 @@ class RFToolsUITests(unittest.TestCase):
         dialog.search.setText('power')
         self.assertEqual(dialog.inputs['power'].text(), '33')
         self.assertTrue(dialog.copy_button.isEnabled())
+        dialog.close()
+
+    def test_save_json_and_text_and_invalidation(self):
+        dialog = RFToolsDialog()
+        self.assertFalse(dialog.save_button.isEnabled())
+        dialog.run_calculation()
+        with tempfile.TemporaryDirectory() as folder:
+            for suffix, selected in [('json', 'JSON snapshot (*.json)'), ('txt', 'Text report (*.txt)')]:
+                target = Path(folder) / ('result.' + suffix)
+                with patch('veilbreaker.rf_tools_ui.QFileDialog.getSaveFileName', return_value=(str(target), selected)):
+                    dialog.save_result()
+                content = target.read_text(encoding='utf-8')
+                if suffix == 'json':
+                    self.assertEqual(json.loads(content)['inputs']['power'], 20)
+                    self.assertIn('limitations', json.loads(content))
+                else:
+                    self.assertIn('Inputs', content)
+                    self.assertIn('Method', content)
+            directory_target = Path(folder) / 'directory.txt'
+            directory_target.mkdir()
+            with patch('veilbreaker.rf_tools_ui.QFileDialog.getSaveFileName', return_value=(str(directory_target), 'Text report (*.txt)')):
+                dialog.save_result()
+            self.assertIn('Could not save', dialog.status.text())
+            exact = Path(folder) / 'no-extension'
+            with patch('veilbreaker.rf_tools_ui.QFileDialog.getSaveFileName', return_value=(str(exact), 'JSON snapshot (*.json)')):
+                dialog.save_result()
+            self.assertEqual(json.loads(exact.read_text(encoding='utf-8'))['tool_id'], 'power_dbm')
+            self.assertFalse(exact.with_suffix('.json').exists())
+        dialog.inputs['power'].setText('30')
+        self.assertFalse(dialog.save_button.isEnabled())
         dialog.close()

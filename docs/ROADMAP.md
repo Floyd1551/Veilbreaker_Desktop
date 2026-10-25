@@ -12,7 +12,8 @@ toolbox scope remain to be finalized.
 
 First toolbox increment (source): [offline RF field calculators](rf-field-calculators.md)
 provide power conversion, wavelength, free-space loss, EIRP and link budget/margin,
-with copyable inputs and assumptions. Survey attachment and installer packaging of
+plus Fresnel clearance, Earth bulge, thermal/receiver noise and cable loss. Results
+can be copied or exported as text/JSON with inputs and assumptions. Survey attachment and installer packaging of
 this increment remain pending.
 
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).

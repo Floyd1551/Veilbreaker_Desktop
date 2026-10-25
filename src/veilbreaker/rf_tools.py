@@ -1,6 +1,7 @@
 """Offline RF planning calculations. Outputs are estimates, never capture evidence."""
 from dataclasses import dataclass
 import math
+from .terrain_profile import assess_profile
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,8 @@ FREQUENCY = Field('frequency', 'Frequency (MHz)', 2400, .001, 1_000_000)
 TX = (Field('tx_power', 'Transmitter power (dBm)', 20, -300, 100),
       Field('tx_gain', 'Transmit antenna gain (dBi)', 6, -100, 100),
       Field('tx_loss', 'Transmit cable / connector loss (dB)', 1, 0, 300))
+PATH = (Field('distance', 'Total path length (km)', 1, .000001, 100),
+        Field('position', 'Distance from first endpoint (km)', .5, .0000001, 100))
 TOOLS = (
     Tool('power_dbm', 'Power: dBm to mW / W', 'Convert absolute RF power into linear units.',
          (Field('power', 'Power (dBm)', 20, -300, 100),),
@@ -54,6 +57,25 @@ TOOLS = (
                Field('sensitivity', 'Receiver sensitivity (dBm)', -90, -300, 100)),
          'Received dBm = EIRP − path loss + receive gain − receive loss − additional loss. Margin = received dBm − sensitivity dBm.',
          'One-way estimate. Positive margin does not guarantee service, throughput or availability. Use sensitivity for the intended bandwidth/rate; include losses only once.'),
+    Tool('fresnel', 'Fresnel clearance', 'Find the first Fresnel zone radius at a point along a path.',
+         (FREQUENCY,) + PATH,
+         'Radius = sqrt(wavelength × d1 × d2 / (d1 + d2)); clearance guide = 0.6 × radius.',
+         'Radius is measured around the direct ray. No obstacle heights are supplied; this does not establish clearance or LOS. Uses the same geometry as the terrain engine.'),
+    Tool('curvature', 'Earth curvature / bulge', 'Compare geometric and 4/3 effective Earth bulge at a path point.',
+         PATH, 'Bulge = d1 × d2 / (2 × k × Earth radius); radius = 6371008.8 m.',
+         'Small-angle path approximation, limited to 100 km. k=1 is geometric; k=4/3 is an explicit refraction assumption, not observed weather. Terrain and obstacles are excluded.'),
+    Tool('noise', 'Thermal noise floor', 'Estimate thermal and input-referred receiver noise for a bandwidth.',
+         (Field('bandwidth', 'Noise bandwidth (MHz)', 20, .000001, 100000),
+          Field('temperature', 'Source temperature (K)', 290, 1, 10000),
+          Field('noise_figure', 'Receiver noise figure (dB)', 5, 0, 100)),
+         'Thermal noise = 10 log10(kBTB × 1000) dBm, kB = 1.380649e-23 J/K. Receiver equivalent noise temperature Te = 290 × (10^(NF/10) − 1) K; input-referred noise uses T + Te.',
+         'Classical thermal model, excluding interference, receiver gain and implementation losses. Noise figure is referenced to 290 K. Use equivalent noise bandwidth; this is not a measured SDR noise floor.'),
+    Tool('cable_loss', 'Cable / feed loss', 'Estimate feed loss using a cable specification at your operating frequency.',
+         (Field('length', 'Cable length (m)', 10, 0, 100000),
+          Field('attenuation', 'Cable attenuation (dB / 100 m)', 12, 0, 10000),
+          Field('connector_loss', 'Total connector / adapter loss (dB)', 1, 0, 300)),
+         'Total loss = length / 100 × specified attenuation + connector loss. Delivered power percent = 100 × 10^(−loss/10).',
+         'Enter manufacturer attenuation for the operating frequency. Excludes mismatch, damage, temperature variation and unspecified connectors. Do not add this feed loss twice in a link budget.'),
 )
 REGISTRY = {tool.key: tool for tool in TOOLS}
 
@@ -85,6 +107,26 @@ def calculate(tool_id, inputs):
         if loss < 0:
             raise ValueError('Distance is too short for this free-space model at the selected frequency. Check far-field applicability.')
         outputs = {'Free-space path loss (dB)': loss}
+    elif tool_id in ('fresnel', 'curvature'):
+        if not 0 < v['position'] < v['distance']:
+            raise ValueError('Point distance must be greater than zero and less than the total path length.')
+        distances = [0, v['position'] * 1000, v['distance'] * 1000]
+        profile = assess_profile(distances, [0, 0, 0], 0, 0, v.get('frequency'))
+        if tool_id == 'fresnel':
+            radius = profile['fresnel_radius_m'][1]
+            outputs = {'First Fresnel radius (m)': radius, '60% clearance radius (m)': .6 * radius}
+        else:
+            refracted = assess_profile(distances, [0, 0, 0], 0, 0, earth_factor=4/3)
+            outputs = {'Geometric Earth bulge (m)': profile['terrain_effective_m'][1],
+                       '4/3 effective Earth bulge (m)': refracted['terrain_effective_m'][1]}
+    elif tool_id == 'noise':
+        scale = 1.380649e-23 * v['bandwidth'] * 1e6 * 1000
+        equivalent_temperature = 290 * (10 ** (v['noise_figure'] / 10) - 1)
+        outputs = {'Thermal noise (dBm)': 10 * math.log10(scale * v['temperature']),
+                   'Input-referred receiver noise (dBm)': 10 * math.log10(scale * (v['temperature'] + equivalent_temperature))}
+    elif tool_id == 'cable_loss':
+        loss = v['length'] / 100 * v['attenuation'] + v['connector_loss']
+        outputs = {'Total feed loss (dB)': loss, 'Power delivered (%)': 100 * 10 ** (-loss / 10)}
     else:
         eirp = v['tx_power'] + v['tx_gain'] - v['tx_loss']
         outputs = {'EIRP (dBm)': eirp}
@@ -98,9 +140,9 @@ def calculate(tool_id, inputs):
 
 
 def format_snapshot(snapshot):
-    lines = [snapshot['title'], 'Calculated estimate · calculator version ' + str(snapshot['version']), '', 'Inputs']
-    lines += [f"{snapshot['input_labels'][key]}: {value:.8g}" for key, value in snapshot['inputs'].items()]
-    lines += ['', 'Results']
+    lines = [snapshot['title'], 'Calculated estimate · calculator version ' + str(snapshot['version']), '', 'Results']
     lines += [f'{label}: {value:.8g}' for label, value in snapshot['outputs'].items()]
+    lines += ['', 'Inputs']
+    lines += [f"{snapshot['input_labels'][key]}: {value:.8g}" for key, value in snapshot['inputs'].items()]
     lines += ['', 'Method', snapshot['method'], '', 'Interpretation / limitations', snapshot['limitations']]
     return '\n'.join(lines)

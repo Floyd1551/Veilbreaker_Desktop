@@ -1,6 +1,8 @@
 """Reusable native dialog for offline field calculations."""
+import json
+from pathlib import Path
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QFormLayout, QHBoxLayout, QLabel,
+    QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget,
 )
 from .rf_tools import TOOLS, REGISTRY, calculate, format_snapshot
@@ -42,8 +44,10 @@ class RFToolsDialog(QDialog):
         self.calculate_button = QPushButton('Calculate')
         self.calculate_button.setDefault(True)
         self.copy_button = QPushButton('Copy result with inputs')
+        self.save_button = QPushButton('Save result…')
         actions.addWidget(self.calculate_button)
         actions.addWidget(self.copy_button)
+        actions.addWidget(self.save_button)
         layout.addLayout(actions)
         self.status = QLabel()
         self.status.setWordWrap(True)
@@ -56,6 +60,7 @@ class RFToolsDialog(QDialog):
         layout.addWidget(close)
         self.calculate_button.clicked.connect(self.run_calculation)
         self.copy_button.clicked.connect(self.copy_result)
+        self.save_button.clicked.connect(self.save_result)
         self.search.textChanged.connect(self.filter_tools)
         self.selector.currentIndexChanged.connect(self.select_tool)
         self.filter_tools('')
@@ -95,6 +100,7 @@ class RFToolsDialog(QDialog):
         self.snapshot = None
         self.result.clear()
         self.copy_button.setEnabled(False)
+        self.save_button.setEnabled(False)
         self.status.setText('Enter values and choose Calculate.' if self.inputs else '')
 
     def run_calculation(self):
@@ -108,9 +114,30 @@ class RFToolsDialog(QDialog):
             return
         self.result.setPlainText(format_snapshot(self.snapshot))
         self.copy_button.setEnabled(True)
+        self.save_button.setEnabled(True)
         self.status.setText('Calculated estimate. Review the assumptions below before applying it to a survey.')
 
     def copy_result(self):
         if self.snapshot is not None:
             QApplication.clipboard().setText(format_snapshot(self.snapshot))
             self.status.setText('Copied result, inputs, method and limitations.')
+
+    def save_result(self):
+        if self.snapshot is None:
+            return
+        target, selected = QFileDialog.getSaveFileName(
+            self, 'Save calculation snapshot', self.snapshot['tool_id'] + '.txt',
+            'Text report (*.txt);;JSON snapshot (*.json)')
+        if not target:
+            return
+        path = Path(target)
+        # A typed extension takes precedence over the selected chooser filter.
+        as_json = path.suffix.lower() == '.json' or (not path.suffix and selected.startswith('JSON'))
+        # Keep the exact chooser path so its overwrite confirmation covers the file written.
+        content = json.dumps(self.snapshot, ensure_ascii=False, indent=2, allow_nan=False) if as_json else format_snapshot(self.snapshot)
+        try:
+            path.write_text(content + '\n', encoding='utf-8')
+        except OSError as exc:
+            self.status.setText(f'Could not save calculation: {exc}')
+            return
+        self.status.setText(f'Saved calculation snapshot: {path}')

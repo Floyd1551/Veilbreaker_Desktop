@@ -613,7 +613,7 @@ class MainWindow(QMainWindow):
     def build_tools(self):
         widget, layout = page("Tools & readiness", "Calculate RF estimates, prepare equipment and check field readiness.")
         layout.addWidget(button("RF field calculators…", self.open_rf_calculators, True))
-        layout.addWidget(label("Power conversion, wavelength, free-space loss, EIRP and link budget. Available offline.", "muted"))
+        layout.addWidget(label("Power, wavelength, path loss, EIRP, link budget, Fresnel clearance, Earth curvature, noise and cable loss. Available offline.", "muted"))
         actions = FlowLayout()
         for title, action in [("Check readiness", "doctor"), ("List serial ports", "ports"),
                               ("Modem driver matrix", "drivers"), ("Engine self-test", "selftest")]:
