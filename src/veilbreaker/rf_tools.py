@@ -76,6 +76,16 @@ TOOLS = (
           Field('connector_loss', 'Total connector / adapter loss (dB)', 1, 0, 300)),
          'Total loss = length / 100 × specified attenuation + connector loss. Delivered power percent = 100 × 10^(−loss/10).',
          'Enter manufacturer attenuation for the operating frequency. Excludes mismatch, damage, temperature variation and unspecified connectors. Do not add this feed loss twice in a link budget.'),
+    Tool('return_loss', 'Return loss / VSWR', 'Interpret a measured or specified positive return loss as reflection and mismatch.',
+         (Field('return_loss', 'Return loss (dB; positive)', 20, .01, 120),),
+         '|Γ| = 10^(−RL/20); reflected power fraction = |Γ|²; VSWR = (1+|Γ|)/(1−|Γ|); mismatch loss = −10 log10(1−|Γ|²).',
+         'A scalar magnitude at one frequency only. This does not measure an antenna, include feedline effects, reveal reflection phase, or establish delivered power at a remote load. An ideal match has infinite return loss and is outside the finite input range. Reference: Keysight application note 5952-3706.'),
+    Tool('cascade_nf', 'Two-stage cascaded noise figure', 'Estimate receiver-chain noise figure from two specified stages.',
+         (Field('nf1', 'First-stage noise figure (dB)', 2, 0, 50),
+          Field('gain1', 'First-stage available gain (dB)', 15, -60, 100),
+          Field('nf2', 'Second-stage noise figure (dB)', 8, 0, 50)),
+         'F_total = F1 + (F2−1)/G1, with F1/F2 and available G1 converted from dB to linear ratios; NF_total = 10 log10(F_total).',
+         'Two matched stages with conventional noise-factor definitions referenced to 290 K. Mixer sideband conventions, impedance mismatch, compression, bandwidth dependence and later stages are excluded. Reference: Analog Devices MT-006.'),
 )
 REGISTRY = {tool.key: tool for tool in TOOLS}
 
@@ -138,6 +148,21 @@ def calculate(tool_id, inputs):
     elif tool_id == 'cable_loss':
         loss = v['length'] / 100 * v['attenuation'] + v['connector_loss']
         outputs = {'Total feed loss (dB)': loss, 'Power delivered (%)': 100 * 10 ** (-loss / 10)}
+    elif tool_id == 'return_loss':
+        gamma = 10 ** (-v['return_loss'] / 20)
+        reflected = gamma ** 2
+        outputs = {'Reflection coefficient magnitude': gamma,
+                   'Reflected power (%)': reflected * 100,
+                   'VSWR': (1 + gamma) / (1 - gamma),
+                   'Mismatch loss (dB)': -10 * math.log10(1 - reflected)}
+    elif tool_id == 'cascade_nf':
+        first_factor = 10 ** (v['nf1'] / 10)
+        first_gain = 10 ** (v['gain1'] / 10)
+        second_factor = 10 ** (v['nf2'] / 10)
+        total_factor = first_factor + (second_factor - 1) / first_gain
+        outputs = {'First-stage gain (linear)': first_gain,
+                   'Cascaded noise factor (linear)': total_factor,
+                   'Cascaded noise figure (dB)': 10 * math.log10(total_factor)}
     else:
         eirp = v['tx_power'] + v['tx_gain'] - v['tx_loss']
         outputs = {'EIRP (dBm)': eirp}

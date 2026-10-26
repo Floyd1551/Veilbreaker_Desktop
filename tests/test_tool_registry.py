@@ -11,7 +11,7 @@ class ToolRegistryTests(unittest.TestCase):
     def test_registry_has_unique_stable_routes_for_existing_content(self):
         ids = [record.record_id for record in self.records]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(self.records), 23)
+        self.assertEqual(len(self.records), 25)
         self.assertEqual(set(record.kind for record in self.records), {'calculator', 'inspector', 'planner', 'reference'})
         self.assertIn('calculator:fspl', ids)
         self.assertIn('inspector:subnet', ids)
@@ -20,6 +20,8 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertIn('calculator:fiber_budget', ids)
         self.assertIn('calculator:poe_budget', ids)
         self.assertIn('planner:wifi_channels', ids)
+        self.assertIn('calculator:return_loss', ids)
+        self.assertIn('calculator:cascade_nf', ids)
         self.assertEqual(CATEGORIES, ('RF', 'Cellular', 'Wi-Fi', 'Networking', 'Fiber & Power', 'References'))
 
     def test_search_uses_all_tokens_keywords_and_category(self):

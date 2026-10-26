@@ -148,3 +148,30 @@ class RFAccuracyTests(unittest.TestCase):
         a = calculate('cable_loss', dict(length=30, attenuation=10, connector_loss=1))['outputs']
         b = calculate('cable_loss', dict(length=60, attenuation=10, connector_loss=2))['outputs']
         self.assertAlmostEqual(b['Power delivered (%)'] / 100, (a['Power delivered (%)'] / 100) ** 2, places=12)
+
+    def test_return_loss_reflection_and_vswr(self):
+        result = calculate('return_loss', {'return_loss': 20})['outputs']
+        self.assertAlmostEqual(result['Reflection coefficient magnitude'], .1)
+        self.assertAlmostEqual(result['Reflected power (%)'], 1)
+        self.assertAlmostEqual(result['VSWR'], 1.1 / .9)
+        self.assertAlmostEqual(result['Mismatch loss (dB)'], -10 * math.log10(.99))
+        stronger_match = calculate('return_loss', {'return_loss': 30})['outputs']
+        self.assertLess(stronger_match['Reflected power (%)'], result['Reflected power (%)'])
+
+    def test_two_stage_noise_figure_friis(self):
+        result = calculate('cascade_nf', {'nf1': 4, 'gain1': 25, 'nf2': 30})['outputs']
+        expected = 10 * math.log10(10 ** .4 + (10 ** 3 - 1) / (10 ** 2.5))
+        self.assertAlmostEqual(result['Cascaded noise figure (dB)'], expected)
+        self.assertAlmostEqual(result['First-stage gain (linear)'], 10 ** 2.5)
+        low_gain = calculate('cascade_nf', {'nf1': 4, 'gain1': 0, 'nf2': 30})['outputs']
+        self.assertGreater(low_gain['Cascaded noise figure (dB)'], result['Cascaded noise figure (dB)'])
+
+    def test_new_rf_schematics_label_estimates(self):
+        from veilbreaker.engineering_diagrams import diagram_data
+        reflection = diagram_data(calculate('return_loss', {'return_loss': 20}))
+        self.assertEqual(reflection['kind'], 'return_loss')
+        self.assertIn('1', reflection['caption'])
+        chain = diagram_data(calculate('cascade_nf', {'nf1': 4, 'gain1': 25, 'nf2': 30}))
+        self.assertEqual(chain['kind'], 'cascade_nf')
+        self.assertEqual(len(chain['stages']), 3)
+        self.assertIn('7.54', chain['caption'])

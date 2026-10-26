@@ -1,11 +1,11 @@
-"""Schematic diagrams for operator-entered fiber and PoE planning results."""
+"""Schematic diagrams for operator-entered engineering calculations."""
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 
 def diagram_data(snapshot):
-    if not snapshot or snapshot['tool_id'] not in ('fiber_budget', 'poe_budget'):
+    if not snapshot or snapshot['tool_id'] not in ('fiber_budget', 'poe_budget', 'return_loss', 'cascade_nf'):
         return None
     values, outputs = snapshot['inputs'], snapshot['outputs']
     if snapshot['tool_id'] == 'fiber_budget':
@@ -14,12 +14,24 @@ def diagram_data(snapshot):
                   f"RX estimate\n{outputs['Estimated receive power (dBm)']:g} dBm")
         caption = f"Margin after {values['reserve']:g} dB reserve: {outputs['Margin after reserve (dB)']:g} dB"
         shortfall = outputs['Margin after reserve (dB)'] < 0
-    else:
+    elif snapshot['tool_id'] == 'poe_budget':
         stages = (f"PSE supply\n{values['supply']:g} W",
                   f"Committed + reserve\n{values['allocated'] + values['reserve']:g} W",
                   f"New device demand\n{values['target']:g} W")
         caption = f"Headroom after target: {outputs['Headroom after target (W)']:g} W"
         shortfall = outputs['Headroom after target (W)'] < 0
+    elif snapshot['tool_id'] == 'return_loss':
+        stages = (f"Forward wave\n100% reference",
+                  f"Return loss\n{values['return_loss']:g} dB",
+                  f"Reflected power\n{outputs['Reflected power (%)']:.3g}%")
+        caption = f"VSWR {outputs['VSWR']:.3g}:1 · mismatch loss {outputs['Mismatch loss (dB)']:.3g} dB"
+        shortfall = False
+    else:
+        stages = (f"Stage 1\nNF {values['nf1']:g} dB",
+                  f"Gain {values['gain1']:g} dB\n→ stage 2",
+                  f"Stage 2\nNF {values['nf2']:g} dB")
+        caption = f"Two-stage noise figure: {outputs['Cascaded noise figure (dB)']:.3g} dB"
+        shortfall = False
     return dict(kind=snapshot['tool_id'], stages=stages, caption=caption, shortfall=shortfall)
 
 
