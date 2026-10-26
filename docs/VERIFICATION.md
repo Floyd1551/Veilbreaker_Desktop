@@ -186,3 +186,12 @@ No physical Samsung survey capture or user installation change was performed.
 - Production installer: `dist/Veilbreaker-0.42.0rc1-Setup-x64.exe`, 182397053 bytes. SHA-256 independently verified: `08be5a81d6ec7dd4791a84a7fb51d9be61b3522f8329b997e463661c92e7b5a3`.
 - Build log: `test-artifacts/build-0.42.0rc1.log`; lifecycle log: `test-artifacts/installer-0.42.0rc1-validation.log`.
 - Windows map validation used explicit SwiftShader flags, not production defaults. No new Linux build, physical hardware qualification or code signing is claimed.
+
+## October 26, 2026 — 0.43.0rc1 spatial placement and searchable Tools installer
+
+- 311 source tests passed during the release build.
+- Frozen CLI self-test, Unicode worker/evidence verification, terrain raster/projection/profile, seven GUI pages and offline map rendering/selection passed.
+- Isolated installer lifecycle passed per-user install and registration, Start-menu/desktop shortcuts, installed CLI and seven-page GUI smoke, reinstall with preserved configuration, and uninstall with preserved user data. Existing production installation was not changed. Logs: `test-artifacts/installer-157eeeaf`.
+- Production installer: `dist/Veilbreaker-0.43.0rc1-Setup-x64.exe`, 182366012 bytes. SHA-256 independently matched its sidecar: `06396bd9cfd16a2e2e1d4f978fdd84165e982b67bbdac1f76283abf42daeba18`.
+- Build log: `test-artifacts/build-0.43.0rc1.log`; lifecycle log: `test-artifacts/installer-0.43.0rc1-validation.log`.
+- This unsigned Windows x64 preview includes manual survey placement and searchable Tools. Linux packaging and new physical hardware qualification were not performed for this build.
