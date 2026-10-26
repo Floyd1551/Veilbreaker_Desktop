@@ -73,7 +73,7 @@ class VisualToolboxTests(unittest.TestCase):
     def test_global_search_category_and_empty_state(self):
         from veilbreaker.toolbox_ui import ToolboxPage
         page = ToolboxPage()
-        self.assertEqual(page.result_count.text(), '22 results')
+        self.assertEqual(page.result_count.text(), '23 results')
         page.global_search.setText('RSRP SINR')
         self.assertEqual(len(page.result_cards), 1)
         self.assertEqual(page.result_cards[0].record.kind, 'reference')
@@ -101,8 +101,24 @@ class VisualToolboxTests(unittest.TestCase):
         self.assertEqual(page.tabs.currentIndex(), 1)
         target = next(record for record in page.records if record.kind == 'reference')
         page.activate_record(target.record_id)
-        self.assertEqual(page.tabs.currentIndex(), 2)
+        self.assertEqual(page.tabs.currentIndex(), 3)
         self.assertEqual(page.reference_list.currentText(), target.title)
+        page.activate_record('planner:wifi_channels')
+        self.assertEqual(page.tabs.currentWidget(), page.wifi_planner)
+        page.wifi_planner.band.setCurrentText('6 GHz')
+        self.assertEqual(page.wifi_planner.first.itemData(0), 1)
+        self.assertEqual(page.wifi_planner.second.itemData(1), 5)
+        self.assertIn('5955 MHz', page.wifi_planner.result.text())
+        page.close()
+
+    def test_wifi_planner_has_no_horizontal_scroll_at_field_width(self):
+        from veilbreaker.toolbox_ui import ToolboxPage
+        page = ToolboxPage()
+        page.resize(760, 650)
+        page.tabs.setCurrentWidget(page.wifi_planner)
+        page.show()
+        self.app.processEvents()
+        self.assertLessEqual(page.wifi_planner.sizeHint().width(), page.width())
         page.close()
 
     def test_result_cards_wrap_and_keyboard_activation(self):

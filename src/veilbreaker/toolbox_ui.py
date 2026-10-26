@@ -7,6 +7,7 @@ from .network_tools import inspect_subnet
 from .toolbox_reference import REFERENCES
 from .tool_registry import CATEGORIES, build_registry, search_registry
 from .tool_cards import ToolCard
+from .wifi_channels_ui import WifiChannelsPanel
 from .widgets import FlowLayout
 
 
@@ -74,6 +75,8 @@ class ToolboxPage(QWidget):
         form.addWidget(self.copy_subnet)
         self.address.textChanged.connect(self.clear_subnet)
         self.tabs.addTab(network, 'Networking')
+        self.wifi_planner = WifiChannelsPanel(self)
+        self.tabs.addTab(self.wifi_planner, 'Wi-Fi channels')
         reference = QWidget()
         ref_layout = QVBoxLayout(reference)
         self.reference_search = QLineEdit()
@@ -128,8 +131,10 @@ class ToolboxPage(QWidget):
         elif record.kind == 'inspector':
             self.tabs.setCurrentIndex(1)
             self.address.setFocus()
+        elif record.kind == 'planner':
+            self.tabs.setCurrentWidget(self.wifi_planner)
         elif record.kind == 'reference':
-            self.tabs.setCurrentIndex(2)
+            self.tabs.setCurrentIndex(3)
             self.reference_search.clear()
             index = self.reference_list.findText(record.target_id)
             if index >= 0:

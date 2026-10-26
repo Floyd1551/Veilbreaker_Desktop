@@ -55,6 +55,9 @@ def build_registry(extra=()):
     records.append(ToolRecord('inspector:subnet', 'IPv4 / IPv6 subnet inspector', 'Networking', 'inspector',
                               'Inspect network, address range, host capacity and prefix semantics offline.',
                               ('CIDR', 'prefix', 'route', 'subnet', 'IPv4', 'IPv6'), 'subnet'))
+    records.append(ToolRecord('planner:wifi_channels', 'Wi-Fi channel overlap inspector', 'Wi-Fi', 'planner',
+                              'Compare nominal 20 MHz Wi-Fi channels by frequency with a schematic diagram.',
+                              ('wifi', '2.4 GHz', '5 GHz', '6 GHz', 'channel', 'overlap', 'frequency'), 'wifi_channels'))
     for title, body in REFERENCES:
         category = _reference_category(title)
         records.append(ToolRecord('reference:' + _slug(title), title, category, 'reference',
