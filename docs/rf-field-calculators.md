@@ -1,6 +1,6 @@
 # RF field calculators
 
-Open **Tools & readiness → RF field calculators**. These tools work offline and do not start a capture or contact a device.
+Open **Tools → RF calculators**. Calculators are embedded in their own workspace. These tools work offline and do not start a capture or contact a device. Equipment checks and receive presets are under **Configuration**.
 
 Search or select a calculator, enter values in the labeled units, then choose **Calculate**. **Copy result with inputs** includes the calculation version, values, method and limitations. Editing an input clears the previous result. Decimal-point numbers and scientific notation are accepted; invalid or out-of-range values produce a field-specific message.
 
@@ -23,3 +23,9 @@ Use **Save result…** to export a UTF-8 text report or JSON snapshot before clo
 Fresnel and Earth-bulge tools share the terrain engine's geometry, but do not receive terrain elevations or obstacle heights. They cannot determine whether a real path is clear. The noise calculator excludes interference; noise figure uses a 290 K reference and is converted to equivalent receiver noise temperature when the source temperature differs. Cable attenuation must be supplied for the frequency being assessed.
 
 The standalone Fresnel calculator warns when its paraxial approximation differs from exact first-ellipsoid geometry by more than 1%, which can occur on short paths at low frequencies. Do not use a warned result for clearance decisions. See the [accuracy audit](rf-calculator-accuracy.md) for reference methods, tests and applicability limits.
+
+Fresnel and Earth-curvature calculations include vector diagrams with endpoints A/B, a marked evaluation point, and the calculated radius/bulge. Vertical scale is exaggerated; no obstacle elevations or antenna heights are inferred. Editing values clears the diagram alongside the result. Current text/JSON exports include the calculation, not a diagram image.
+
+**Tools → Networking** provides an offline IPv4/IPv6 subnet inspector. Enter an address/prefix to see its network, mask, range and counts. IPv4 /31 is treated as point-to-point; IPv6 does not have a broadcast address. The tool performs no network scan.
+
+**Tools → References & charts** contains searchable original field notes on RF units, wireless measurements, propagation/materials, coverage attribution/DAS, address planning and networking diagnostics. Content works offline; optional source links open externally. Manual survey placement and heat-map implementation are separate approved phases.

@@ -19,7 +19,7 @@ class HardwareSettings:
             ("HackRF", "Choose the receiver and local host tools used for receive-only SDR acquisition.", [
                 ("sdr.tools_dir", "Host tools folder", "text", "Blank: discover installed tools"),
                 ("sdr.serial", "Receiver serial", "text", "Blank: use the available receiver"),
-            ], "Receive presets, gains and sweep controls are in Tools & readiness. Diagnostic sweep ranges and power settings remain in Advanced JSON. Saving does not change them."),
+            ], "Receive presets, gains and sweep controls are in Configuration. Diagnostic sweep ranges and power settings remain in Advanced JSON. Saving does not change them."),
         ]
         for title, introduction, fields, hint in specs:
             panel = QWidget()

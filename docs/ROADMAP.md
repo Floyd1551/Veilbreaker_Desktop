@@ -16,6 +16,12 @@ plus Fresnel clearance, Earth bulge, thermal/receiver noise and cable loss. Resu
 can be copied or exported as text/JSON with inputs and assumptions. Windows installer
 0.42.0rc1 and isolated lifecycle checks passed; direct survey attachment remains pending.
 
+Next source increment: separate Tools and Configuration navigation, embedded RF calculators,
+Fresnel/curvature diagrams, IPv4/IPv6 subnet inspector and six searchable offline reference
+articles/charts. This increment is not yet in the 0.42.0rc1 installer. The approved
+[spatial survey design](superpowers/specs/2026-10-25-tools-and-survey-spatial-design.md)
+adds manual map/floor-plan placement next, then measured-point coloring and guarded interpolation.
+
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
 The offline GPS viewer, map-pack registration, report imagery, local cell-reference
 matching and regional terrain assessment are implemented. National basemap acquisition,

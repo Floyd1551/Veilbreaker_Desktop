@@ -23,7 +23,7 @@ def guidance(test_id):
     if test_id == 'TEST-WIFI-WIRED':
         return ({'active'}, 'Connect the desired interface and confirm the active route before each run.',
                 'Prepares bounded ping/DNS. Veilbreaker does not bind this run to an interface; switching to Ethernet and checking the route remain manual steps.')
-    return (set(), 'Follow the recommendation below; use Tools & readiness to inspect dependencies.',
+    return (set(), 'Follow the recommendation below; use Configuration to inspect dependencies.',
             'Manual workflow. No run options are prepared for this recommendation. For SDR comparisons, use Tools to review the receive preset and match the saved antenna, range, gain and bin width. For path/MTU tests, use the existing CLI or your approved network tools.')
 
 

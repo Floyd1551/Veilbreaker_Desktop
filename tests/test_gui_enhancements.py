@@ -35,7 +35,7 @@ class WorkspaceTests(unittest.TestCase):
         self.window.resize(760, 640)
         self.window.show()
         self.window.show_demo()
-        for index in range(6):
+        for index in range(self.window.nav.count()):
             self.window.compact_navigation.setCurrentIndex(index)
             QTest.qWait(30)
             page = self.window.pages.widget(index)
@@ -47,6 +47,13 @@ class WorkspaceTests(unittest.TestCase):
         QTest.qWait(30)
         self.assertTrue(self.window.sidebar.isVisible())
         self.assertFalse(self.window.compact_navigation.isVisible())
+
+    def test_configuration_and_toolbox_are_separate_destinations(self):
+        names = [self.window.nav.item(i).text() for i in range(self.window.nav.count())]
+        self.assertIn('Configuration', names)
+        self.assertIn('Tools', names)
+        self.assertNotIn('Tools & readiness', names)
+        self.assertEqual(self.window.pages.count(), len(names))
 
     def test_long_configuration_path_does_not_widen_settings_page(self):
         self.window.settings_location.setText('Configuration: C:\\' + 'longpath' * 35 + '\\config.json')

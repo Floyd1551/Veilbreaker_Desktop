@@ -99,7 +99,7 @@ def main():
         shutil.copy2(ROOT / "installer/uninstall-linux.sh", bundle / "installer/uninstall-linux.sh")
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
-                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI six pages", "frozen offline map rendering and selection", "frozen terrain raster projection and profile"]}
+                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI seven pages", "frozen offline map rendering and selection", "frozen terrain raster projection and profile"]}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"
     archive = Path(shutil.make_archive(str(ROOT / "dist" / name), "zip" if os.name == "nt" else "gztar", ROOT / "dist", "Veilbreaker"))

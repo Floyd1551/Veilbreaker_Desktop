@@ -158,7 +158,7 @@ class MainWindow(QMainWindow):
         rail.addSpacing(30)
         self.nav = QListWidget()
         self.nav.setAccessibleName("Workspace navigation")
-        sections = ["Overview", "Diagnostics", "Run history", "Tools & readiness", "Settings", "Site surveys"]
+        sections = ["Overview", "Diagnostics", "Run history", "Configuration", "Settings", "Site surveys", "Tools"]
         self.nav.addItems(sections)
         navigation = self.menuBar().addMenu("Navigate")
         for index, title in enumerate(sections):
@@ -204,6 +204,7 @@ class MainWindow(QMainWindow):
         self.nav.currentRowChanged.connect(lambda index: self.survey_page.show_landing() if index == 5 else None)
         self.nav.itemClicked.connect(lambda item: self.survey_page.show_landing() if self.nav.row(item) == 5 else None)
         self.add_scroll_page(self.survey_page)
+        self.build_toolbox()
         for spin in self.findChildren(QSpinBox):
             spin.lineEdit().setStyleSheet("padding: 0; border: none; background: transparent;")
         self.nav.currentRowChanged.connect(self.pages.setCurrentIndex)
@@ -470,7 +471,7 @@ class MainWindow(QMainWindow):
         self.prepare_followup_button.setEnabled(False)
         followup_actions.addWidget(self.prepare_followup_button)
         followup_actions.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(4)))
-        followup_actions.addWidget(button("Tools & readiness", lambda: self.nav.setCurrentRow(3)))
+        followup_actions.addWidget(button("Configuration", lambda: self.nav.setCurrentRow(3)))
         followup_layout.addLayout(followup_actions)
         self.next_tests.itemSelectionChanged.connect(self.select_followup)
 
@@ -611,9 +612,7 @@ class MainWindow(QMainWindow):
         self.add_scroll_page(widget)
 
     def build_tools(self):
-        widget, layout = page("Tools & readiness", "Calculate RF estimates, prepare equipment and check field readiness.")
-        layout.addWidget(button("RF field calculators…", self.open_rf_calculators, True))
-        layout.addWidget(label("Power, wavelength, path loss, EIRP, link budget, Fresnel clearance, Earth curvature, noise and cable loss. Available offline.", "muted"))
+        widget, layout = page("Configuration", "Prepare equipment, configure receive presets and check field readiness.")
         actions = FlowLayout()
         for title, action in [("Check readiness", "doctor"), ("List serial ports", "ports"),
                               ("Modem driver matrix", "drivers"), ("Engine self-test", "selftest")]:
@@ -668,6 +667,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(button("Cancel running task", self.cancel_task))
         self.add_scroll_page(widget)
 
+    def build_toolbox(self):
+        from .toolbox_ui import ToolboxPage
+        self.toolbox_page = ToolboxPage(self)
+        self.add_scroll_page(self.toolbox_page)
+
     def open_rf_calculators(self):
         from .rf_tools_ui import RFToolsDialog
         dialog = RFToolsDialog(self)
@@ -683,7 +687,7 @@ class MainWindow(QMainWindow):
         self.settings_location = label("", "muted")
         self.settings_location.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         layout.addWidget(self.settings_location)
-        layout.addWidget(label("Connection settings apply to your next diagnostic. Saving never starts a test. Site and scenario are selected on Diagnostics; receive presets are in Tools.", "muted"))
+        layout.addWidget(label("Connection settings apply to your next diagnostic. Saving never starts a test. Site and scenario are selected on Diagnostics; receive presets are in Configuration.", "muted"))
         self.settings_tabs = QTabWidget()
         self.settings_tabs.setUsesScrollButtons(True)
         self.settings_tabs.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
@@ -988,7 +992,7 @@ class MainWindow(QMainWindow):
         try:
             result_path = Path(self.job_dir.name) / "result.json"
             if self.cancelled:
-                self.statusBar().showMessage("Task cancelled. Recover interrupted captures from Tools to reopen saved partial evidence.")
+                self.statusBar().showMessage("Task cancelled. Recover interrupted captures from Configuration to reopen saved partial evidence.")
             elif result_path.exists():
                 obj = json.loads(result_path.read_text(encoding="utf-8"))
                 if not obj["ok"]:
@@ -1063,7 +1067,7 @@ class MainWindow(QMainWindow):
         self.cancelled = True
         self.task_cancel.setEnabled(False)
         self.cancel_button.setEnabled(False)
-        self.statusBar().showMessage("Cancelling task… Partial evidence can be recovered from Tools.")
+        self.statusBar().showMessage("Cancelling task… Partial evidence can be recovered from Configuration.")
         pid = int(self.process.processId())
         if pid and os.name == "nt":
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True,
@@ -1737,7 +1741,7 @@ def smoke(destination):
         app.processEvents()
         target = Path(destination)
         target.mkdir(parents=True, exist_ok=True)
-        for index, name in enumerate(["overview", "diagnostics", "history", "tools", "settings", "surveys"]):
+        for index, name in enumerate(["overview", "diagnostics", "history", "configuration", "settings", "surveys", "tools"]):
             window.nav.setCurrentRow(index)
             QTest.qWait(80)
             app.processEvents()
@@ -1755,7 +1759,7 @@ def smoke(destination):
                 raise RuntimeError(f'Packaged RF calculator failed: {tool.key}')
         calculators.close()
         window.close()
-    (target / "gui-smoke.json").write_text(json.dumps({"passed": True, "version": __version__, "pages": 6, "rf_calculators": len(TOOLS)}), encoding="utf-8")
+    (target / "gui-smoke.json").write_text(json.dumps({"passed": True, "version": __version__, "pages": 7, "rf_calculators": len(TOOLS)}), encoding="utf-8")
     return 0
 
 

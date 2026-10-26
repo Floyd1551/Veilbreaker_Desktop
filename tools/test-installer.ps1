@@ -63,7 +63,7 @@ try {
     if ($process.ExitCode -ne 0) { throw 'Installed CLI init failed.' }
     $process = Start-Process -FilePath $exe -ArgumentList @('--smoke-test', "`"$testRoot\installed-gui`"") -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -ne 0 -or -not (Get-Content -LiteralPath (Join-Path $testRoot 'installed-gui/gui-smoke.json') -Raw | ConvertFrom-Json).passed) { throw 'Installed GUI smoke failed.' }
-    $checks.Add('Installed CLI and six GUI pages')
+    $checks.Add('Installed CLI and seven GUI pages')
     $configHash = (Get-FileHash -LiteralPath (Join-Path $dataRoot 'config.json')).Hash
     $process = Start-Process -FilePath $Installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', "/DIR=`"$installRoot`"", '/TASKS=desktopicon') -WindowStyle Hidden -PassThru -Wait
     if ($process.ExitCode -ne 0) { throw 'Reinstall failed.' }

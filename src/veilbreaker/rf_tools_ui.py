@@ -1,6 +1,7 @@
 """Reusable native dialog for offline field calculations."""
 import json
 from pathlib import Path
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget,
@@ -9,8 +10,11 @@ from .rf_tools import TOOLS, REGISTRY, calculate, format_snapshot
 
 
 class RFToolsDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, embedded=False):
         super().__init__(parent)
+        self.embedded = embedded
+        if embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
         self.setWindowTitle('RF field calculators')
         self.resize(760, 780)
         self.inputs = {}
@@ -52,18 +56,31 @@ class RFToolsDialog(QDialog):
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        from .rf_diagrams import RFDiagram
+        self.diagram = RFDiagram(self)
+        self.diagram.hide()
+        layout.addWidget(self.diagram)
         self.result = QTextBrowser()
         self.result.setAccessibleName('Calculation result and assumptions')
         layout.addWidget(self.result, 2)
         close = QPushButton('Close')
         close.clicked.connect(self.accept)
         layout.addWidget(close)
+        close.setVisible(not embedded)
         self.calculate_button.clicked.connect(self.run_calculation)
         self.copy_button.clicked.connect(self.copy_result)
         self.save_button.clicked.connect(self.save_result)
         self.search.textChanged.connect(self.filter_tools)
         self.selector.currentIndexChanged.connect(self.select_tool)
         self.filter_tools('')
+
+    def reject(self):
+        if not self.embedded:
+            super().reject()
+
+    def accept(self):
+        if not self.embedded:
+            super().accept()
 
     def filter_tools(self, query):
         previous = self.selector.currentData()
@@ -99,6 +116,7 @@ class RFToolsDialog(QDialog):
     def invalidate(self, *_):
         self.snapshot = None
         self.result.clear()
+        self.diagram.set_snapshot(None)
         self.copy_button.setEnabled(False)
         self.save_button.setEnabled(False)
         self.status.setText('Enter values and choose Calculate.' if self.inputs else '')
@@ -113,6 +131,7 @@ class RFToolsDialog(QDialog):
             self.status.setText(str(exc))
             return
         self.result.setPlainText(format_snapshot(self.snapshot))
+        self.diagram.set_snapshot(self.snapshot)
         self.copy_button.setEnabled(True)
         self.save_button.setEnabled(True)
         self.status.setText('WARNING: Approximation is unsuitable for clearance decisions at these inputs. See limitations below.'
