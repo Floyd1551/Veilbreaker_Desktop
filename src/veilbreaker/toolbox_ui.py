@@ -50,7 +50,7 @@ class ToolboxPage(QWidget):
         layout.addWidget(self.tabs)
         self.calculators = RFToolsDialog(self, embedded=True)
         self.calculators.setMinimumHeight(900)
-        self.tabs.addTab(self.calculators, 'RF calculators')
+        self.tabs.addTab(self.calculators, 'Calculators')
         network = QWidget()
         form = QVBoxLayout(network)
         title = QLabel('IPv4 / IPv6 subnet inspector')

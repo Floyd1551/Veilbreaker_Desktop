@@ -11,10 +11,14 @@ class ToolRegistryTests(unittest.TestCase):
     def test_registry_has_unique_stable_routes_for_existing_content(self):
         ids = [record.record_id for record in self.records]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(self.records), 18)
+        self.assertEqual(len(self.records), 22)
         self.assertEqual(set(record.kind for record in self.records), {'calculator', 'inspector', 'reference'})
         self.assertIn('calculator:fspl', ids)
         self.assertIn('inspector:subnet', ids)
+        self.assertIn('calculator:mtu_mss', ids)
+        self.assertIn('calculator:tcp_bdp', ids)
+        self.assertIn('calculator:fiber_budget', ids)
+        self.assertIn('calculator:poe_budget', ids)
         self.assertEqual(CATEGORIES, ('RF', 'Cellular', 'Wi-Fi', 'Networking', 'Fiber & Power', 'References'))
 
     def test_search_uses_all_tokens_keywords_and_category(self):
@@ -24,6 +28,9 @@ class ToolRegistryTests(unittest.TestCase):
         networking = search_registry(self.records, '', 'Networking')
         self.assertTrue(networking)
         self.assertTrue(all(record.category == 'Networking' for record in networking))
+        self.assertEqual([record.record_id for record in search_registry(self.records, 'MTU MSS')], ['calculator:mtu_mss'])
+        self.assertIn('calculator:fiber_budget', [record.record_id for record in search_registry(self.records, 'fiber budget')])
+        self.assertEqual([record.record_id for record in search_registry(self.records, 'PoE', 'Fiber & Power')], ['calculator:poe_budget'])
         self.assertTrue(any('RSRP' in record.description for record in search_registry(self.records, '', 'Cellular')))
         references = search_registry(self.records, '', 'References')
         self.assertEqual(len(references), 6)

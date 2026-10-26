@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PySide6.QtWidgets import QApplication
 from veilbreaker.rf_tools_ui import RFToolsDialog
-from veilbreaker.rf_tools import TOOLS, calculate, format_snapshot
+from veilbreaker.field_tools import TOOLS, calculate, format_snapshot
 
 
 class RFToolsUITests(unittest.TestCase):

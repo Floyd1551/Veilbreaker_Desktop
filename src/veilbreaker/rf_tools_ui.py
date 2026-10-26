@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget,
 )
-from .rf_tools import TOOLS, REGISTRY, calculate, format_snapshot
+from .field_tools import TOOLS, REGISTRY, calculate, format_snapshot
 
 
 class RFToolsDialog(QDialog):
@@ -15,12 +15,12 @@ class RFToolsDialog(QDialog):
         self.embedded = embedded
         if embedded:
             self.setWindowFlags(Qt.WindowType.Widget)
-        self.setWindowTitle('RF field calculators')
+        self.setWindowTitle('Field calculators')
         self.resize(760, 780)
         self.inputs = {}
         self.snapshot = None
         layout = QVBoxLayout(self)
-        heading = QLabel('RF field calculators')
+        heading = QLabel('Field calculators')
         heading.setObjectName('section')
         layout.addWidget(heading)
         caption = QLabel('Offline planning tools · Results are calculated estimates, not measured signals.')
@@ -60,6 +60,10 @@ class RFToolsDialog(QDialog):
         self.diagram = RFDiagram(self)
         self.diagram.hide()
         layout.addWidget(self.diagram)
+        from .engineering_diagrams import EngineeringDiagram
+        self.flow_diagram = EngineeringDiagram(self)
+        self.flow_diagram.hide()
+        layout.addWidget(self.flow_diagram)
         self.result = QTextBrowser()
         self.result.setAccessibleName('Calculation result and assumptions')
         layout.addWidget(self.result, 2)
@@ -117,6 +121,7 @@ class RFToolsDialog(QDialog):
         self.snapshot = None
         self.result.clear()
         self.diagram.set_snapshot(None)
+        self.flow_diagram.set_snapshot(None)
         self.copy_button.setEnabled(False)
         self.save_button.setEnabled(False)
         self.status.setText('Enter values and choose Calculate.' if self.inputs else '')
@@ -132,6 +137,7 @@ class RFToolsDialog(QDialog):
             return
         self.result.setPlainText(format_snapshot(self.snapshot))
         self.diagram.set_snapshot(self.snapshot)
+        self.flow_diagram.set_snapshot(self.snapshot)
         self.copy_button.setEnabled(True)
         self.save_button.setEnabled(True)
         self.status.setText('WARNING: Approximation is unsuitable for clearance decisions at these inputs. See limitations below.'

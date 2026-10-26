@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import html
 import re
 
-from .rf_tools import TOOLS
+from .field_tools import TOOLS
 from .toolbox_reference import REFERENCES
 
 
@@ -47,7 +47,9 @@ def _reference_category(title):
 
 
 def build_registry(extra=()):
-    records = [ToolRecord('calculator:' + tool.key, tool.title, 'RF', 'calculator', tool.purpose,
+    records = [ToolRecord('calculator:' + tool.key, tool.title,
+                          'Networking' if tool.key in ('mtu_mss', 'tcp_bdp') else
+                          'Fiber & Power' if tool.key in ('fiber_budget', 'poe_budget') else 'RF', 'calculator', tool.purpose,
                           tuple(field.label for field in tool.fields) + (tool.method, tool.limitations), tool.key)
                for tool in TOOLS]
     records.append(ToolRecord('inspector:subnet', 'IPv4 / IPv6 subnet inspector', 'Networking', 'inspector',

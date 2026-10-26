@@ -70,3 +70,13 @@ reference category filters, responsive reusable cards, no-match guidance and key
 route users into the existing tool hosts. Calculation logic and evidence behavior are unchanged.
 The registry is the extension point for the next high-value calculator and reference batches.
 Presets, equipment records, tool chaining and attachments remain later integration phases.
+
+## Implementation status — field planning calculator batch
+
+MTU/TCP MSS, TCP bandwidth-delay product, fiber optical power budget, and PoE source
+budget are added as offline calculated estimates. They appear under Networking and
+Fiber & Power in global search and use the existing copy/export snapshot flow. Fiber
+and PoE show schematic diagrams tied to their numeric outputs. See
+[`docs/field-planning-tools.md`](../field-planning-tools.md) for input and interpretation
+limits. The next batches remain Wi-Fi channel planning, cellular channel/band inspection,
+and more complete RF component libraries. The 0.43.0rc1 installer predates this batch.

@@ -73,7 +73,7 @@ class VisualToolboxTests(unittest.TestCase):
     def test_global_search_category_and_empty_state(self):
         from veilbreaker.toolbox_ui import ToolboxPage
         page = ToolboxPage()
-        self.assertEqual(page.result_count.text(), '18 results')
+        self.assertEqual(page.result_count.text(), '22 results')
         page.global_search.setText('RSRP SINR')
         self.assertEqual(len(page.result_cards), 1)
         self.assertEqual(page.result_cards[0].record.kind, 'reference')
@@ -92,6 +92,11 @@ class VisualToolboxTests(unittest.TestCase):
         page.activate_record('calculator:fspl')
         self.assertEqual(page.tabs.currentIndex(), 0)
         self.assertEqual(page.calculators.selector.currentData(), 'fspl')
+        page.activate_record('calculator:fiber_budget')
+        self.assertEqual(page.calculators.selector.currentData(), 'fiber_budget')
+        page.calculators.run_calculation()
+        self.assertIsNotNone(page.calculators.snapshot)
+        self.assertEqual(page.calculators.snapshot['kind'], 'calculated estimate')
         page.activate_record('inspector:subnet')
         self.assertEqual(page.tabs.currentIndex(), 1)
         target = next(record for record in page.records if record.kind == 'reference')
