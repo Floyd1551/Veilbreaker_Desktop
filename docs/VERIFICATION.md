@@ -176,3 +176,13 @@ Independent review found no actionable regressions. Local installer compile and
 SHA-256 verification passed. [Windows and Ubuntu CI](https://github.com/Floyd1551/Veilbreaker_Desktop/actions/runs/40152222415)
 both passed release and installer lifecycle checks for source commit `3b28e78`.
 No physical Samsung survey capture or user installation change was performed.
+
+## October 25, 2026 — 0.42.0rc1 RF toolbox installer
+
+- 291 source tests passed during the release build. The expanded accuracy audit covers all 11 calculators; a short-path Fresnel applicability warning was added.
+- Frozen CLI self-test, Unicode worker/evidence verification, terrain raster/projection/profile, six GUI pages and offline map rendering/selection passed.
+- Frozen and installed GUI smoke explicitly exercised all 11 RF calculators and checked that results were available for export.
+- Isolated installer lifecycle passed install, shortcuts, installed CLI/GUI, reinstall with preserved configuration and uninstall with preserved user data. Existing user installation was not changed. Logs: `test-artifacts/installer-3d6977bb`.
+- Production installer: `dist/Veilbreaker-0.42.0rc1-Setup-x64.exe`, 182397053 bytes. SHA-256 independently verified: `08be5a81d6ec7dd4791a84a7fb51d9be61b3522f8329b997e463661c92e7b5a3`.
+- Build log: `test-artifacts/build-0.42.0rc1.log`; lifecycle log: `test-artifacts/installer-0.42.0rc1-validation.log`.
+- Windows map validation used explicit SwiftShader flags, not production defaults. No new Linux build, physical hardware qualification or code signing is claimed.

@@ -1,6 +1,6 @@
 # Veilbreaker Desktop roadmap
 
-Updated October 25, 2026. Current working versions: **Desktop 0.41.0rc1**, **Companion 0.5.1-dev**.
+Updated October 25, 2026. Current working versions: **Desktop 0.42.0rc1**, **Companion 0.5.1-dev**.
 
 **Revised 1.0 requirement:** usable terrain, LOS and tower information are release
 requirements. Integrated calculators, references and operator environmental observations
@@ -13,8 +13,8 @@ toolbox scope remain to be finalized.
 First toolbox increment (source): [offline RF field calculators](rf-field-calculators.md)
 provide power conversion, wavelength, free-space loss, EIRP and link budget/margin,
 plus Fresnel clearance, Earth bulge, thermal/receiver noise and cable loss. Results
-can be copied or exported as text/JSON with inputs and assumptions. Survey attachment and installer packaging of
-this increment remain pending.
+can be copied or exported as text/JSON with inputs and assumptions. Windows installer
+0.42.0rc1 and isolated lifecycle checks passed; direct survey attachment remains pending.
 
 Latest mapping queue: [CONUS maps, local cell references and terrain LOS](MAPPING_QUEUE.md).
 The offline GPS viewer, map-pack registration, report imagery, local cell-reference

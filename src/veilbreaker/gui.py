@@ -1745,8 +1745,17 @@ def smoke(destination):
                 raise RuntimeError("Could not save GUI screenshot")
         assert window.metrics.rowCount() == len(demo_payload()["metrics"])
         assert not window.export_button.isEnabled()
+        from .rf_tools import TOOLS
+        from .rf_tools_ui import RFToolsDialog
+        calculators = RFToolsDialog(window)
+        for tool in TOOLS:
+            calculators.selector.setCurrentIndex(calculators.selector.findData(tool.key))
+            calculators.run_calculation()
+            if calculators.snapshot is None or not calculators.save_button.isEnabled():
+                raise RuntimeError(f'Packaged RF calculator failed: {tool.key}')
+        calculators.close()
         window.close()
-    (target / "gui-smoke.json").write_text(json.dumps({"passed": True, "version": __version__, "pages": 6}), encoding="utf-8")
+    (target / "gui-smoke.json").write_text(json.dumps({"passed": True, "version": __version__, "pages": 6, "rf_calculators": len(TOOLS)}), encoding="utf-8")
     return 0
 
 
