@@ -1,6 +1,15 @@
 """Original offline field notes; links provide optional primary-source background."""
 
 REFERENCES = (
+    ('Cellular channel numbering', '''<h2>LTE EARFCN and NR ARFCN</h2>
+<p>Channel numbers label radio-frequency positions; they do not identify an operator, serving cell, tower or antenna. A phone may report a band directly. Treat a band inferred from channel range as a candidate, especially where NR bands overlap.</p>
+<table border="1" cellpadding="6"><tr><th>NR-ARFCN range</th><th>Global raster frequency (MHz)</th><th>Step</th></tr>
+<tr><td>0–599999</td><td>N × 0.005</td><td>5 kHz</td></tr>
+<tr><td>600000–2016666</td><td>3000 + (N − 600000) × 0.015</td><td>15 kHz</td></tr>
+<tr><td>2016667–3279165</td><td>24250.08 + (N − 2016667) × 0.06</td><td>60 kHz</td></tr></table>
+<p>This is the NR <b>global</b> frequency raster. A band-specific channel raster, permitted bandwidth, device capabilities and current regional rules still need checking. LTE EARFCN uses a separate band-specific downlink or uplink base frequency and offset; the same numerical channel alone is insufficient for this tool to establish frequency.</p>
+<p>Bundled band-candidate table version: 2026-10-22, derived from the Android Open Source Project. See the Cellular channel inspector for the actual bundled version.</p>
+<p>References: <a href="https://www.etsi.org/deliver/etsi_ts/138100_138199/138104/16.09.00_60/ts_138104v160900p.pdf">ETSI TS 138 104, global NR raster</a>; <a href="https://www.etsi.org/deliver/etsi_ts/136100_136199/136101/18.06.00_60/ts_136101v180600p.pdf">ETSI TS 136 101, LTE EARFCN</a>; <a href="https://android.googlesource.com/platform/frameworks/base/+/master/telephony/java/android/telephony/AccessNetworkUtils.java">AOSP channel ranges</a>. Standards and regulatory material should be rechecked before operational decisions.</p>'''),
     ('RF power and decibels', '''<h2>RF power and decibels</h2>
 <p><b>dB</b> expresses a ratio. <b>dBm</b> is power relative to one milliwatt. <b>dBi</b> is antenna gain relative to an isotropic radiator. These are different quantities: do not substitute one for another.</p>
 <table border="1" cellpadding="6"><tr><th>Power change</th><th>Ratio</th></tr><tr><td>+3.01 dB</td><td>2 ×</td></tr><tr><td>+10 dB</td><td>10 ×</td></tr><tr><td>−3.01 dB</td><td>0.5 ×</td></tr><tr><td>−10 dB</td><td>0.1 ×</td></tr></table>

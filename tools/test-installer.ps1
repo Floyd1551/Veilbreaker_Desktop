@@ -14,13 +14,15 @@ $testAppName = 'Veilbreaker'
 $testAppId = 'E143EBCB-CF84-4D13-A183-1C91B9D3B76D'
 if ($IsolatedIdentity) {
     # Same release payload and installer directives, with a separate test identity.
-    $testAppName = 'Veilbreaker Validation'
-    $testAppId = '07E4818D-E997-4190-8CFE-7622096E521D'
+    # A unique identity avoids colliding with prior validation shortcuts or
+    # a user-created shortcut that happens to use the validation name.
+    $testAppId = [Guid]::NewGuid().ToString().ToUpperInvariant()
+    $testAppName = 'Veilbreaker Validation ' + $testAppId.Substring(0, 8)
     $compiler = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if (-not $compiler) { throw 'Inno Setup is needed for an isolated identity test.' }
     $validationSource = Join-Path $projectRoot 'installer/.validation.iss'
     $source = Get-Content -LiteralPath (Join-Path $projectRoot 'installer/Veilbreaker.iss') -Raw
-    $source = $source.Replace('E143EBCB-CF84-4D13-A183-1C91B9D3B76D', $testAppId).Replace('AppName=Veilbreaker', "AppName=$testAppName").Replace('OutputBaseFilename=Veilbreaker-', 'OutputBaseFilename=VeilbreakerValidation-').Replace('Name: "{autoprograms}\Veilbreaker"', 'Name: "{autoprograms}\Veilbreaker Validation"').Replace('Name: "{autodesktop}\Veilbreaker"', 'Name: "{autodesktop}\Veilbreaker Validation"')
+    $source = $source.Replace('E143EBCB-CF84-4D13-A183-1C91B9D3B76D', $testAppId).Replace('AppName=Veilbreaker', "AppName=$testAppName").Replace('OutputBaseFilename=Veilbreaker-', 'OutputBaseFilename=VeilbreakerValidation-').Replace('Name: "{autoprograms}\Veilbreaker"', "Name: `"{autoprograms}\$testAppName`"").Replace('Name: "{autodesktop}\Veilbreaker"', "Name: `"{autodesktop}\$testAppName`"")
     try {
         $source | Set-Content -LiteralPath $validationSource -Encoding utf8
         & $compiler /Q "/DAppVersion=$releaseVersion" $validationSource

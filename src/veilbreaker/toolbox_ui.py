@@ -8,6 +8,7 @@ from .toolbox_reference import REFERENCES
 from .tool_registry import CATEGORIES, build_registry, search_registry
 from .tool_cards import ToolCard
 from .wifi_channels_ui import WifiChannelsPanel
+from .cell_channel_ui import CellChannelPanel
 from .widgets import FlowLayout
 
 
@@ -77,6 +78,8 @@ class ToolboxPage(QWidget):
         self.tabs.addTab(network, 'Networking')
         self.wifi_planner = WifiChannelsPanel(self)
         self.tabs.addTab(self.wifi_planner, 'Wi-Fi channels')
+        self.cell_channel = CellChannelPanel(self)
+        self.tabs.addTab(self.cell_channel, 'Cellular channels')
         reference = QWidget()
         ref_layout = QVBoxLayout(reference)
         self.reference_search = QLineEdit()
@@ -91,7 +94,7 @@ class ToolboxPage(QWidget):
         self.reference_body = QTextBrowser()
         self.reference_body.setOpenExternalLinks(True)
         ref_layout.addWidget(self.reference_body)
-        footer = QLabel('Original field notes · reviewed October 25, 2026 · source links require internet')
+        footer = QLabel('Offline field notes · review each entry’s source and version before operational use · links require internet')
         footer.setWordWrap(True)
         ref_layout.addWidget(footer)
         self.reference_list.currentIndexChanged.connect(self.show_reference)
@@ -129,12 +132,16 @@ class ToolboxPage(QWidget):
             if index >= 0:
                 self.calculators.selector.setCurrentIndex(index)
         elif record.kind == 'inspector':
-            self.tabs.setCurrentIndex(1)
-            self.address.setFocus()
+            if record.target_id == 'cell_channel':
+                self.tabs.setCurrentWidget(self.cell_channel)
+                self.cell_channel.channel.setFocus()
+            else:
+                self.tabs.setCurrentIndex(1)
+                self.address.setFocus()
         elif record.kind == 'planner':
             self.tabs.setCurrentWidget(self.wifi_planner)
         elif record.kind == 'reference':
-            self.tabs.setCurrentIndex(3)
+            self.tabs.setCurrentIndex(4)
             self.reference_search.clear()
             index = self.reference_list.findText(record.target_id)
             if index >= 0:
