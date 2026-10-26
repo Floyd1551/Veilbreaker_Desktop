@@ -56,7 +56,7 @@ def build_registry(extra=()):
                               'Inspect network, address range, host capacity and prefix semantics offline.',
                               ('CIDR', 'prefix', 'route', 'subnet', 'IPv4', 'IPv6'), 'subnet'))
     records.append(ToolRecord('inspector:cell_channel', 'LTE / NR ARFCN channel inspector', 'Cellular', 'inspector',
-                              'Look up channel-derived band candidates and convert NR-ARFCN on the global frequency raster.',
+                              'Look up band candidates; convert selected LTE downlink EARFCN and NR-ARFCN global raster frequencies.',
                               ('EARFCN', 'NR ARFCN', 'n77', 'band', 'frequency', 'cellular'), 'cell_channel'))
     records.append(ToolRecord('planner:wifi_channels', 'Wi-Fi channel overlap inspector', 'Wi-Fi', 'planner',
                               'Compare nominal 20 MHz Wi-Fi channels by frequency with a schematic diagram.',

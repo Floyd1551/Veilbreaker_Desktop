@@ -121,6 +121,15 @@ class VisualToolboxTests(unittest.TestCase):
         page.cell_channel.channel.setText('1.5')
         page.cell_channel.inspect()
         self.assertIn('whole channel number', page.cell_channel.result.toPlainText())
+        page.cell_channel.radio.setCurrentText('LTE')
+        page.cell_channel.channel.setText('68586')
+        page.cell_channel.inspect()
+        self.assertIn('617 MHz', page.cell_channel.result.toPlainText())
+        page.cell_channel.reverse_mode.setCurrentText('LTE downlink')
+        page.cell_channel.reverse_band.setCurrentIndex(page.cell_channel.reverse_band.findData(71))
+        page.cell_channel.frequency.setText('617.1')
+        page.cell_channel.reverse_lookup()
+        self.assertEqual(page.cell_channel.channel.text(), '68587')
         page.close()
 
     def test_wifi_planner_has_no_horizontal_scroll_at_field_width(self):

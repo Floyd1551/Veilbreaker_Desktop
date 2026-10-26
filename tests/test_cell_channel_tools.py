@@ -1,6 +1,7 @@
 import unittest
 
-from veilbreaker.cell_channel_tools import inspect_channel, nr_arfcn_to_mhz, nr_mhz_to_arfcn
+from veilbreaker.cell_channel_tools import inspect_channel, nr_arfcn_to_mhz, nr_mhz_to_arfcn, lte_earfcn_to_mhz, lte_mhz_to_earfcn, LTE_DL_LOW_MHZ
+from veilbreaker.cell_visibility import channel_plan
 
 
 class CellChannelToolsTests(unittest.TestCase):
@@ -20,8 +21,36 @@ class CellChannelToolsTests(unittest.TestCase):
         lte = inspect_channel('LTE', 6300)
         self.assertIsNone(lte['center_mhz'])
         self.assertEqual(lte['radio'], 'LTE')
-        self.assertIn('frequency', lte['limitations'].lower())
+        self.assertIn('selected U.S.', lte['limitations'])
         self.assertEqual(inspect_channel('NR', 640000)['bands'], (48, 77, 78))
+
+    def test_selected_us_lte_downlink_anchors(self):
+        for band, channel, mhz in ((2, 600, 1930), (2, 1199, 1989.9),
+                                   (13, 5180, 746), (14, 5280, 758),
+                                   (41, 39650, 2496), (66, 66436, 2110),
+                                   (71, 68586, 617), (71, 68935, 651.9)):
+            with self.subTest(band=band, channel=channel):
+                self.assertAlmostEqual(lte_earfcn_to_mhz(band, channel), mhz)
+                self.assertEqual(lte_mhz_to_earfcn(band, mhz), channel)
+                info = inspect_channel('LTE', channel)
+                self.assertAlmostEqual(info['center_mhz'], mhz)
+                self.assertEqual(info['bands'], (band,))
+                self.assertEqual(info['frequency_reference_reviewed'], '2026-10-26')
+        with self.assertRaises(ValueError):
+            lte_earfcn_to_mhz(2, 68586)
+        with self.assertRaises(ValueError):
+            lte_earfcn_to_mhz(20, 6300)
+        for band, mhz in ((71, 617.05), (71, 652), (2, 1989.95), (20, 800), (71, float('nan'))):
+            with self.subTest(band=band, mhz=mhz), self.assertRaises(ValueError):
+                lte_mhz_to_earfcn(band, mhz)
+
+    def test_each_selected_lte_band_has_one_bundled_range(self):
+        for band in LTE_DL_LOW_MHZ:
+            rows = [row for row in channel_plan()['ranges'] if row['radio'] == 'LTE' and row['band'] == band]
+            with self.subTest(band=band):
+                self.assertEqual(len(rows), 1)
+                self.assertAlmostEqual(lte_earfcn_to_mhz(band, rows[0]['min']), LTE_DL_LOW_MHZ[band])
+                self.assertGreater(lte_earfcn_to_mhz(band, rows[0]['max']), LTE_DL_LOW_MHZ[band])
 
     def test_bad_and_off_raster_inputs(self):
         for radio, channel in (('NR', -1), ('NR', 3279166), ('NR', True),

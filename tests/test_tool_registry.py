@@ -58,6 +58,12 @@ class ToolRegistryTests(unittest.TestCase):
         reference = next(record for record in records if record.kind == 'reference')
         self.assertEqual(reference.category, 'References')
 
+    def test_cellular_reference_explains_lte_scope(self):
+        from veilbreaker.toolbox_reference import REFERENCES
+        article = next(body for title, body in REFERENCES if title == 'Cellular channel numbering')
+        self.assertIn('selected U.S.', article)
+        self.assertIn('band-specific', article)
+
 
 if __name__ == '__main__':
     unittest.main()

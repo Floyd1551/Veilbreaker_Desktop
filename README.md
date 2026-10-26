@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.45.0rc1** adds an offline LTE/NR channel inspector with NR global-raster conversion and candidate bands. It also includes the Wi-Fi channel inspector and RF planning tools alongside the diagnostic, survey, report and CLI workflows.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.46.0rc1** adds selected U.S. LTE downlink EARFCN frequency conversion in both directions to the offline LTE/NR channel inspector. It also includes the Wi-Fi channel inspector and RF planning tools alongside the diagnostic, survey, report and CLI workflows.
 
 ## Windows installation
 
-Run `Veilbreaker-0.45.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.46.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
