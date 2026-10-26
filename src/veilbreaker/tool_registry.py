@@ -58,6 +58,9 @@ def build_registry(extra=()):
     records.append(ToolRecord('inspector:cell_channel', 'LTE / NR ARFCN channel inspector', 'Cellular', 'inspector',
                               'Look up band candidates; convert selected LTE downlink EARFCN and NR-ARFCN global raster frequencies.',
                               ('EARFCN', 'NR ARFCN', 'n77', 'band', 'frequency', 'cellular'), 'cell_channel'))
+    records.append(ToolRecord('inspector:signal_guide', 'Cellular signal interpreter', 'Cellular', 'inspector',
+                              'Explain operator-entered RSRP, RSRQ and SINR relationships for one LTE or NR cell.',
+                              ('RSRP', 'RSRQ', 'SINR', 'SS-RSRP', 'SS-SINR', 'signal quality'), 'signal_guide'))
     records.append(ToolRecord('planner:wifi_channels', 'Wi-Fi channel overlap inspector', 'Wi-Fi', 'planner',
                               'Compare nominal 20 MHz Wi-Fi channels by frequency with a schematic diagram.',
                               ('wifi', '2.4 GHz', '5 GHz', '6 GHz', 'channel', 'overlap', 'frequency'), 'wifi_channels'))

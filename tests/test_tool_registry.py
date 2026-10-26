@@ -11,7 +11,7 @@ class ToolRegistryTests(unittest.TestCase):
     def test_registry_has_unique_stable_routes_for_existing_content(self):
         ids = [record.record_id for record in self.records]
         self.assertEqual(len(ids), len(set(ids)))
-        self.assertEqual(len(self.records), 27)
+        self.assertEqual(len(self.records), 28)
         self.assertEqual(set(record.kind for record in self.records), {'calculator', 'inspector', 'planner', 'reference'})
         self.assertIn('calculator:fspl', ids)
         self.assertIn('inspector:subnet', ids)
@@ -23,6 +23,7 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertIn('calculator:return_loss', ids)
         self.assertIn('calculator:cascade_nf', ids)
         self.assertIn('inspector:cell_channel', ids)
+        self.assertIn('inspector:signal_guide', ids)
         self.assertEqual(CATEGORIES, ('RF', 'Cellular', 'Wi-Fi', 'Networking', 'Fiber & Power', 'References'))
 
     def test_search_uses_all_tokens_keywords_and_category(self):
@@ -38,6 +39,7 @@ class ToolRegistryTests(unittest.TestCase):
         self.assertEqual([record.record_id for record in search_registry(self.records, 'wifi channel overlap')], ['planner:wifi_channels'])
         self.assertIn('inspector:cell_channel', [record.record_id for record in search_registry(self.records, 'NR ARFCN')])
         self.assertIn('reference:cellular-channel-numbering', [record.record_id for record in search_registry(self.records, 'NR ARFCN')])
+        self.assertIn('inspector:signal_guide', [record.record_id for record in search_registry(self.records, 'RSRP SINR')])
         self.assertTrue(any('RSRP' in record.description for record in search_registry(self.records, '', 'Cellular')))
         references = search_registry(self.records, '', 'References')
         self.assertEqual(len(references), 7)

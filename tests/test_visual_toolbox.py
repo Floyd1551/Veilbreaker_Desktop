@@ -73,10 +73,9 @@ class VisualToolboxTests(unittest.TestCase):
     def test_global_search_category_and_empty_state(self):
         from veilbreaker.toolbox_ui import ToolboxPage
         page = ToolboxPage()
-        self.assertEqual(page.result_count.text(), '27 results')
+        self.assertEqual(page.result_count.text(), '28 results')
         page.global_search.setText('RSRP SINR')
-        self.assertEqual(len(page.result_cards), 1)
-        self.assertEqual(page.result_cards[0].record.kind, 'reference')
+        self.assertEqual({card.record.kind for card in page.result_cards}, {'reference', 'inspector'})
         page.global_search.setText('')
         page.category_filter.setCurrentText('Networking')
         self.assertTrue(page.result_cards)
@@ -101,7 +100,7 @@ class VisualToolboxTests(unittest.TestCase):
         self.assertEqual(page.tabs.currentIndex(), 1)
         target = next(record for record in page.records if record.kind == 'reference')
         page.activate_record(target.record_id)
-        self.assertEqual(page.tabs.currentIndex(), 4)
+        self.assertEqual(page.tabs.currentIndex(), 5)
         self.assertEqual(page.reference_list.currentText(), target.title)
         page.activate_record('planner:wifi_channels')
         self.assertEqual(page.tabs.currentWidget(), page.wifi_planner)
@@ -130,6 +129,19 @@ class VisualToolboxTests(unittest.TestCase):
         page.cell_channel.frequency.setText('617.1')
         page.cell_channel.reverse_lookup()
         self.assertEqual(page.cell_channel.channel.text(), '68587')
+        page.activate_record('inspector:signal_guide')
+        self.assertEqual(page.tabs.currentWidget(), page.signal_guide)
+        page.signal_guide.inputs['rsrp'].setText('-85')
+        page.signal_guide.inputs['sinr'].setText('0')
+        page.signal_guide.interpret()
+        self.assertIn('Strong power', page.signal_guide.result.toPlainText())
+        self.assertIn('RSRP ≥ -90', page.signal_guide.result.toPlainText())
+        self.assertIn('SINR < 5', page.signal_guide.result.toPlainText())
+        self.assertTrue(page.signal_guide.copy_button.isEnabled())
+        page.signal_guide.radio.setCurrentText('NR')
+        self.assertEqual(page.signal_guide.inputs['rsrp'].text(), '')
+        self.assertEqual(page.signal_guide.result.toPlainText(), '')
+        self.assertEqual(page.signal_guide.form.labelForField(page.signal_guide.inputs['rsrp']).text(), 'SS-RSRP')
         page.close()
 
     def test_wifi_planner_has_no_horizontal_scroll_at_field_width(self):
@@ -150,6 +162,16 @@ class VisualToolboxTests(unittest.TestCase):
         page.show()
         self.app.processEvents()
         self.assertLessEqual(page.cell_channel.sizeHint().width(), page.width())
+        page.close()
+
+    def test_signal_guide_fits_field_width(self):
+        from veilbreaker.toolbox_ui import ToolboxPage
+        page = ToolboxPage()
+        page.resize(760, 650)
+        page.tabs.setCurrentWidget(page.signal_guide)
+        page.show()
+        self.app.processEvents()
+        self.assertLessEqual(page.signal_guide.sizeHint().width(), page.width())
         page.close()
 
     def test_result_cards_wrap_and_keyboard_activation(self):

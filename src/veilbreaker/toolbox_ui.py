@@ -9,6 +9,7 @@ from .tool_registry import CATEGORIES, build_registry, search_registry
 from .tool_cards import ToolCard
 from .wifi_channels_ui import WifiChannelsPanel
 from .cell_channel_ui import CellChannelPanel
+from .cell_signal_ui import CellSignalPanel
 from .widgets import FlowLayout
 
 
@@ -80,6 +81,8 @@ class ToolboxPage(QWidget):
         self.tabs.addTab(self.wifi_planner, 'Wi-Fi channels')
         self.cell_channel = CellChannelPanel(self)
         self.tabs.addTab(self.cell_channel, 'Cellular channels')
+        self.signal_guide = CellSignalPanel(self)
+        self.tabs.addTab(self.signal_guide, 'Signal guide')
         reference = QWidget()
         ref_layout = QVBoxLayout(reference)
         self.reference_search = QLineEdit()
@@ -135,13 +138,16 @@ class ToolboxPage(QWidget):
             if record.target_id == 'cell_channel':
                 self.tabs.setCurrentWidget(self.cell_channel)
                 self.cell_channel.channel.setFocus()
+            elif record.target_id == 'signal_guide':
+                self.tabs.setCurrentWidget(self.signal_guide)
+                self.signal_guide.inputs['rsrp'].setFocus()
             else:
                 self.tabs.setCurrentIndex(1)
                 self.address.setFocus()
         elif record.kind == 'planner':
             self.tabs.setCurrentWidget(self.wifi_planner)
         elif record.kind == 'reference':
-            self.tabs.setCurrentIndex(4)
+            self.tabs.setCurrentIndex(5)
             self.reference_search.clear()
             index = self.reference_list.findText(record.target_id)
             if index >= 0:
