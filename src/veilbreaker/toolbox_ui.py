@@ -1,9 +1,13 @@
 """Offline toolbox workspace: calculations, address planning and field references."""
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QTabWidget, QLabel, QLineEdit,
-                              QPushButton, QTextBrowser, QComboBox, QApplication)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel, QLineEdit,
+                              QPushButton, QTextBrowser, QComboBox, QApplication, QScrollArea)
 from .rf_tools_ui import RFToolsDialog
 from .network_tools import inspect_subnet
 from .toolbox_reference import REFERENCES
+from .tool_registry import CATEGORIES, build_registry, search_registry
+from .tool_cards import ToolCard
+from .widgets import FlowLayout
 
 
 class ToolboxPage(QWidget):
@@ -16,11 +20,37 @@ class ToolboxPage(QWidget):
         caption = QLabel('Offline calculations and field references. Equipment controls are under Configuration.')
         caption.setWordWrap(True)
         layout.addWidget(caption)
-        tabs = QTabWidget()
-        layout.addWidget(tabs)
+        self.records = build_registry()
+        filters = QHBoxLayout()
+        self.global_search = QLineEdit()
+        self.global_search.setPlaceholderText('Search tools and references: RSRP, Fresnel, dBm, subnet…')
+        self.global_search.setAccessibleName('Search all tools and references')
+        filters.addWidget(self.global_search, 1)
+        self.category_filter = QComboBox()
+        self.category_filter.addItems(('All', *CATEGORIES))
+        self.category_filter.setAccessibleName('Tool category')
+        filters.addWidget(self.category_filter)
+        layout.addLayout(filters)
+        self.result_count = QLabel()
+        layout.addWidget(self.result_count)
+        self.discovery = QScrollArea()
+        self.discovery.setWidgetResizable(True)
+        self.discovery.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.discovery.setMinimumHeight(170)
+        self.discovery.setMaximumHeight(260)
+        self.discovery_widget = QWidget()
+        self.discovery_layout = FlowLayout(self.discovery_widget)
+        self.discovery.setWidget(self.discovery_widget)
+        layout.addWidget(self.discovery)
+        self.empty_state = QLabel('No matching tools or references. Try a broader term or choose All categories.')
+        self.empty_state.setWordWrap(True)
+        layout.addWidget(self.empty_state)
+        self.result_cards = []
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
         self.calculators = RFToolsDialog(self, embedded=True)
         self.calculators.setMinimumHeight(900)
-        tabs.addTab(self.calculators, 'RF calculators')
+        self.tabs.addTab(self.calculators, 'RF calculators')
         network = QWidget()
         form = QVBoxLayout(network)
         title = QLabel('IPv4 / IPv6 subnet inspector')
@@ -43,7 +73,7 @@ class ToolboxPage(QWidget):
         self.copy_subnet.clicked.connect(lambda: QApplication.clipboard().setText(self.subnet_output.toPlainText()))
         form.addWidget(self.copy_subnet)
         self.address.textChanged.connect(self.clear_subnet)
-        tabs.addTab(network, 'Networking')
+        self.tabs.addTab(network, 'Networking')
         reference = QWidget()
         ref_layout = QVBoxLayout(reference)
         self.reference_search = QLineEdit()
@@ -63,8 +93,47 @@ class ToolboxPage(QWidget):
         ref_layout.addWidget(footer)
         self.reference_list.currentIndexChanged.connect(self.show_reference)
         self.reference_search.textChanged.connect(self.filter_references)
-        tabs.addTab(reference, 'References & charts')
+        self.tabs.addTab(reference, 'References & charts')
         self.filter_references('')
+        self.global_search.textChanged.connect(self.refresh_discovery)
+        self.category_filter.currentTextChanged.connect(self.refresh_discovery)
+        self.refresh_discovery()
+
+    def refresh_discovery(self, *_):
+        while self.discovery_layout.count():
+            item = self.discovery_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        matches = search_registry(self.records, self.global_search.text(), self.category_filter.currentText())
+        self.result_cards = []
+        for record in matches:
+            card = ToolCard(record, self.discovery_widget)
+            card.activated.connect(self.activate_record)
+            self.discovery_layout.addWidget(card)
+            self.result_cards.append(card)
+        self.result_count.setText(f'{len(matches)} result' + ('' if len(matches) == 1 else 's'))
+        self.empty_state.setVisible(not matches)
+        self.discovery_widget.updateGeometry()
+
+    def activate_record(self, record_id):
+        record = next((record for record in self.records if record.record_id == record_id), None)
+        if record is None:
+            return
+        if record.kind == 'calculator':
+            self.tabs.setCurrentIndex(0)
+            self.calculators.search.clear()
+            index = self.calculators.selector.findData(record.target_id)
+            if index >= 0:
+                self.calculators.selector.setCurrentIndex(index)
+        elif record.kind == 'inspector':
+            self.tabs.setCurrentIndex(1)
+            self.address.setFocus()
+        elif record.kind == 'reference':
+            self.tabs.setCurrentIndex(2)
+            self.reference_search.clear()
+            index = self.reference_list.findText(record.target_id)
+            if index >= 0:
+                self.reference_list.setCurrentIndex(index)
 
     def clear_subnet(self):
         self.subnet_output.clear()

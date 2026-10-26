@@ -69,3 +69,52 @@ class VisualToolboxTests(unittest.TestCase):
         QTest.keyClick(page.calculators.inputs['power'], Qt.Key.Key_Escape)
         self.assertTrue(page.calculators.isVisible())
         page.close()
+
+    def test_global_search_category_and_empty_state(self):
+        from veilbreaker.toolbox_ui import ToolboxPage
+        page = ToolboxPage()
+        self.assertEqual(page.result_count.text(), '18 results')
+        page.global_search.setText('RSRP SINR')
+        self.assertEqual(len(page.result_cards), 1)
+        self.assertEqual(page.result_cards[0].record.kind, 'reference')
+        page.global_search.setText('')
+        page.category_filter.setCurrentText('Networking')
+        self.assertTrue(page.result_cards)
+        self.assertTrue(all(card.record.category == 'Networking' for card in page.result_cards))
+        page.global_search.setText('nothing-can-match-this')
+        self.assertEqual(page.result_cards, [])
+        self.assertTrue(page.empty_state.isVisibleTo(page))
+        page.close()
+
+    def test_search_result_routes_to_existing_hosts(self):
+        from veilbreaker.toolbox_ui import ToolboxPage
+        page = ToolboxPage()
+        page.activate_record('calculator:fspl')
+        self.assertEqual(page.tabs.currentIndex(), 0)
+        self.assertEqual(page.calculators.selector.currentData(), 'fspl')
+        page.activate_record('inspector:subnet')
+        self.assertEqual(page.tabs.currentIndex(), 1)
+        target = next(record for record in page.records if record.kind == 'reference')
+        page.activate_record(target.record_id)
+        self.assertEqual(page.tabs.currentIndex(), 2)
+        self.assertEqual(page.reference_list.currentText(), target.title)
+        page.close()
+
+    def test_result_cards_wrap_and_keyboard_activation(self):
+        from veilbreaker.toolbox_ui import ToolboxPage
+        page = ToolboxPage()
+        page.resize(900, 640)
+        page.show()
+        self.app.processEvents()
+        self.assertEqual(page.discovery.horizontalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        first_row_y = page.result_cards[0].geometry().y()
+        self.assertEqual(page.result_cards[2].geometry().y(), first_row_y)
+        self.assertGreater(page.result_cards[3].geometry().y(), first_row_y)
+        self.assertTrue(all(card.geometry().right() <= page.discovery.viewport().width()
+                            for card in page.result_cards[:4]))
+        page.global_search.setText('free path')
+        card = page.result_cards[0]
+        card.setFocus()
+        QTest.keyClick(card, Qt.Key.Key_Return)
+        self.assertEqual(page.calculators.selector.currentData(), 'fspl')
+        page.close()

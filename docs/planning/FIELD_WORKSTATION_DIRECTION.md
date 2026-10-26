@@ -61,3 +61,12 @@ persistence, export, backward compatibility and survey storage integrity. Check 
 1366×768 and 1920×1080, including Windows 100%/125% scaling. Normal pages must not require
 horizontal scrolling. Hardware validation and actual field accuracy remain separate from
 synthetic UI and calculation tests.
+
+## Implementation status — searchable Tools framework
+
+The first framework phase now registers the existing RF calculators, subnet inspector and
+offline reference articles in one discovery catalog. Global multi-term search, domain and
+reference category filters, responsive reusable cards, no-match guidance and keyboard opening
+route users into the existing tool hosts. Calculation logic and evidence behavior are unchanged.
+The registry is the extension point for the next high-value calculator and reference batches.
+Presets, equipment records, tool chaining and attachments remain later integration phases.
