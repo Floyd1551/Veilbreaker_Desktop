@@ -1,7 +1,7 @@
 """Offline toolbox workspace: calculations, address planning and field references."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel, QLineEdit,
-                              QPushButton, QTextBrowser, QComboBox, QApplication, QScrollArea)
+                              QPushButton, QTextBrowser, QComboBox, QApplication, QScrollArea, QTabBar)
 from .rf_tools_ui import RFToolsDialog
 from .network_tools import inspect_subnet
 from .toolbox_reference import REFERENCES
@@ -10,6 +10,7 @@ from .tool_cards import ToolCard
 from .wifi_channels_ui import WifiChannelsPanel
 from .cell_channel_ui import CellChannelPanel
 from .cell_signal_ui import CellSignalPanel
+from .tool_workspace_ui import ReferenceArticle
 from .widgets import FlowLayout
 
 
@@ -49,10 +50,15 @@ class ToolboxPage(QWidget):
         self.empty_state.setWordWrap(True)
         layout.addWidget(self.empty_state)
         self.result_cards = []
-        self.tabs = QTabWidget()
-        layout.addWidget(self.tabs)
+        self.workspace_tabs = QTabWidget()
+        self.workspace_tabs.setAccessibleName('Open Tools workspace tabs')
+        self.workspace_tabs.setTabsClosable(True)
+        self.workspace_tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        self.workspace_tabs.setUsesScrollButtons(True)
+        layout.addWidget(self.workspace_tabs)
+        self.tabs = QTabWidget(self.workspace_tabs)
+        self.opened_tabs = {}
         self.calculators = RFToolsDialog(self, embedded=True)
-        self.calculators.setMinimumHeight(900)
         self.tabs.addTab(self.calculators, 'Calculators')
         network = QWidget()
         form = QVBoxLayout(network)
@@ -103,10 +109,26 @@ class ToolboxPage(QWidget):
         self.reference_list.currentIndexChanged.connect(self.show_reference)
         self.reference_search.textChanged.connect(self.filter_references)
         self.tabs.addTab(reference, 'References & charts')
+        self.workspace_tabs.addTab(self.tabs, 'Browse tools')
+        self.workspace_tabs.tabBar().setTabButton(0, QTabBar.ButtonPosition.LeftSide, None)
+        self.workspace_tabs.tabBar().setTabButton(0, QTabBar.ButtonPosition.RightSide, None)
+        self.workspace_tabs.tabCloseRequested.connect(self.close_workspace_tab)
+        self.workspace_tabs.currentChanged.connect(self._workspace_tab_changed)
         self.filter_references('')
         self.global_search.textChanged.connect(self.refresh_discovery)
+        self.global_search.textChanged.connect(self._show_browse_for_search)
         self.category_filter.currentTextChanged.connect(self.refresh_discovery)
         self.refresh_discovery()
+
+    def _workspace_tab_changed(self, index):
+        browsing = index == 0
+        self.result_count.setVisible(browsing)
+        self.discovery.setVisible(browsing)
+        self.empty_state.setVisible(browsing and not self.result_cards)
+
+    def _show_browse_for_search(self, *_):
+        if self.workspace_tabs.currentIndex() != 0:
+            self.workspace_tabs.setCurrentIndex(0)
 
     def refresh_discovery(self, *_):
         while self.discovery_layout.count():
@@ -117,17 +139,55 @@ class ToolboxPage(QWidget):
         self.result_cards = []
         for record in matches:
             card = ToolCard(record, self.discovery_widget)
-            card.activated.connect(self.activate_record)
+            card.activated.connect(self.open_record_tab)
             self.discovery_layout.addWidget(card)
             self.result_cards.append(card)
         self.result_count.setText(f'{len(matches)} result' + ('' if len(matches) == 1 else 's'))
-        self.empty_state.setVisible(not matches)
+        self.empty_state.setVisible(not matches and self.workspace_tabs.currentIndex() == 0)
         self.discovery_widget.updateGeometry()
+
+    def open_record_tab(self, record_id):
+        record = next((item for item in self.records if item.record_id == record_id), None)
+        if record is None:
+            return
+        if record.kind not in ('calculator', 'reference'):
+            self.activate_record(record_id)
+            return
+        existing = self.opened_tabs.get(record_id)
+        if existing is not None:
+            self.workspace_tabs.setCurrentWidget(existing)
+            return
+        if record.kind == 'calculator':
+            widget = RFToolsDialog(self.workspace_tabs, embedded=True)
+            widget.search.setText(record.title)
+            if widget.selector.currentData() != record.target_id:
+                widget.deleteLater()
+                return
+            widget.search.hide()
+            widget.selector.hide()
+        else:
+            markup = next((body for title, body in REFERENCES if title == record.target_id), None)
+            if markup is None:
+                return
+            widget = ReferenceArticle(record.title, markup, self.workspace_tabs)
+        index = self.workspace_tabs.addTab(widget, record.title)
+        self.workspace_tabs.setTabToolTip(index, record.title)
+        self.opened_tabs[record_id] = widget
+        self.workspace_tabs.setCurrentIndex(index)
+
+    def close_workspace_tab(self, index):
+        if index <= 0 or index >= self.workspace_tabs.count():
+            return
+        widget = self.workspace_tabs.widget(index)
+        self.opened_tabs = {key: value for key, value in self.opened_tabs.items() if value is not widget}
+        self.workspace_tabs.removeTab(index)
+        widget.deleteLater()
 
     def activate_record(self, record_id):
         record = next((record for record in self.records if record.record_id == record_id), None)
         if record is None:
             return
+        self.workspace_tabs.setCurrentIndex(0)
         if record.kind == 'calculator':
             self.tabs.setCurrentIndex(0)
             self.calculators.search.clear()

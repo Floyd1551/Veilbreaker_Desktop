@@ -25,8 +25,9 @@ class ToolCard(QFrame):
         purpose.setWordWrap(True)
         purpose.setMaximumHeight(66)
         layout.addWidget(purpose)
-        self.open_button = QPushButton('Open')
-        self.open_button.setAccessibleName('Open ' + record.title)
+        tabbed = record.kind in ('calculator', 'reference')
+        self.open_button = QPushButton('Open tab' if tabbed else 'Open')
+        self.open_button.setAccessibleName('Open ' + record.title + (' in tab' if tabbed else ''))
         self.open_button.clicked.connect(lambda: self.activated.emit(record.record_id))
         layout.addWidget(self.open_button)
 
