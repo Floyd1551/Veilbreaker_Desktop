@@ -413,6 +413,8 @@ def export_session(config, path, destination=None):
                                               ('metadata.json','survey-map-metadata.json')):
                 shutil.copyfile(imagery['asset_dir']/source, folder/destination_name)
         atomic_json(folder / "survey.json", session)
+        from .survey_spatial import export_spatial
+        export_spatial(config, path, folder)
         (folder / "README.txt").write_text("Each step retains its original evidence. Point notes and survey imagery are annotations and do not rewrite original run evidence. Imagery source, bounds and preparation date accompany attached map assets. Missing values are blank, never zero. Compare equivalent tests and receiver settings; differing test flags or antenna placement can change results. Recovered/partial measurements remain explicitly labeled.\n", encoding="utf-8")
         write_manifest(folder, {"survey_id": session["survey_id"], "site_id": session["site_id"], "status": session["status"]})
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:

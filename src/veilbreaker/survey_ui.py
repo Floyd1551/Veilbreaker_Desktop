@@ -190,8 +190,9 @@ class SurveyPage(QWidget):
         for control in (self.report_button, self.export_button, self.compare_visit_button, self.trend_button):
             layout.removeWidget(control)
             report_actions.addWidget(control)
-        self.map_button = button('Map survey GPS', self.view_map)
+        self.map_button = button('Survey map', self.view_map)
         report_actions.addWidget(self.map_button)
+        report_actions.addWidget(button('Place points / floor plans…', self.place_points))
         self.imagery_button = button('Prepare report map…', self.prepare_report_map)
         report_actions.addWidget(self.imagery_button)
         layout.insertLayout(3, report_actions)
@@ -546,6 +547,15 @@ class SurveyPage(QWidget):
         from .map_sources import load_survey_map_data
         try: self.window.show_map(load_survey_map_data(self.window.config, self.session_path))
         except (OSError, ValueError, KeyError) as exc: self.window.error(str(exc))
+
+    def place_points(self):
+        if not self.session_path:
+            return
+        from .survey_spatial_ui import SpatialDialog
+        try:
+            SpatialDialog(self.window, self.window.config, self.session_path).exec()
+        except (OSError, ValueError, KeyError) as exc:
+            self.window.error(str(exc))
 
     def prepare_report_map(self):
         if not self.session_path:

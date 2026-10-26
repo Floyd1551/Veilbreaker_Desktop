@@ -283,3 +283,8 @@ Added next-point guidance, passive readiness against saved point settings, expli
 ## Live phone survey points â€” 0.41.0rc1
 
 Survey details can now pair an authorized USB phone and capture directly into the next unrun point, using its saved diagnostic settings. Each phone capture pauses after one point, including in batch surveys; pairing credentials are transient and changed point/settings contexts are rejected before acquisition. Partial phone evidence stays attached to its point. See [workflow and limits](release-0.41.0rc1.md). Real Samsung survey qualification and automatic multi-point phone sessions remain open.
+
+
+## Manual spatial placement — October 26, 2026
+
+Source implementation adds operator map/floor-plan placement, independent floor images, scale calibration, unplaced measurement count, audit history and portable survey assets. GPS evidence remains unchanged. See [placement workflow](manual-survey-placement.md) and [field workstation direction](planning/FIELD_WORKSTATION_DIRECTION.md). Measured metric coloring, floor annotations, report floor rendering and guarded interpolation remain open. The existing installer has not been rebuilt for this source phase.

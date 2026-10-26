@@ -23,9 +23,10 @@ function install(){
  map.addSource('measurements',{type:'geojson',data:model.features});map.addSource('accuracy',{type:'geojson',data:empty()});
  map.addLayer({id:'uncertainty',type:'fill',source:'accuracy',paint:{'fill-color':'#63dec8','fill-opacity':0.18}});
  map.addLayer({id:'uncertainty-border',type:'line',source:'accuracy',paint:{'line-color':'#63dec8','line-width':1}});
- map.addLayer({id:'points',type:'circle',source:'measurements',paint:{'circle-radius':7,'circle-color':['case',['==',['get','label',['get','quality']],'Qualified fix'],'#63dec8','#f3ad54'],'circle-stroke-width':2,'circle-stroke-color':'#101722'}});
+ map.addLayer({id:'points',type:'circle',source:'measurements',paint:{'circle-radius':7,'circle-color':['case',['==',['get','manual'],true],'#ba95f5',['==',['get','label',['get','quality']],'Qualified fix'],'#63dec8','#f3ad54'],'circle-stroke-width':2,'circle-stroke-color':'#101722'}});
  map.addLayer({id:'selected',type:'circle',source:'measurements',filter:['==',['get','id'],''],paint:{'circle-radius':11,'circle-color':'transparent','circle-stroke-width':3,'circle-stroke-color':'#ffffff'}});
  map.on('click','points',e=>{if(e.features.length)bridge.selectFeature(String(e.features[0].properties.id));});
+ map.on('click',e=>bridge.pickCoordinate(((e.lngLat.lng+180)%360+360)%360-180,e.lngLat.lat));
  map.on('mouseenter','points',()=>map.getCanvas().style.cursor='pointer');map.on('mouseleave','points',()=>map.getCanvas().style.cursor='');
  if(model.cell_overlay){
   const o=model.cell_overlay;

@@ -14,6 +14,16 @@ class MapBridge(QObject):
     @Slot(str)
     def selectFeature(self,feature_id):
         if feature_id in {r['id'] for r in self.window.visible_rows}:self.window.select_feature(feature_id)
+    @Slot(float,float)
+    def pickCoordinate(self, longitude, latitude):
+        if self.window.pick_callback is not None:
+            from .survey_spatial import _number
+            try:
+                longitude = _number(longitude, -180, 180)
+                latitude = _number(latitude, -85.05112878, 85.05112878)
+            except ValueError:
+                return
+            self.window.pick_callback(longitude, latitude)
     @Slot()
     def ready(self):
         self.window.ready=True;self.window.renderer_status.setText('Offline map ready · receiver positions, not tower locations')
@@ -22,11 +32,12 @@ class MapBridge(QObject):
         self.window.renderer_status.setText('Map unavailable: '+message[:240]+'. Evidence remains available below.')
 
 class MapWindow(QDialog):
-    def __init__(self,parent,model,open_run,enable_web=True,restore_pack=True,config=None):
+    def __init__(self,parent,model,open_run,enable_web=True,restore_pack=True,config=None,pick_callback=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setWindowTitle('Veilbreaker · Survey map');self.resize(1200,850)
         self.config=config;self.cell_overlay=None
+        self.pick_callback=pick_callback
         self.model=model;self.open_run_callback=open_run;self.selected=None;self.ready=False;self.web=None
         self.bridge=MapBridge(self);self.settings=QSettings('Veilbreaker','Maps')
         from .map_catalog import PackCatalog
@@ -34,6 +45,9 @@ class MapWindow(QDialog):
         self.server=MapServer(Path(__file__).parent/'assets/maps');self.server.start()
         outer=QVBoxLayout(self)
         title=QLabel('Survey map');title.setObjectName('title');outer.addWidget(title)
+        if pick_callback:
+            hint=QLabel('Placement mode: click the map to choose coordinates, then review and save in the placement editor.')
+            hint.setWordWrap(True);outer.addWidget(hint)
         self.summary=QLabel();self.summary.setWordWrap(True);outer.addWidget(self.summary)
         actions=QHBoxLayout()
         def action(text,callback):
@@ -85,7 +99,7 @@ class MapWindow(QDialog):
     def visible_features(self):
         run=self.run_filter.currentData();questionable=self.questionable.isChecked()
         return [f for f in self.model['features']['features'] if (run is None or f['properties']['run_id']==run) and
-                ((f['properties']['quality']['qualified'] and (run is not None or f['id'] in self.model['representatives'])) or (questionable and not f['properties']['quality']['qualified']))]
+                (f['properties'].get('manual') or (f['properties']['quality']['qualified'] and (run is not None or f['id'] in self.model['representatives'])) or (questionable and not f['properties']['quality']['qualified']))]
     def update_view(self):
         features=self.visible_features();ids={f['id'] for f in features};run=self.run_filter.currentData()
         coordinate_ids={f['id'] for f in self.model['features']['features']}
@@ -96,6 +110,8 @@ class MapWindow(QDialog):
                 self.table.setItem(i,j,QTableWidgetItem('Not exposed' if value is None else str(value)))
         self.table.blockSignals(False);self.selected=None;self.open_button.setEnabled(False)
         counts=self.model['counts'];self.summary.setText(f"{counts['mapped']} qualified plottable observations · {counts['questionable']} questionable fixes · {counts['unpositioned_runs']} runs without a qualified position" + (' · '+ ' '.join(self.model['warnings'][:3]) if self.model['warnings'] else ''))
+        if counts.get('manual'):
+            self.summary.setText(self.summary.text()+f" · {counts['manual']} manual placements (purple; not GPS)")
         self.summary.setTextFormat(Qt.TextFormat.PlainText)
         if not self.model['rows']:self.details.setText('No GPS evidence. Enable phone location during capture, then open the saved diagnostic or survey here.')
         else:self.details.setText('Select a measurement. Questionable fixes are hidden until enabled.')

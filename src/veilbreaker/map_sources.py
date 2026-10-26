@@ -39,6 +39,9 @@ def load_survey_map_data(config,survey_path):
     store=core.VeilbreakerStore(config.db_path)
     try:
         model=_build([_run(config,store,str(s['run_id']),s.get('label')) for s in steps])
+        from .survey_spatial import load_spatial, add_manual_features
+        if path.resolve().parent == (config.root / 'surveys').resolve():
+            add_manual_features(model, load_spatial(config, path), steps)
         model['survey_path']=str(path)
         return model
     finally:store.close()
