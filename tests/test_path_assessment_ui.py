@@ -12,6 +12,15 @@ from test_terrain_raster import make_dem
 class PathUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
+    def test_path_dialog_fits_field_width(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            context=dict(run_id='synthetic',observation=dict(location=dict(longitude_deg=-86.6,latitude_deg=34.7)),
+                         candidate=dict(lon=-86.5,lat=34.8,verification='operator-entered'))
+            dialog=PathAssessmentDialog(None,AppConfig(data_dir=tmp),context)
+            dialog.resize(900,650)
+            dialog.show();self.app.processEvents()
+            self.assertLessEqual(dialog.width(),900)
+            dialog.close()
     def test_calculate_and_changed_input_invalidates(self):
         with tempfile.TemporaryDirectory() as tmp:
             path=Path(tmp)/'dem.tif';make_dem(path)
@@ -58,4 +67,40 @@ class PathUITests(unittest.TestCase):
             dialog.run_assessment()
             self.assertIsNone(dialog.worker)
             self.assertIn('reselect', dialog.status.text().lower())
+            dialog.close()
+
+    def test_installed_coverage_selects_adjacent_tiles_and_assesses_path(self):
+        from veilbreaker.regional_packs import RegionalPackStore
+        from tests.test_terrain_tiles import tile
+        with tempfile.TemporaryDirectory() as tmp:
+            config = AppConfig(data_dir=tmp)
+            store = RegionalPackStore(config.root / 'regional-packs')
+            for west, name, elevation in [(-97.0, 'West', 100), (-96.99, 'East', 110)]:
+                source = Path(tmp) / (name + '.tif')
+                tile(source, west, elevation)
+                store.install_local('terrain', source,
+                                    dict(name=name, source='Synthetic', license='Test only',
+                                         source_date='2026-10-27', vertical_datum='NAVD88', units='m'), lambda: False)
+            context = dict(run_id='synthetic', observation=dict(location=dict(longitude_deg=-96.999, latitude_deg=32.995)),
+                           candidate=dict(lon=-96.981, lat=32.995, verification='operator-entered'))
+            dialog = PathAssessmentDialog(None, config, context)
+            self.assertTrue(dialog.use_installed_coverage())
+            self.assertEqual(len(dialog.selected_packs), 2)
+            dialog.receiver.setValue(10)
+            dialog.site.setValue(10)
+            dialog.confirm.setChecked(True)
+            dialog.run_assessment()
+            deadline = time.monotonic() + 10
+            while dialog.worker is not None and time.monotonic() < deadline:
+                self.app.processEvents()
+                time.sleep(.01)
+            self.assertIsNone(dialog.worker)
+            self.assertIsNotNone(dialog.assessment, dialog.status.text())
+            self.assertEqual(len(dialog.assessment['regional_packs']), 2)
+            self.assertNotIn(None, dialog.assessment['terrain']['elevations_m'])
+            from veilbreaker.path_assessment_report import assessment_html
+            report = assessment_html(dialog.assessment)
+            self.assertIn('West', report)
+            self.assertIn('East', report)
+            self.assertIn('Sample count', report)
             dialog.close()

@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.51.0rc1** adds a regional pack manager for terrain GeoTIFFs and physical-structure GeoJSON references. It supports a Huntsville, Alabama search extent, USGS terrain catalog search, explicit HTTPS downloads, checksum verification, visible source/coverage metadata, and use of installed terrain in path assessments. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.52.0rc1** adds cross-tile terrain assessment on top of the regional pack manager. Compatible installed rasters can now contribute to one LOS/Fresnel path, with per-tile source, coverage, checksum and sample counts shown in the report. Huntsville terrain product search and physical-structure reference packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
 
 ## Windows installation
 
-Run `Veilbreaker-0.51.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.52.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 

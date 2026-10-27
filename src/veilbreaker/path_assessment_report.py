@@ -41,5 +41,12 @@ def assessment_html(value):
         parts.append('<p><img width="960" src="data:image/png;base64,'+value['profile_png']+'" alt="Terrain profile"></p>')
     parts.append(table(['Receiver AGL m','Site antenna AGL m','Frequency MHz','Earth factor','Fresnel fraction'],[[profile[k] for k in ('receiver_agl_m','site_agl_m','frequency_mhz','earth_factor','fresnel_fraction')]]))
     parts.append('<p>Prepared: '+text(value.get('prepared_utc'))+'<br>Endpoint: '+text(context['candidate'].get('verification','Estimated reference'))+'; '+text(value['terrain']['endpoints'])+'<br>DEM: '+text(dem['source'])+'; datum '+text(dem['vertical_datum'])+'; units '+text(dem['units'])+'; CRS '+text(dem['crs'])+'<br>DEM SHA-256: '+text(dem['sha256'])+'<br>Sample spacing: '+text(dem['sample_spacing_m'])+' m; nearest-cell sampling.</p>')
+    if value.get('regional_packs'):
+        parts.append('<h3>Installed terrain sources</h3>')
+        parts.append(table(['Tile','Source / date','WGS84 bounds','SHA-256','Sample count'],
+                           [[row['name'],f"{row['source']} · {row['source_date']}",row['bounds_wgs84'],
+                             row['sha256'],row['sample_count']] for row in value['regional_packs']]))
+        parts.append('<p>Missing terrain samples: '+text(value['terrain'].get('missing_samples',0))+
+                     '. Overlapping valid cells use the finer raster. Missing samples remain missing; no terrain is interpolated across gaps.</p>')
     parts.append('<p>Conditional on the selected reference location and operator-entered antenna heights. Bare-earth terrain omits buildings, vegetation and sub-pixel obstructions. No sampled obstruction is not a guarantee of coverage, visibility or connectivity.</p>')
     return '\n'.join(parts)

@@ -1,6 +1,7 @@
 """Local-only regional GeoTIFF sampling. GIS dependencies are imported lazily."""
 import hashlib
 import math
+from contextlib import ExitStack
 from pathlib import Path
 
 
@@ -93,3 +94,109 @@ def sample_path(path,start_lonlat,end_lonlat,declared_metadata,cancelled):
                     horizontal_transform_accuracy_m=forward.accuracy)
     return dict(distances_m=distances,elevations_m=elevations,dem=metadata,coordinates=points,
                 endpoints=[list(start_lonlat),list(end_lonlat)])
+
+
+def sample_path_tiles(tiles, start_lonlat, end_lonlat, cancelled):
+    """Sample one geodesic across compatible local DEM tiles without filling gaps."""
+    if not isinstance(tiles, (list, tuple)) or not 1 <= len(tiles) <= 16:
+        raise ValueError('Select 1–16 installed terrain tiles.')
+    for point in (start_lonlat, end_lonlat):
+        if (len(point) != 2 or any(type(v) not in (int, float) or not math.isfinite(v) for v in point)
+                or not -180 <= point[0] <= 180 or not -85 <= point[1] <= 85):
+            raise ValueError('Invalid or unsupported endpoint coordinates.')
+    def check():
+        if cancelled():
+            raise ValueError('Terrain assessment cancelled.')
+    check()
+    import numpy as np
+    import rasterio
+    from pyproj import Geod, Transformer, network
+    network.set_network_enabled(False)
+    geod = Geod(ellps='WGS84')
+    azimuth, _, length = geod.inv(*start_lonlat, *end_lonlat)
+    if not 0 < length <= 100000:
+        raise ValueError('Select distinct endpoints no more than 100 km apart.')
+    entries = []
+    with ExitStack() as stack:
+        stack.enter_context(rasterio.Env(GDAL_PAM_ENABLED='NO', GDAL_DISABLE_READDIR_ON_OPEN='EMPTY_DIR',
+                                         PROJ_NETWORK='OFF', GDAL_CACHEMAX=64 * 1024 * 1024))
+        for spec in tiles:
+            if not isinstance(spec, dict) or not isinstance(spec.get('metadata'), dict):
+                raise ValueError('Invalid terrain tile selection.')
+            path = _path(spec.get('path'))
+            before = path.stat()
+            digest = hashlib.sha256()
+            with path.open('rb') as stream:
+                while chunk := stream.read(1024 * 1024):
+                    check()
+                    digest.update(chunk)
+            expected = spec.get('sha256')
+            if expected and digest.hexdigest() != expected:
+                raise ValueError('Installed terrain tile checksum changed. Reverify or reinstall it.')
+            ds = stack.enter_context(rasterio.open(path, driver='GTiff'))
+            metadata = _metadata(ds, path, spec['metadata'])
+            metadata['sha256'] = digest.hexdigest()
+            forward = Transformer.from_crs('EPSG:4326', ds.crs, always_xy=True,
+                                           allow_ballpark=False, only_best=True)
+            backward = Transformer.from_crs(ds.crs, 'EPSG:4326', always_xy=True,
+                                            allow_ballpark=False, only_best=True)
+            resolutions = []
+            for i in range(17):
+                lon, lat, _ = geod.fwd(*start_lonlat, azimuth, length * i / 16)
+                x, y = forward.transform(lon, lat, errcheck=True)
+                for dx, dy in ((ds.transform.a, ds.transform.d), (ds.transform.b, ds.transform.e)):
+                    q = backward.transform(x + dx, y + dy, errcheck=True)
+                    resolution = abs(geod.inv(lon, lat, *q)[2])
+                    if not math.isfinite(resolution) or resolution <= 0:
+                        raise ValueError('Cannot establish terrain resolution.')
+                    resolutions.append(resolution)
+            entries.append(dict(path=path, before=before, dataset=ds, metadata=metadata,
+                                forward=forward, resolution=min(resolutions),
+                                pack_id=spec.get('pack_id'), sample_count=0))
+        datums = {entry['metadata']['vertical_datum'] for entry in entries}
+        units = {entry['metadata']['units'] for entry in entries}
+        if len(datums) != 1:
+            raise ValueError('Terrain tiles have different vertical datum declarations.')
+        if len(units) != 1:
+            raise ValueError('Terrain tiles have different elevation units.')
+        minimum_pixel = min(entry['resolution'] for entry in entries)
+        count = max(3, math.ceil(length / (minimum_pixel / 2)) + 1)
+        if count > 4096:
+            raise ValueError('Path needs more than 4096 samples at this DEM resolution. Choose a shorter path or coarser terrain.')
+        distances = [length * i / (count - 1) for i in range(count)]
+        points = [geod.fwd(*start_lonlat, azimuth, distance)[:2] for distance in distances]
+        elevations = [None] * count
+        conversion = {'m': 1., 'ft': .3048, 'us-ft': 1200 / 3937}[next(iter(units))]
+        # Prefer the finer raster in overlap; a no-data cell may fall through to another tile.
+        for entry in sorted(entries, key=lambda item: item['resolution']):
+            ds = entry['dataset']
+            coords = [entry['forward'].transform(*point, errcheck=True) for point in points]
+            for index, ((x, y), sample) in enumerate(zip(coords, ds.sample(coords, indexes=1, masked=True))):
+                check()
+                if elevations[index] is not None:
+                    continue
+                row, col = ds.index(x, y)
+                if 0 <= row < ds.height and 0 <= col < ds.width and not bool(np.ma.getmaskarray(sample)[0]):
+                    z = (float(sample[0]) * ds.scales[0] + ds.offsets[0]) * conversion
+                    if math.isfinite(z):
+                        elevations[index] = z
+                        entry['sample_count'] += 1
+        for entry in entries:
+            after = entry['path'].stat()
+            before = entry['before']
+            if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+                raise ValueError('DEM changed while it was being read. Retry with stable files.')
+    records = [dict(pack_id=entry['pack_id'], name=entry['metadata']['name'],
+                    source=entry['metadata']['source'], vertical_datum=entry['metadata']['vertical_datum'],
+                    units=entry['metadata']['units'], crs=entry['metadata']['crs'],
+                    sha256=entry['metadata']['sha256'], sample_count=entry['sample_count'],
+                    minimum_pixel_m=entry['resolution']) for entry in entries]
+    combined_hash = hashlib.sha256(''.join(row['sha256'] for row in records).encode('ascii')).hexdigest()
+    dem = dict(source='Installed terrain mosaic', vertical_datum=next(iter(datums)),
+               units=next(iter(units)), crs='multiple rasters' if len({row['crs'] for row in records}) > 1 else records[0]['crs'],
+               sha256=combined_hash, sample_spacing_m=length / (count - 1),
+               minimum_pixel_m=minimum_pixel, sampling='nearest raster cell; finer tile first; no interpolation',
+               tile_count=len(records))
+    return dict(distances_m=distances, elevations_m=elevations, dem=dem, tiles=records,
+                missing_samples=elevations.count(None), coordinates=points,
+                endpoints=[list(start_lonlat), list(end_lonlat)])

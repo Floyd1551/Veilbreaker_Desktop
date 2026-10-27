@@ -7,16 +7,17 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [x] Windows/Linux source and CLI, Windows installer, offline reports, run history and evidence exports.
 - [x] Receive-only HackRF capture and Android companion import/live USB input paths.
 - [x] Survey sessions, saved runs, manual geographic and multi-floor plan placement, and portable survey assets.
-- [x] Offline map foundation, local cell-reference import, single-raster terrain profile and LOS/Fresnel assessment.
+- [x] Offline map foundation, local cell-reference import, and single/multi-raster terrain LOS/Fresnel assessment.
 - [x] Searchable offline Tools, multiple calculator/reference tabs, saved input presets and initial RF/network/fiber/PoE tools.
 - [x] Explicit FSPL-to-Link-budget calculation handoff with source limitations retained.
 - [x] Managed regional single-raster terrain and physical-structure GeoJSON packs; in-app import/download, bounds and provenance, checksum verification, and terrain assessment handoff.
+- [x] Cross-tile local terrain sampling with datum/unit checks, per-tile hashes and provenance, and explicit no-data gaps.
 
 ## In progress or limited
 
-- [ ] Complete area preparation across adjacent terrain tiles, verified tower/cell providers and offline imagery packs. The first manager handles one terrain raster or one structure GeoJSON per pack.
+- [ ] Complete area preparation with coverage gap preview, verified tower/cell providers and offline imagery packs. The manager handles one terrain raster or one structure GeoJSON per pack; assessments can use several compatible terrain packs.
 - [ ] Authorized real tower and cell datasets, with physical structures distinct from estimated cell sites and serving-cell identity.
-- [ ] Terrain catalog covering adjacent tiles, datum/units checks and missing-data handling across tile boundaries.
+- [ ] Automated adjacent-tile catalog preparation and field qualification of real terrain boundaries. The local sampler handles compatible installed tiles and missing data.
 - [ ] Survey measured-point metric colors, legends, identity/source filtering and detail cards across geographic and floor-plan views.
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
 - [ ] Environmental observations and attaching calculation snapshots to surveys, points and reports.
