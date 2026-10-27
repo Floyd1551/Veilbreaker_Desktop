@@ -14,6 +14,7 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [x] Cross-tile local terrain sampling with datum/unit checks, per-tile hashes and provenance, and explicit no-data gaps.
 - [x] Seven-workspace desktop navigation, explanatory collector cards, Evidence utilities, and separated Configuration/Settings controls.
 - [x] Local vector icons for navigation, collector and Tools cards; Veilbreaker emblem in sidebar and Overview.
+- [x] Collector readiness snapshot labels in Investigate, with missing and untested states distinct from actual connection claims.
 
 ## In progress or limited
 
@@ -24,7 +25,7 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
 - [ ] Environmental observations and attaching calculation snapshots to surveys, points and reports.
 - [ ] Broader offline reference/tool library and field workflows from the approved inventory.
-- [ ] Live hardware status cards, contextual Evidence actions, and deeper visual polish from the approved UI direction.
+- [ ] Live hardware connection status cards, contextual Evidence actions, and deeper visual polish from the approved UI direction. Readiness labels are prerequisite snapshots only.
 
 ## 1.0 release gates
 

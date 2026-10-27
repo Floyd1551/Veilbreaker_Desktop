@@ -77,6 +77,31 @@ class WorkspaceTests(unittest.TestCase):
             self.assertEqual(check.parentWidget().objectName(), 'collectorCard')
             self.assertTrue(check.parentWidget().findChildren(type(self.window.run_plan)))
 
+    def test_readiness_badges_distinguish_missing_and_untested(self):
+        self.assertEqual(self.window.collector_badges['sdr'].text(), 'Not checked')
+        self.window.flags['sdr'].setChecked(True)
+        self.window.show_readiness_badges({'selected': ['sdr'], 'rows': [
+            {'item': 'hackrf_info', 'state': 'Available'},
+            {'item': 'hackrf_sweep', 'state': 'Missing'},
+            {'item': 'HackRF connection', 'state': 'Untested'},
+        ]})
+        self.assertEqual(self.window.collector_badges['sdr'].text(), 'Prerequisite missing')
+        self.assertEqual(self.window.collector_badges['cellular'].text(), 'Not checked')
+        self.window.flags['sdr'].setChecked(False)
+        self.assertEqual(self.window.collector_badges['sdr'].text(), 'Not checked')
+
+    def test_available_prerequisites_do_not_claim_hardware_connected(self):
+        self.window.show_readiness_badges({'selected': ['cellular'], 'rows': [
+            {'item': 'Modem serial support', 'state': 'Available'},
+            {'item': 'Modem configuration', 'state': 'Configured'},
+            {'item': 'Modem connection', 'state': 'Untested'},
+        ]})
+        self.assertEqual(self.window.collector_badges['cellular'].text(), 'Connection untested')
+
+    def test_empty_readiness_rows_do_not_claim_prerequisites_checked(self):
+        self.window.show_readiness_badges({'selected': ['throughput'], 'rows': []})
+        self.assertEqual(self.window.collector_badges['throughput'].text(), 'Not checked')
+
     def test_evidence_utilities_are_on_evidence_page(self):
         self.assertIsNotNone(self.window.verify_evidence_button)
         self.assertIsNotNone(self.window.recover_button)

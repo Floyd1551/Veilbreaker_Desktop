@@ -41,6 +41,9 @@ QFrame#card QLabel { background: transparent; border: none; }
 QFrame#card QCheckBox { background: transparent; }
 QFrame#collectorCard { background: #172131; border: 1px solid #2a394e; border-radius: 8px; }
 QFrame#collectorCard QLabel, QFrame#collectorCard QCheckBox { background: transparent; border: none; }
+QLabel#collectorState { color: #98aac0; font-size: 11px; }
+QLabel#collectorState[severity="missing"] { color: #ff929c; }
+QLabel#collectorState[severity="untested"] { color: #f5c46b; }
 QFrame#taskBanner { background: #1c3540; border-bottom: 1px solid #3b6b6c; }
 QLabel#section { font-size: 18px; font-weight: 600; color: #f4f8ff; }
 QListWidget { background: transparent; border: none; outline: none; }
@@ -398,6 +401,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(label("SELECT COLLECTORS", "eyebrow"))
         options = FlowLayout()
         self.flags = {}
+        self.collector_badges = {}
         for key, title, tip in [
             ("active", "Ping + DNS", "Send bounded ping and DNS measurements to configured targets."),
             ("guided", "Guided follow-up", "Also permits active tests and one supported follow-up cycle."),
@@ -426,8 +430,13 @@ class MainWindow(QMainWindow):
             description = label(tip, "muted")
             description.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             card_layout.addWidget(description)
+            state = label('Not checked', 'collectorState')
+            state.setAccessibleName(title + ' readiness status')
+            state.setToolTip('Run the selected-test readiness check for a prerequisite snapshot. Device connectivity is not checked here.')
+            card_layout.addWidget(state)
             options.addWidget(card)
             self.flags[key] = check
+            self.collector_badges[key] = state
         options_panel = QWidget()
         options_panel.setObjectName("surfaceContainer")
         options_panel.setLayout(options)
@@ -436,6 +445,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.run_plan)
         for check in self.flags.values():
             check.toggled.connect(self.update_run_plan)
+            check.toggled.connect(self.reset_readiness_badges)
         self.update_run_plan()
         actions = FlowLayout()
         self.run_button = button("Run diagnostic", self.run_diagnostic, True)
@@ -854,7 +864,44 @@ class MainWindow(QMainWindow):
         self.nav.setCurrentRow(4)
         self.readiness_caption.setText("Checking selected prerequisites… No acquisition or connectivity tests will run.")
         self.readiness_table.setRowCount(0)
+        self.reset_readiness_badges()
         self.start_job('readiness', options={key: control.isChecked() for key, control in self.flags.items()})
+
+    def reset_readiness_badges(self):
+        for state in self.collector_badges.values():
+            state.setText('Not checked')
+            state.setProperty('severity', '')
+            state.style().unpolish(state)
+            state.style().polish(state)
+
+    def show_readiness_badges(self, snapshot):
+        self.reset_readiness_badges()
+        items = {
+            'active': {'ping', 'Ping / DNS targets'},
+            'guided': {'ping', 'Ping / DNS targets'},
+            'cellular': {'Modem serial support', 'Modem configuration', 'Modem connection'},
+            'starlink': {'Starlink backend', 'Starlink endpoint'},
+            'sdr': {'hackrf_info', 'hackrf_sweep', 'SDR ranges', 'HackRF connection'},
+            'throughput': {'iperf3', 'Throughput server'},
+        }
+        for key in snapshot.get('selected', []):
+            if key not in self.collector_badges:
+                continue
+            states = {row.get('state') for row in snapshot.get('rows', [])
+                      if row.get('item') in items[key]}
+            if not states:
+                continue
+            if 'Missing' in states:
+                text, severity = 'Prerequisite missing', 'missing'
+            elif 'Untested' in states:
+                text, severity = 'Connection untested', 'untested'
+            else:
+                text, severity = 'Prerequisites checked', ''
+            badge = self.collector_badges[key]
+            badge.setText(text)
+            badge.setProperty('severity', severity)
+            badge.style().unpolish(badge)
+            badge.style().polish(badge)
 
     def run_diagnostic(self):
         options = {key: check.isChecked() for key, check in self.flags.items()}
@@ -1071,6 +1118,7 @@ class MainWindow(QMainWindow):
                     self.statusBar().showMessage('Survey prerequisite check finished. No acquisition started.')
                 elif "readiness" in obj["result"]:
                     check = obj['result']['readiness']
+                    self.show_readiness_badges(check)
                     fill(self.readiness_table, [[r['item'], r['state'], r['detail']] for r in check['rows']])
                     self.readiness_caption.setText(f"Snapshot checked {check['checked_utc']} • Site: {check['site_id']} • Scenario: {check['scenario']} • Selected: {', '.join(check['selected']) or 'passive only'}. Recheck after changing settings or devices.")
                     self.nav.setCurrentRow(4)
