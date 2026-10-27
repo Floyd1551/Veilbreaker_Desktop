@@ -55,6 +55,22 @@ class WorkspaceTests(unittest.TestCase):
         self.assertEqual(self.window.pages.count(), len(names))
         self.assertEqual(self.window.nav.horizontalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
+    def test_brand_navigation_and_collector_icons_render(self):
+        self.assertFalse(self.window.brand_mark.pixmap().isNull())
+        self.assertFalse(self.window.overview_mark.pixmap().isNull())
+        for index in range(self.window.nav.count()):
+            icon = self.window.nav.item(index).icon()
+            self.assertFalse(icon.isNull(), self.window.nav.item(index).text())
+            self.assertFalse(icon.pixmap(24, 24).isNull())
+            self.assertFalse(self.window.compact_navigation.itemIcon(index).isNull())
+        for key, check in self.window.flags.items():
+            marks = [child for child in check.parentWidget().findChildren(type(self.window.brand_mark))
+                     if child.objectName() == 'collectorIcon']
+            self.assertEqual(len(marks), 1, key)
+            self.assertFalse(marks[0].pixmap().isNull(), key)
+        for action in (self.window.run_button, self.window.history_open, self.window.capture_button):
+            self.assertFalse(action.icon().isNull())
+
     def test_collector_choices_explain_what_each_collects(self):
         for key in ('active', 'cellular', 'starlink', 'sdr', 'throughput'):
             check = self.window.flags[key]

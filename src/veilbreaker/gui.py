@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 
-from PySide6.QtCore import Qt, QProcess, QTimer, QUrl
+from PySide6.QtCore import Qt, QSize, QProcess, QTimer, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QFontDatabase, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QFrame,
@@ -23,6 +23,7 @@ from .jobs import demo_payload
 from .spectrum import SpectrumView
 from .widgets import FlowLayout
 from .scenarios import SCENARIOS, scenario_help
+from .ui_icons import ui_icon, brand_icon
 
 STYLE = """
 QWidget { background: #101722; color: #dee7f2; font-family: 'Segoe UI', 'DejaVu Sans'; font-size: 13px; }
@@ -30,7 +31,7 @@ QWidget#surfaceContainer { background: transparent; }
 QLabel { background: transparent; }
 QMainWindow { background: #101722; }
 QFrame#sidebar { background: #0b111b; border-right: 1px solid #243145; }
-QLabel#brand { color: #f4f8ff; font-size: 21px; font-weight: 700; letter-spacing: 2px; }
+QLabel#brand { color: #f4f8ff; font-size: 17px; font-weight: 700; letter-spacing: 1px; }
 QLabel#eyebrow { color: #55d7c0; font-size: 11px; font-weight: 700; letter-spacing: 2px; }
 QLabel#title { font-size: 29px; font-weight: 600; color: #f4f8ff; }
 QLabel#muted { color: #98aac0; }
@@ -141,7 +142,7 @@ class MainWindow(QMainWindow):
         self.payload = None
         self.history_rows = []
         self.setWindowTitle(f"Veilbreaker • Network Intelligence {__version__}")
-        self.setWindowIcon(QIcon(str(Path(__file__).parent / "assets/app.svg")))
+        self.setWindowIcon(brand_icon())
         available = QApplication.primaryScreen().availableGeometry()
         self.resize(min(1320, available.width()), min(890, available.height()))
         self.setMinimumSize(min(760, available.width()), min(480, available.height()))
@@ -154,18 +155,33 @@ class MainWindow(QMainWindow):
         side.setObjectName("sidebar")
         side.setFixedWidth(210)
         rail = QVBoxLayout(side)
-        rail.setContentsMargins(18, 30, 18, 20)
-        rail.addWidget(label("VEILBREAKER", "brand"))
-        rail.addWidget(label("NETWORK INTELLIGENCE", "eyebrow"))
+        rail.setContentsMargins(16, 24, 16, 20)
+        brand_row = QHBoxLayout()
+        brand_row.setSpacing(8)
+        self.brand_mark = QLabel()
+        self.brand_mark.setAccessibleName("Veilbreaker emblem")
+        self.brand_mark.setPixmap(brand_icon().pixmap(38, 38))
+        brand_row.addWidget(self.brand_mark)
+        brand_text = QVBoxLayout()
+        brand_text.setSpacing(0)
+        brand_text.addWidget(label("VEILBREAKER", "brand"))
+        brand_text.addWidget(label("DESKTOP", "eyebrow"))
+        brand_row.addLayout(brand_text, 1)
+        rail.addLayout(brand_row)
         rail.addSpacing(30)
         self.nav = QListWidget()
         self.nav.setAccessibleName("Workspace navigation")
         self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav.setIconSize(QSize(20, 20))
         sections = ["Overview", "Investigate", "Evidence", "Surveys", "Configuration", "Tools", "Settings"]
         self.nav.addItems(sections)
+        for index, name in enumerate(('overview', 'investigate', 'evidence', 'surveys',
+                                      'configuration', 'tools', 'settings')):
+            self.nav.item(index).setIcon(ui_icon(name))
         navigation = self.menuBar().addMenu("Navigate")
         for index, title in enumerate(sections):
             action = navigation.addAction(title, lambda checked=False, i=index: self.nav.setCurrentRow(i))
+            action.setIcon(self.nav.item(index).icon())
             action.setShortcut(QKeySequence(f"Alt+{index + 1}"))
         rail.addWidget(self.nav)
         rail.addWidget(label("FIELD WORKSPACE", "eyebrow"))
@@ -178,7 +194,9 @@ class MainWindow(QMainWindow):
         workspace.setContentsMargins(0, 0, 0, 0)
         workspace.setSpacing(0)
         self.compact_navigation = QComboBox()
-        self.compact_navigation.addItems(sections)
+        for name, title in zip(('overview', 'investigate', 'evidence', 'surveys',
+                                'configuration', 'tools', 'settings'), sections):
+            self.compact_navigation.addItem(ui_icon(name), title)
         self.compact_navigation.setAccessibleName("Choose workspace page")
         self.compact_navigation.currentIndexChanged.connect(self.nav.setCurrentRow)
         self.nav.currentRowChanged.connect(self.compact_navigation.setCurrentIndex)
@@ -226,14 +244,23 @@ class MainWindow(QMainWindow):
         hero.setObjectName("card")
         box = QVBoxLayout(hero)
         box.setContentsMargins(25, 24, 25, 24)
-        box.addWidget(label("YOUR NEXT INVESTIGATION", "eyebrow"))
-        box.addWidget(label("Start with a snapshot", "title"))
+        hero_header = QHBoxLayout()
+        self.overview_mark = QLabel()
+        self.overview_mark.setAccessibleName("Veilbreaker emblem")
+        self.overview_mark.setPixmap(brand_icon().pixmap(58, 58))
+        hero_header.addWidget(self.overview_mark)
+        hero_words = QVBoxLayout()
+        hero_words.addWidget(label("YOUR NEXT INVESTIGATION", "eyebrow"))
+        hero_words.addWidget(label("Start with a snapshot", "title"))
+        hero_header.addLayout(hero_words, 1)
+        box.addLayout(hero_header)
         box.addWidget(label("Collect host and link information, analyze a saved metric file, or explore a demonstration. Active tests and hardware collectors are selected explicitly.", "muted"))
-        actions = QHBoxLayout()
-        actions.addWidget(button("New diagnostic", lambda: self.nav.setCurrentRow(1), True))
+        actions = FlowLayout()
+        start_button = button("New diagnostic", lambda: self.nav.setCurrentRow(1), True)
+        start_button.setIcon(ui_icon('investigate'))
+        actions.addWidget(start_button)
         actions.addWidget(button("Import metrics…", self.import_metrics))
         actions.addWidget(button("Explore demo", self.show_demo))
-        actions.addStretch()
         box.addLayout(actions)
         layout.addWidget(hero)
         cards = QHBoxLayout()
@@ -388,7 +415,14 @@ class MainWindow(QMainWindow):
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(12, 9, 12, 9)
             card_layout.setSpacing(3)
-            card_layout.addWidget(check)
+            card_header = QHBoxLayout()
+            card_icon = QLabel()
+            card_icon.setObjectName('collectorIcon')
+            card_icon.setAccessibleName(title + ' collector icon')
+            card_icon.setPixmap(ui_icon({'active': 'network', 'guided': 'guided'}.get(key, key)).pixmap(22, 22))
+            card_header.addWidget(card_icon)
+            card_header.addWidget(check, 1)
+            card_layout.addLayout(card_header)
             description = label(tip, "muted")
             description.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             card_layout.addWidget(description)
@@ -405,6 +439,7 @@ class MainWindow(QMainWindow):
         self.update_run_plan()
         actions = FlowLayout()
         self.run_button = button("Run diagnostic", self.run_diagnostic, True)
+        self.run_button.setIcon(ui_icon('investigate'))
         self.import_button = button("Import metrics…", self.import_metrics)
         self.cancel_button = button("Cancel task", self.cancel_task)
         self.cancel_button.setEnabled(False)
@@ -439,9 +474,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.result_caption)
         result_actions = FlowLayout()
         self.view_report_button = button("View report", self.view_current_report)
+        self.view_report_button.setIcon(ui_icon('evidence'))
         self.view_report_button.setEnabled(False)
         result_actions.addWidget(self.view_report_button)
         self.map_button = button('Map GPS evidence', self.view_current_map)
+        self.map_button.setIcon(ui_icon('surveys'))
         self.map_button.setEnabled(False)
         result_actions.addWidget(self.map_button)
         result_actions.addWidget(self.export_button)
@@ -589,6 +626,7 @@ class MainWindow(QMainWindow):
         self.history_search.returnPressed.connect(self.search_history)
         actions.addWidget(button("Refresh", self.refresh_history))
         self.history_open = button("Open selected run", self.open_history, True)
+        self.history_open.setIcon(ui_icon('evidence'))
         self.history_report = button("View report", self.view_history_report)
         self.history_compare = button("Compare to previous", self.compare_history)
         actions.addWidget(self.history_open)
@@ -648,6 +686,7 @@ class MainWindow(QMainWindow):
         sdr_actions = FlowLayout()
         sdr_actions.addWidget(button("Discover HackRF", lambda: self.start_job("hackrf_info")))
         capture = button("Capture selected preset", self.capture_preset, True)
+        capture.setIcon(ui_icon('sdr'))
         self.capture_button = capture
         capture.setToolTip("Receive-only capture using the settings below. RF amplifier and antenna power stay off.")
         sdr_actions.addWidget(capture)

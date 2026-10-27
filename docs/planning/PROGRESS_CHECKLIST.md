@@ -13,6 +13,7 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [x] Managed regional single-raster terrain and physical-structure GeoJSON packs; in-app import/download, bounds and provenance, checksum verification, and terrain assessment handoff.
 - [x] Cross-tile local terrain sampling with datum/unit checks, per-tile hashes and provenance, and explicit no-data gaps.
 - [x] Seven-workspace desktop navigation, explanatory collector cards, Evidence utilities, and separated Configuration/Settings controls.
+- [x] Local vector icons for navigation, collector and Tools cards; Veilbreaker emblem in sidebar and Overview.
 
 ## In progress or limited
 

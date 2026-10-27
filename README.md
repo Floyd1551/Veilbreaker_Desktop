@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.53.0rc1** reorganizes the desktop into Overview, Investigate, Evidence, Surveys, Configuration, Tools and Settings. Collector choices now explain what they gather; evidence verification/recovery sits with saved runs, and connection/hardware setup is under Configuration. Existing diagnostics, surveys, tools and regional packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.54.0rc1** adds local vector icons across the seven-workspace navigation, collectors, Tools discovery and primary actions. The existing Veilbreaker emblem now appears in the sidebar and Overview. The interface retains text labels and accessible names, and the Overview actions wrap on narrow field windows. Existing diagnostics, surveys, tools and regional packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
 
 ## Windows installation
 
-Run `Veilbreaker-0.53.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.54.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 

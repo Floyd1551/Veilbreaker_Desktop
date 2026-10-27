@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "veilbreaker-desktop"
-version = "0.53.0rc1"
+version = "0.54.0rc1"
 description = "Explainable field network diagnostics for Windows and Linux"
 requires-python = ">=3.11"
 dependencies = ["pyserial==3.5"]
@@ -24,4 +24,4 @@ veilbreaker-desktop = "veilbreaker.gui:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-veilbreaker = ["assets/*", "assets/cellular/*", "assets/maps/*", "assets/maps/fonts/*/*", "assets/maps/sprites/v4/*"]
+veilbreaker = ["assets/*", "assets/icons/*", "assets/cellular/*", "assets/maps/*", "assets/maps/fonts/*/*", "assets/maps/sprites/v4/*"]
