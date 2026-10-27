@@ -5,7 +5,7 @@ import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 from veilbreaker.rf_tools_ui import RFToolsDialog
 from veilbreaker.field_tools import TOOLS, calculate, format_snapshot
 
@@ -118,3 +118,50 @@ class RFToolsUITests(unittest.TestCase):
         dialog.run_calculation()
         self.assertIn('WARNING', dialog.status.text())
         dialog.close()
+
+    def test_presets_reopen_filter_and_invalidate_result(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'tool-presets.json'
+            dialog = RFToolsDialog(preset_path=path)
+            dialog.selector.setCurrentIndex(dialog.selector.findData('fspl'))
+            dialog.inputs['frequency'].setText('5800')
+            dialog.inputs['distance'].setText('.25')
+            self.assertTrue(dialog.save_current_preset('Warehouse AP', 'roof path'))
+            self.assertEqual(dialog.preset_selector.count(), 1)
+            dialog.inputs['frequency'].setText('2400')
+            dialog.run_calculation()
+            self.assertIsNotNone(dialog.snapshot)
+            self.assertTrue(dialog.load_selected_preset())
+            self.assertEqual(dialog.inputs['frequency'].text(), '5800')
+            self.assertEqual(dialog.inputs['distance'].text(), '0.25')
+            self.assertIsNone(dialog.snapshot)
+            dialog.selector.setCurrentIndex(dialog.selector.findData('eirp'))
+            self.assertEqual(dialog.preset_selector.count(), 0)
+            dialog.close()
+            reopened = RFToolsDialog(preset_path=path)
+            reopened.selector.setCurrentIndex(reopened.selector.findData('fspl'))
+            self.assertEqual(reopened.preset_selector.count(), 1)
+            self.assertTrue(reopened.delete_selected_preset(confirm=False))
+            self.assertEqual(reopened.preset_selector.count(), 0)
+            reopened.close()
+
+    def test_bad_preset_store_is_reported_without_overwrite(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'tool-presets.json'
+            path.write_text('{bad', encoding='utf-8')
+            dialog = RFToolsDialog(preset_path=path)
+            self.assertIn('Could not read', dialog.preset_status.text())
+            self.assertFalse(dialog.save_current_preset('Test'))
+            self.assertEqual(path.read_text(encoding='utf-8'), '{bad')
+            dialog.close()
+
+    def test_delete_button_requires_confirmation(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'tool-presets.json'
+            dialog = RFToolsDialog(preset_path=path)
+            self.assertTrue(dialog.save_current_preset('Do not delete'))
+            with patch('veilbreaker.rf_tools_ui.QMessageBox.question', return_value=QMessageBox.StandardButton.No) as question:
+                dialog.preset_delete_button.click()
+            question.assert_called_once()
+            self.assertEqual(dialog.preset_selector.count(), 1)
+            dialog.close()

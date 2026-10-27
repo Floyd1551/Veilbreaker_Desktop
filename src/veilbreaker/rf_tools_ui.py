@@ -3,14 +3,17 @@ import json
 from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
-    QLineEdit, QPushButton, QScrollArea, QTextBrowser, QVBoxLayout, QWidget,
+    QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
+    QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
+    QTextBrowser, QVBoxLayout, QWidget,
 )
 from .field_tools import TOOLS, REGISTRY, calculate, format_snapshot
+from .paths import data_root
+from .tool_presets import delete_preset, list_presets, save_preset
 
 
 class RFToolsDialog(QDialog):
-    def __init__(self, parent=None, embedded=False):
+    def __init__(self, parent=None, embedded=False, preset_path=None):
         super().__init__(parent)
         self.embedded = embedded
         if embedded:
@@ -19,6 +22,7 @@ class RFToolsDialog(QDialog):
         self.resize(760, 780)
         self.inputs = {}
         self.snapshot = None
+        self.preset_path = Path(preset_path) if preset_path is not None else data_root() / 'tool-presets.json'
         layout = QVBoxLayout(self)
         heading = QLabel('Field calculators')
         heading.setObjectName('section')
@@ -36,6 +40,22 @@ class RFToolsDialog(QDialog):
         self.purpose = QLabel()
         self.purpose.setWordWrap(True)
         layout.addWidget(self.purpose)
+        preset_heading = QLabel('Saved input presets · operator-entered specifications')
+        preset_heading.setWordWrap(True)
+        layout.addWidget(preset_heading)
+        self.preset_selector = QComboBox()
+        self.preset_selector.setAccessibleName('Saved calculator input preset')
+        layout.addWidget(self.preset_selector)
+        preset_actions = QHBoxLayout()
+        self.preset_save_button = QPushButton('Save preset…')
+        self.preset_load_button = QPushButton('Load inputs')
+        self.preset_delete_button = QPushButton('Delete preset')
+        for control in (self.preset_save_button, self.preset_load_button, self.preset_delete_button):
+            preset_actions.addWidget(control)
+        layout.addLayout(preset_actions)
+        self.preset_status = QLabel()
+        self.preset_status.setWordWrap(True)
+        layout.addWidget(self.preset_status)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setMinimumHeight(140)
@@ -74,6 +94,9 @@ class RFToolsDialog(QDialog):
         self.calculate_button.clicked.connect(self.run_calculation)
         self.copy_button.clicked.connect(self.copy_result)
         self.save_button.clicked.connect(self.save_result)
+        self.preset_save_button.clicked.connect(self._save_preset_clicked)
+        self.preset_load_button.clicked.connect(self.load_selected_preset)
+        self.preset_delete_button.clicked.connect(lambda: self.delete_selected_preset())
         self.search.textChanged.connect(self.filter_tools)
         self.selector.currentIndexChanged.connect(self.select_tool)
         self.filter_tools('')
@@ -115,7 +138,90 @@ class RFToolsDialog(QDialog):
                 entry.textChanged.connect(self.invalidate)
                 self.form.addRow(field.label, entry)
                 self.inputs[field.key] = entry
+        self.refresh_presets()
         self.invalidate()
+
+    def refresh_presets(self, selected_id=None):
+        self.preset_selector.clear()
+        try:
+            records = list_presets(self.preset_path, self.selector.currentData())
+        except ValueError as exc:
+            records = ()
+            self.preset_status.setText(str(exc))
+        else:
+            self.preset_status.clear()
+        for record in records:
+            self.preset_selector.addItem(record.get('name', 'Unnamed preset'), record['id'])
+            self.preset_selector.setItemData(self.preset_selector.count() - 1,
+                                             record.get('notes', ''), Qt.ItemDataRole.ToolTipRole)
+        if selected_id:
+            index = self.preset_selector.findData(selected_id)
+            if index >= 0:
+                self.preset_selector.setCurrentIndex(index)
+        self.preset_save_button.setEnabled(bool(self.selector.currentData()))
+        self.preset_load_button.setEnabled(bool(records))
+        self.preset_delete_button.setEnabled(bool(records))
+
+    def _save_preset_clicked(self):
+        details = QDialog(self)
+        details.setWindowTitle('Save calculator input preset')
+        form = QFormLayout(details)
+        name = QLineEdit()
+        name.setAccessibleName('Preset name')
+        notes = QLineEdit()
+        notes.setAccessibleName('Preset notes')
+        form.addRow('Name', name)
+        form.addRow('Notes (optional)', notes)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(details.accept)
+        buttons.rejected.connect(details.reject)
+        form.addRow(buttons)
+        if details.exec() == QDialog.DialogCode.Accepted:
+            self.save_current_preset(name.text(), notes.text())
+
+    def save_current_preset(self, name, notes=''):
+        try:
+            record = save_preset(self.preset_path, name, self.selector.currentData(),
+                                 {key: entry.text() for key, entry in self.inputs.items()}, notes)
+        except (ValueError, OSError) as exc:
+            self.preset_status.setText(f'Could not save preset: {exc}')
+            return False
+        self.refresh_presets(record['id'])
+        self.preset_status.setText(f'Saved operator input preset: {record["name"]}. No measurement was created.')
+        return True
+
+    def load_selected_preset(self):
+        preset_id = self.preset_selector.currentData()
+        try:
+            record = next((item for item in list_presets(self.preset_path, self.selector.currentData())
+                           if item['id'] == preset_id), None)
+            if record is None or set(record['inputs']) != set(self.inputs):
+                raise ValueError('Selected preset is unavailable or does not match this calculator.')
+            calculate(record['tool_id'], record['inputs'])
+        except (ValueError, OSError) as exc:
+            self.preset_status.setText(f'Could not load preset: {exc}')
+            return False
+        for key, value in record['inputs'].items():
+            self.inputs[key].setText(f'{value:g}')
+        self.invalidate()
+        self.preset_status.setText(f'Loaded operator inputs from {record["name"]}. Choose Calculate for a new result.')
+        return True
+
+    def delete_selected_preset(self, confirm=True):
+        preset_id = self.preset_selector.currentData()
+        if not preset_id:
+            return False
+        if confirm and QMessageBox.question(self, 'Delete input preset',
+                                            'Delete this saved calculator input preset?') != QMessageBox.StandardButton.Yes:
+            return False
+        try:
+            removed = delete_preset(self.preset_path, preset_id)
+        except (ValueError, OSError) as exc:
+            self.preset_status.setText(f'Could not delete preset: {exc}')
+            return False
+        self.refresh_presets()
+        self.preset_status.setText('Deleted saved input preset.' if removed else 'Preset was already absent.')
+        return removed
 
     def invalidate(self, *_):
         self.snapshot = None

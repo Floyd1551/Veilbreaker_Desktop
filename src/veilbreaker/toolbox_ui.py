@@ -11,6 +11,7 @@ from .wifi_channels_ui import WifiChannelsPanel
 from .cell_channel_ui import CellChannelPanel
 from .cell_signal_ui import CellSignalPanel
 from .tool_workspace_ui import ReferenceArticle
+from .paths import data_root
 from .widgets import FlowLayout
 
 
@@ -25,6 +26,8 @@ class ToolboxPage(QWidget):
         caption.setWordWrap(True)
         layout.addWidget(caption)
         self.records = build_registry()
+        config = getattr(parent, 'config', None)
+        self.preset_path = (config.root if config is not None else data_root()) / 'tool-presets.json'
         filters = QHBoxLayout()
         self.global_search = QLineEdit()
         self.global_search.setPlaceholderText('Search tools and references: RSRP, Fresnel, dBm, subnet…')
@@ -58,7 +61,7 @@ class ToolboxPage(QWidget):
         layout.addWidget(self.workspace_tabs)
         self.tabs = QTabWidget(self.workspace_tabs)
         self.opened_tabs = {}
-        self.calculators = RFToolsDialog(self, embedded=True)
+        self.calculators = RFToolsDialog(self, embedded=True, preset_path=self.preset_path)
         self.tabs.addTab(self.calculators, 'Calculators')
         network = QWidget()
         form = QVBoxLayout(network)
@@ -158,7 +161,7 @@ class ToolboxPage(QWidget):
             self.workspace_tabs.setCurrentWidget(existing)
             return
         if record.kind == 'calculator':
-            widget = RFToolsDialog(self.workspace_tabs, embedded=True)
+            widget = RFToolsDialog(self.workspace_tabs, embedded=True, preset_path=self.preset_path)
             widget.search.setText(record.title)
             if widget.selector.currentData() != record.target_id:
                 widget.deleteLater()

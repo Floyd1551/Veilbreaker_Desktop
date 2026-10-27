@@ -281,3 +281,28 @@ class VisualToolboxTests(unittest.TestCase):
         self.assertEqual(page.workspace_tabs.currentIndex(), 0)
         self.assertTrue(page.discovery.isVisibleTo(page))
         page.close()
+
+    def test_calculator_tabs_share_preset_storage_without_sharing_unsaved_inputs(self):
+        from types import SimpleNamespace
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from PySide6.QtWidgets import QWidget
+        from veilbreaker.toolbox_ui import ToolboxPage
+        with TemporaryDirectory() as folder:
+            parent = QWidget()
+            parent.config = SimpleNamespace(root=Path(folder))
+            page = ToolboxPage(parent)
+            page.open_record_tab('calculator:fspl')
+            first = page.workspace_tabs.currentWidget()
+            self.assertEqual(first.preset_path, Path(folder) / 'tool-presets.json')
+            first.inputs['frequency'].setText('5800')
+            self.assertTrue(first.save_current_preset('5.8 GHz path'))
+            page.close_workspace_tab(page.workspace_tabs.indexOf(first))
+            page.open_record_tab('calculator:fspl')
+            reopened = page.workspace_tabs.currentWidget()
+            self.assertEqual(reopened.preset_selector.count(), 1)
+            self.assertEqual(reopened.inputs['frequency'].text(), '2400')
+            self.assertTrue(reopened.load_selected_preset())
+            self.assertEqual(reopened.inputs['frequency'].text(), '5800')
+            page.close()
+            parent.close()
