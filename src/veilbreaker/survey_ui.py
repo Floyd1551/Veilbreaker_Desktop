@@ -20,8 +20,8 @@ class SurveyPage(QWidget):
         self.session_cache = []
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 22)
-        layout.addWidget(label("Site surveys", "title"))
-        layout.addWidget(label("Group up to 20 named diagnostics. Choose test flags on Diagnostics, then add steps here. Site and scenario come from Diagnostics when the survey is saved.", "muted"))
+        layout.addWidget(label("Surveys", "title"))
+        layout.addWidget(label("Group up to 20 named diagnostics. Choose collectors in Investigate, then add steps here. Site and scenario come from Investigate when the survey is saved.", "muted"))
         outer = layout
         self.back_button = button('Back to surveys', self.show_landing)
         outer.addWidget(self.back_button)
@@ -52,7 +52,7 @@ class SurveyPage(QWidget):
         templates.addWidget(self.save_template_button)
         templates.addWidget(self.load_template_button)
         layout.addLayout(templates)
-        self.template_hint = label("Reuse a template or add points below. Test selections come from Diagnostics; each visit uses your current settings.", "muted")
+        self.template_hint = label("Reuse a template or add points below. Test selections come from Investigate; each visit uses your current configuration.", "muted")
         layout.addWidget(self.template_hint)
         add = QHBoxLayout()
         self.step_name = QLineEdit()

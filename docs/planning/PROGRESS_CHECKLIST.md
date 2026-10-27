@@ -12,6 +12,7 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [x] Explicit FSPL-to-Link-budget calculation handoff with source limitations retained.
 - [x] Managed regional single-raster terrain and physical-structure GeoJSON packs; in-app import/download, bounds and provenance, checksum verification, and terrain assessment handoff.
 - [x] Cross-tile local terrain sampling with datum/unit checks, per-tile hashes and provenance, and explicit no-data gaps.
+- [x] Seven-workspace desktop navigation, explanatory collector cards, Evidence utilities, and separated Configuration/Settings controls.
 
 ## In progress or limited
 
@@ -22,6 +23,7 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
 - [ ] Environmental observations and attaching calculation snapshots to surveys, points and reports.
 - [ ] Broader offline reference/tool library and field workflows from the approved inventory.
+- [ ] Live hardware status cards, contextual Evidence actions, and deeper visual polish from the approved UI direction.
 
 ## 1.0 release gates
 

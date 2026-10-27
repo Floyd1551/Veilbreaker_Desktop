@@ -50,18 +50,38 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_configuration_and_toolbox_are_separate_destinations(self):
         names = [self.window.nav.item(i).text() for i in range(self.window.nav.count())]
-        self.assertIn('Configuration', names)
-        self.assertIn('Tools', names)
-        self.assertNotIn('Tools & readiness', names)
+        self.assertEqual(names, ['Overview', 'Investigate', 'Evidence', 'Surveys',
+                                 'Configuration', 'Tools', 'Settings'])
         self.assertEqual(self.window.pages.count(), len(names))
+        self.assertEqual(self.window.nav.horizontalScrollBarPolicy(), Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+    def test_collector_choices_explain_what_each_collects(self):
+        for key in ('active', 'cellular', 'starlink', 'sdr', 'throughput'):
+            check = self.window.flags[key]
+            self.assertEqual(check.parentWidget().objectName(), 'collectorCard')
+            self.assertTrue(check.parentWidget().findChildren(type(self.window.run_plan)))
+
+    def test_evidence_utilities_are_on_evidence_page(self):
+        self.assertIsNotNone(self.window.verify_evidence_button)
+        self.assertIsNotNone(self.window.recover_button)
+        evidence_page = self.window.pages.widget(2).widget()
+        self.assertTrue(evidence_page.isAncestorOf(self.window.verify_evidence_button))
+        self.assertTrue(evidence_page.isAncestorOf(self.window.recover_button))
+
+    def test_connection_controls_live_in_configuration_and_advanced_editor_in_settings(self):
+        configuration_page = self.window.pages.widget(4).widget()
+        settings_page = self.window.pages.widget(6).widget()
+        self.assertTrue(configuration_page.isAncestorOf(self.window.settings_tabs))
+        self.assertTrue(settings_page.isAncestorOf(self.window.config_editor))
+        self.assertFalse(settings_page.isAncestorOf(self.window.settings_tabs))
 
     def test_long_configuration_path_does_not_widen_settings_page(self):
         self.window.settings_location.setText('Configuration: C:\\' + 'longpath' * 35 + '\\config.json')
         self.window.resize(760,640)
         self.window.show()
-        self.window.compact_navigation.setCurrentIndex(4)
+        self.window.compact_navigation.setCurrentIndex(6)
         QTest.qWait(50)
-        self.assertEqual(self.window.pages.widget(4).horizontalScrollBar().maximum(),0)
+        self.assertEqual(self.window.pages.widget(6).horizontalScrollBar().maximum(),0)
 
     def test_metric_filter_includes_zero_and_source_without_changing_evidence(self):
         from veilbreaker.jobs import demo_payload

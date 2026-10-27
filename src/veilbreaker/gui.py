@@ -38,6 +38,8 @@ QLabel#metric { font-size: 29px; color: #6be0ca; font-weight: 600; }
 QFrame#card { background: #172131; border: 1px solid #2a394e; border-radius: 10px; }
 QFrame#card QLabel { background: transparent; border: none; }
 QFrame#card QCheckBox { background: transparent; }
+QFrame#collectorCard { background: #172131; border: 1px solid #2a394e; border-radius: 8px; }
+QFrame#collectorCard QLabel, QFrame#collectorCard QCheckBox { background: transparent; border: none; }
 QFrame#taskBanner { background: #1c3540; border-bottom: 1px solid #3b6b6c; }
 QLabel#section { font-size: 18px; font-weight: 600; color: #f4f8ff; }
 QListWidget { background: transparent; border: none; outline: none; }
@@ -158,7 +160,8 @@ class MainWindow(QMainWindow):
         rail.addSpacing(30)
         self.nav = QListWidget()
         self.nav.setAccessibleName("Workspace navigation")
-        sections = ["Overview", "Diagnostics", "Run history", "Configuration", "Settings", "Site surveys", "Tools"]
+        self.nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sections = ["Overview", "Investigate", "Evidence", "Surveys", "Configuration", "Tools", "Settings"]
         self.nav.addItems(sections)
         navigation = self.menuBar().addMenu("Navigate")
         for index, title in enumerate(sections):
@@ -197,14 +200,14 @@ class MainWindow(QMainWindow):
         self.build_overview()
         self.build_diagnostics()
         self.build_history()
-        self.build_tools()
-        self.build_settings()
         from .survey_ui import SurveyPage
         self.survey_page = SurveyPage(self)
-        self.nav.currentRowChanged.connect(lambda index: self.survey_page.show_landing() if index == 5 else None)
-        self.nav.itemClicked.connect(lambda item: self.survey_page.show_landing() if self.nav.row(item) == 5 else None)
+        self.nav.currentRowChanged.connect(lambda index: self.survey_page.show_landing() if index == 3 else None)
+        self.nav.itemClicked.connect(lambda item: self.survey_page.show_landing() if self.nav.row(item) == 3 else None)
         self.add_scroll_page(self.survey_page)
+        self.build_tools()
         self.build_toolbox()
+        self.build_settings()
         for spin in self.findChildren(QSpinBox):
             spin.lineEdit().setStyleSheet("padding: 0; border: none; background: transparent;")
         self.nav.currentRowChanged.connect(self.pages.setCurrentIndex)
@@ -320,7 +323,7 @@ class MainWindow(QMainWindow):
             self.start_job("run", **self.last_run_request)
 
     def build_diagnostics(self):
-        widget, layout = page("Diagnostic workspace", "Collect a snapshot, review competing explanations, and preserve the evidence.")
+        widget, layout = page("Investigate", "Configure, collect and analyze a snapshot; preserve the evidence when finished.")
         self.diagnostic_heading = [layout.itemAt(0).widget(), layout.itemAt(1).widget()]
         page_layout = layout
         self.show_setup = QCheckBox("Configure next run")
@@ -365,6 +368,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(scenario_actions)
         layout.addWidget(self.scenario_description)
         self.scenario_description.hide()
+        layout.addWidget(label("SELECT COLLECTORS", "eyebrow"))
         options = FlowLayout()
         self.flags = {}
         for key, title, tip in [
@@ -377,7 +381,18 @@ class MainWindow(QMainWindow):
         ]:
             check = QCheckBox(title)
             check.setToolTip(tip)
-            options.addWidget(check)
+            card = QFrame()
+            card.setObjectName("collectorCard")
+            card.setMinimumWidth(190)
+            card.setMaximumWidth(235)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(12, 9, 12, 9)
+            card_layout.setSpacing(3)
+            card_layout.addWidget(check)
+            description = label(tip, "muted")
+            description.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+            card_layout.addWidget(description)
+            options.addWidget(card)
             self.flags[key] = check
         options_panel = QWidget()
         options_panel.setObjectName("surfaceContainer")
@@ -470,8 +485,8 @@ class MainWindow(QMainWindow):
         self.prepare_followup_button = button("Prepare supported test options", self.prepare_followup)
         self.prepare_followup_button.setEnabled(False)
         followup_actions.addWidget(self.prepare_followup_button)
-        followup_actions.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(4)))
-        followup_actions.addWidget(button("Configuration", lambda: self.nav.setCurrentRow(3)))
+        followup_actions.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(6)))
+        followup_actions.addWidget(button("Configuration", lambda: self.nav.setCurrentRow(4)))
         followup_layout.addLayout(followup_actions)
         self.next_tests.itemSelectionChanged.connect(self.select_followup)
 
@@ -558,7 +573,7 @@ class MainWindow(QMainWindow):
         self.add_scroll_page(widget)
 
     def build_history(self):
-        widget, layout = page("Run history", "Reopen saved evidence or compare two snapshots from the same investigation.")
+        widget, layout = page("Evidence", "Review runs, reports, comparisons and preserved capture files.")
         actions = FlowLayout()
         self.history_offset = 0
         self.history_search = QLineEdit()
@@ -587,6 +602,10 @@ class MainWindow(QMainWindow):
         self.history_delete = button("Delete selected test", self.delete_history)
         actions.addWidget(self.history_delete)
         actions.addWidget(button("Trash / restore", self.open_trash))
+        self.verify_evidence_button = button("Verify evidence ZIP…", self.verify_evidence)
+        self.recover_button = button("Recover interrupted captures", lambda: self.start_job("recover"))
+        actions.addWidget(self.verify_evidence_button)
+        actions.addWidget(self.recover_button)
         from .case_ui import show_cases
         actions.addWidget(button("Confirmed cases…", lambda: show_cases(self)))
         layout.addLayout(actions)
@@ -613,14 +632,19 @@ class MainWindow(QMainWindow):
 
     def build_tools(self):
         widget, layout = page("Configuration", "Prepare equipment, configure receive presets and check field readiness.")
+        layout.addWidget(label("CONNECTIONS AND HARDWARE", "eyebrow"))
+        self.connection_host = QWidget()
+        self.connection_host.setObjectName("surfaceContainer")
+        self.connection_layout = QVBoxLayout(self.connection_host)
+        self.connection_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.connection_host)
+        layout.addWidget(label("REGIONAL DATA AND RECEIVERS", "eyebrow"))
         layout.addWidget(button("Regional terrain and structure packs…", self.open_regional_packs))
         actions = FlowLayout()
         for title, action in [("Check readiness", "doctor"), ("List serial ports", "ports"),
                               ("Modem driver matrix", "drivers"), ("Engine self-test", "selftest")]:
             actions.addWidget(button(title, lambda checked=False, a=action: self.start_job(a)))
         layout.addLayout(actions)
-        layout.addWidget(button("Verify evidence ZIP…", self.verify_evidence))
-        layout.addWidget(button("Recover interrupted captures", lambda: self.start_job("recover")))
         sdr_actions = FlowLayout()
         sdr_actions.addWidget(button("Discover HackRF", lambda: self.start_job("hackrf_info")))
         capture = button("Capture selected preset", self.capture_preset, True)
@@ -660,7 +684,7 @@ class MainWindow(QMainWindow):
         self.readiness_table = table(["Prerequisite", "State", "Details / next action"])
         self.readiness_table.setMinimumHeight(200)
         layout.addWidget(self.readiness_table)
-        layout.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(4)))
+        layout.addWidget(button("Open settings", lambda: self.nav.setCurrentRow(6)))
         self.tool_output = QPlainTextEdit()
         self.tool_output.setReadOnly(True)
         self.tool_output.setPlaceholderText("Choose a check above. Missing optional hardware does not prevent offline analysis.")
@@ -689,16 +713,17 @@ class MainWindow(QMainWindow):
             self.start_job("verify", input=source)
 
     def build_settings(self):
-        widget, layout = page("Settings", "Configure targets, hardware and storage. Existing CLI configuration is supported.")
+        widget, layout = page("Settings", "Manage local storage and advanced application settings.")
         self.settings_location = label("", "muted")
         self.settings_location.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         layout.addWidget(self.settings_location)
-        layout.addWidget(label("Connection settings apply to your next diagnostic. Saving never starts a test. Site and scenario are selected on Diagnostics; receive presets are in Configuration.", "muted"))
+        layout.addWidget(button("Open data folder", self.open_data_folder))
+        self.connection_layout.addWidget(label("Connection changes apply to the next investigation. Saving never starts a test.", "muted"))
         self.settings_tabs = QTabWidget()
         self.settings_tabs.setUsesScrollButtons(True)
         self.settings_tabs.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.settings_tabs.setMinimumHeight(355)
-        layout.addWidget(self.settings_tabs, 1)
+        self.connection_layout.addWidget(self.settings_tabs)
         network = QWidget()
         network_layout = QVBoxLayout(network)
         network_layout.setContentsMargins(18, 18, 18, 18)
@@ -726,17 +751,16 @@ class MainWindow(QMainWindow):
         from .hardware_settings import HardwareSettings
         self.hardware_settings = HardwareSettings(self.settings_tabs, self.config)
         self.settings_feedback = label("All connection settings are saved together.", "muted")
-        layout.addWidget(self.settings_feedback)
+        self.connection_layout.addWidget(self.settings_feedback)
         actions = FlowLayout()
         self.save_connections = button("Save connection settings", self.save_network_settings, True)
         actions.addWidget(self.save_connections)
         actions.addWidget(button("Reload saved settings", self.reload_settings))
-        actions.addWidget(button("Open data folder", self.open_data_folder))
-        layout.addLayout(actions)
+        self.connection_layout.addLayout(actions)
         advanced = QWidget()
         advanced_layout = QVBoxLayout(advanced)
         advanced_layout.setContentsMargins(18, 18, 18, 18)
-        self.settings_tabs.addTab(advanced, "Advanced JSON")
+        layout.addWidget(advanced, 1)
         advanced_layout.addWidget(label("Adapter commands run as your user when their collector is used. Save connection edits before editing JSON. Each save protects unsaved edits in the other editor.", "muted"))
         advanced_layout.addWidget(button("Save advanced JSON", self.save_settings))
         self.config_editor = QPlainTextEdit(json.dumps(self.config.to_dict(), indent=2))
@@ -788,7 +812,7 @@ class MainWindow(QMainWindow):
         if self.process is not None:
             self.statusBar().showMessage("Wait for the current task or cancel it before checking readiness.")
             return
-        self.nav.setCurrentRow(3)
+        self.nav.setCurrentRow(4)
         self.readiness_caption.setText("Checking selected prerequisites… No acquisition or connectivity tests will run.")
         self.readiness_table.setRowCount(0)
         self.start_job('readiness', options={key: control.isChecked() for key, control in self.flags.items()})
@@ -998,7 +1022,7 @@ class MainWindow(QMainWindow):
         try:
             result_path = Path(self.job_dir.name) / "result.json"
             if self.cancelled:
-                self.statusBar().showMessage("Task cancelled. Recover interrupted captures from Configuration to reopen saved partial evidence.")
+                self.statusBar().showMessage("Task cancelled. Recover interrupted captures from Evidence to reopen saved partial evidence.")
             elif result_path.exists():
                 obj = json.loads(result_path.read_text(encoding="utf-8"))
                 if not obj["ok"]:
@@ -1010,10 +1034,10 @@ class MainWindow(QMainWindow):
                     check = obj['result']['readiness']
                     fill(self.readiness_table, [[r['item'], r['state'], r['detail']] for r in check['rows']])
                     self.readiness_caption.setText(f"Snapshot checked {check['checked_utc']} • Site: {check['site_id']} • Scenario: {check['scenario']} • Selected: {', '.join(check['selected']) or 'passive only'}. Recheck after changing settings or devices.")
-                    self.nav.setCurrentRow(3)
+                    self.nav.setCurrentRow(4)
                     self.statusBar().showMessage('Prerequisite check complete. Review missing and untested items; acquisition has not started.')
                 elif "survey" in obj["result"]:
-                    self.nav.setCurrentRow(5)
+                    self.nav.setCurrentRow(3)
                     self.survey_page.show_session(obj["result"]["survey"], obj["result"]["survey_path"])
                     self.statusBar().showMessage("Survey " + obj["result"]["survey"]["status"] + " • Evidence saved locally")
                 elif "report" in obj["result"]:
@@ -1073,7 +1097,7 @@ class MainWindow(QMainWindow):
         self.cancelled = True
         self.task_cancel.setEnabled(False)
         self.cancel_button.setEnabled(False)
-        self.statusBar().showMessage("Cancelling task… Partial evidence can be recovered from Configuration.")
+        self.statusBar().showMessage("Cancelling task… Partial evidence can be recovered from Evidence.")
         pid = int(self.process.processId())
         if pid and os.name == "nt":
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True,
@@ -1458,7 +1482,7 @@ class MainWindow(QMainWindow):
             path, _ = choices[labels.index(selected)]
             session = attach_existing_runs(self.config, path, [row['run_id']])
             self.refresh_history(); self.survey_page.refresh()
-            self.nav.setCurrentRow(5)
+            self.nav.setCurrentRow(3)
             self.survey_page.show_session(session, str(path))
         except (OSError, ValueError) as exc: self.error(str(exc))
 
@@ -1483,8 +1507,8 @@ class MainWindow(QMainWindow):
         try:
             deps = run_dependencies(self.config, row['run_id'])
             if deps['cases'] or deps['surveys']:
-                self.error('Test is referenced by ' + ', '.join(deps['surveys'] + deps['cases']) + '. Manage the survey from Site surveys; case evidence must be retained.')
-                if deps['surveys']: self.nav.setCurrentRow(5)
+                self.error('Test is referenced by ' + ', '.join(deps['surveys'] + deps['cases']) + '. Manage the survey from Surveys; case evidence must be retained.')
+                if deps['surveys']: self.nav.setCurrentRow(3)
                 return
             if QMessageBox.question(self, 'Delete saved test?', 'Move ' + row['run_id'] + ' and its reports to Trash? Evidence is retained and can be restored.') != QMessageBox.StandardButton.Yes:
                 return
@@ -1747,7 +1771,7 @@ def smoke(destination):
         app.processEvents()
         target = Path(destination)
         target.mkdir(parents=True, exist_ok=True)
-        for index, name in enumerate(["overview", "diagnostics", "history", "configuration", "settings", "surveys", "tools"]):
+        for index, name in enumerate(["overview", "investigate", "evidence", "surveys", "configuration", "tools", "settings"]):
             window.nav.setCurrentRow(index)
             QTest.qWait(80)
             app.processEvents()

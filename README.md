@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.52.0rc1** adds cross-tile terrain assessment on top of the regional pack manager. Compatible installed rasters can now contribute to one LOS/Fresnel path, with per-tile source, coverage, checksum and sample counts shown in the report. Huntsville terrain product search and physical-structure reference packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.53.0rc1** reorganizes the desktop into Overview, Investigate, Evidence, Surveys, Configuration, Tools and Settings. Collector choices now explain what they gather; evidence verification/recovery sits with saved runs, and connection/hardware setup is under Configuration. Existing diagnostics, surveys, tools and regional packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
 
 ## Windows installation
 
-Run `Veilbreaker-0.52.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.53.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -41,12 +41,12 @@ Use `pip install -e .` for CLI-only use. On Linux, Qt needs the system graphics/
 
 - **Diagnostics:** site and scenario selection; optional ping/DNS, guided follow-up, cellular, Starlink, SDR and throughput collection. Review summaries, ranked hypotheses, supporting/contradicting evidence, findings, next tests, metrics and collector notes.
 - **Import metrics:** analyze an existing JSON object and save its report/history without live collection.
-- **Run history:** reopen the latest 200 runs and compare against the preceding run at the same site and scenario.
-- **Tools & readiness:** dependency checks, serial-port listing, modem compatibility matrix and engine self-test.
+- **Evidence:** reopen saved runs, compare investigations, verify ZIP bundles and recover interrupted captures.
+- **Configuration:** connection and hardware settings, regional packs, receive presets, readiness checks, serial-port listing and engine self-test.
 - **Tools workspace:** search or filter calculators and offline references, then open several in closable tabs. The Browse tools tab stays available. Each open calculator keeps its own inputs and result until closed; typing in the global search returns to Browse tools. Save named calculator input presets with optional notes, reload them later, or delete them from the selected calculator. A loaded preset requires a new Calculate action and does not create diagnostic evidence.
 - **Tool handoff:** after calculating Free-space path loss, choose **Use path loss in new Link budget tab**. Review the other link inputs and calculate there. The displayed, copied and exported result retains the source model and its limitations while the transferred loss is unchanged.
 - **SDR capture:** discover HackRF and capture three receive-only sweeps across 2400–2500 MHz. The Spectrum tab shows median/maximum traces from saved CSV evidence. RF amplifier and antenna power are off for this quick capture.
-- **Settings:** edit the shared JSON configuration, hardware targets, adapter commands and storage location.
+- **Settings:** view local storage and edit advanced JSON configuration.
 - **Evidence:** save ZIP bundles containing metric JSON, report JSON/text/HTML, collector notes and any recorded sweep evidence.
 
 Long operations run in a separate cancellable process. Cancelling can leave partial artifacts; it does not mark a partial run as successful. Native cellular telemetry and Starlink operations are read-only, and HackRF support is receive-only. Active network tests generate traffic only when requested (or enabled by explicit CLI/configuration choices). Existing external JSON adapters remain executable commands under the current user.

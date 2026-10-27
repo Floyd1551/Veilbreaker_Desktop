@@ -106,14 +106,14 @@ class SurveyFlowGuiTests(unittest.TestCase):
     def test_real_worker_returns_to_survey(self):
         import time
         from PySide6.QtTest import QTest
-        self.window.nav.setCurrentRow(5)
+        self.window.nav.setCurrentRow(3)
         self.page.show_session(survey.read_session(self.cfg, self.path), self.path)
         self.page.flow.check_readiness()
         deadline = time.monotonic() + 20
         while self.window.process is not None and time.monotonic() < deadline:
             QTest.qWait(25)
         self.assertIsNone(self.window.process)
-        self.assertEqual(self.window.nav.currentRow(), 5)
+        self.assertEqual(self.window.nav.currentRow(), 3)
         self.assertGreater(self.page.flow.rows.rowCount(), 0)
         self.assertFalse(self.page.flow.pending)
         self.assertIn('Checked ', self.page.flow.caption.text())
@@ -133,7 +133,7 @@ class SurveyFlowGuiTests(unittest.TestCase):
     def test_narrow_detail_with_readiness(self):
         from PySide6.QtTest import QTest
         from veilbreaker.survey_flow import check_next_readiness
-        self.window.nav.setCurrentRow(5)
+        self.window.nav.setCurrentRow(3)
         self.page.show_session(survey.read_session(self.cfg, self.path), self.path)
         self.window.resize(760, 640)
         self.window.show()
@@ -141,7 +141,7 @@ class SurveyFlowGuiTests(unittest.TestCase):
         self.page.flow.request_context = result['context']
         self.page.flow.accept(result)
         QTest.qWait(100)
-        self.assertEqual(self.window.pages.widget(5).horizontalScrollBar().maximum(), 0)
+        self.assertEqual(self.window.pages.widget(3).horizontalScrollBar().maximum(), 0)
 
     def test_worker_cleanup_reloads_failed_point(self):
         self.window.active_survey_path = self.path

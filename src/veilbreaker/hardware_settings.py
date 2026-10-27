@@ -6,12 +6,12 @@ class HardwareSettings:
     def __init__(self, tabs, config):
         self.fields = {}
         specs = [
-            ("Cellular", "Read-only modem connection. Choose Cellular on Diagnostics to collect. Automatic discovery only probes likely modem ports.", [
+            ("Cellular", "Read-only modem connection. Choose Cellular in Investigate to collect. Automatic discovery only probes likely modem ports.", [
                 ("cellular.port", "Serial port", "text", "auto, COM5 or /dev/ttyUSB2"),
                 ("cellular.driver", "Modem driver", "choice", [("Automatic", "auto"), ("Generic 3GPP", "generic_3gpp"), ("Sierra EM9", "sierra_em9"), ("Quectel RM5xx / RG5xx", "quectel_rm5xx")]),
                 ("cellular.backend", "Collection backend", "choice", [("Automatic", "auto"), ("Serial AT", "serial"), ("External JSON adapter", "json")]),
             ], "Blank serial port uses automatic discovery. Adapter commands, baud rate, raw responses and device identifiers remain in Advanced JSON."),
-            ("Starlink", "Read telemetry from the terminal management endpoint. Choose Starlink on Diagnostics to collect.", [
+            ("Starlink", "Read telemetry from the terminal management endpoint. Choose Starlink in Investigate to collect.", [
                 ("starlink.host", "Terminal host", "text", "192.168.100.1"),
                 ("starlink.port", "Management port", "port", None),
                 ("starlink.backend", "Collection backend", "choice", [("Automatic", "auto"), ("External grpcurl", "grpcurl"), ("Python integration", "python")]),

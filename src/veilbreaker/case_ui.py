@@ -148,7 +148,7 @@ def show_cases(window):
     layout.addLayout(actions)
     rows.itemSelectionChanged.connect(select)
     source = window.selected_run()
-    layout.addWidget(label("New case source: " + (source["run_id"] if source else "Select a run in Run history, then reopen this window."), "muted"))
+    layout.addWidget(label("New case source: " + (source["run_id"] if source else "Select a run in Evidence, then reopen this window."), "muted"))
     cause = QLineEdit()
     cause.setMaxLength(2000)
     cause.setPlaceholderText("Verified cause")
