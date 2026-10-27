@@ -10,10 +10,11 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [x] Offline map foundation, local cell-reference import, single-raster terrain profile and LOS/Fresnel assessment.
 - [x] Searchable offline Tools, multiple calculator/reference tabs, saved input presets and initial RF/network/fiber/PoE tools.
 - [x] Explicit FSPL-to-Link-budget calculation handoff with source limitations retained.
+- [x] Managed regional single-raster terrain and physical-structure GeoJSON packs; in-app import/download, bounds and provenance, checksum verification, and terrain assessment handoff.
 
 ## In progress or limited
 
-- [ ] Area preparation and in-app downloadable regional terrain, tower/cell and imagery packs with coverage, date, license and integrity shown.
+- [ ] Complete area preparation across adjacent terrain tiles, verified tower/cell providers and offline imagery packs. The first manager handles one terrain raster or one structure GeoJSON per pack.
 - [ ] Authorized real tower and cell datasets, with physical structures distinct from estimated cell sites and serving-cell identity.
 - [ ] Terrain catalog covering adjacent tiles, datum/units checks and missing-data handling across tile boundaries.
 - [ ] Survey measured-point metric colors, legends, identity/source filtering and detail cards across geographic and floor-plan views.

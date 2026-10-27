@@ -613,6 +613,7 @@ class MainWindow(QMainWindow):
 
     def build_tools(self):
         widget, layout = page("Configuration", "Prepare equipment, configure receive presets and check field readiness.")
+        layout.addWidget(button("Regional terrain and structure packs…", self.open_regional_packs))
         actions = FlowLayout()
         for title, action in [("Check readiness", "doctor"), ("List serial ports", "ports"),
                               ("Modem driver matrix", "drivers"), ("Engine self-test", "selftest")]:
@@ -675,6 +676,11 @@ class MainWindow(QMainWindow):
     def open_rf_calculators(self):
         from .rf_tools_ui import RFToolsDialog
         dialog = RFToolsDialog(self)
+        dialog.exec()
+
+    def open_regional_packs(self):
+        from .regional_packs_ui import RegionalPacksDialog
+        dialog = RegionalPacksDialog(self, self.config)
         dialog.exec()
 
     def verify_evidence(self):
