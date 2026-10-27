@@ -1,7 +1,9 @@
 """Reusable native dialog for offline field calculations."""
 import json
+import math
+from copy import deepcopy
 from pathlib import Path
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
     QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton, QScrollArea,
@@ -13,6 +15,8 @@ from .tool_presets import delete_preset, list_presets, save_preset
 
 
 class RFToolsDialog(QDialog):
+    handoff_requested = Signal(dict)
+
     def __init__(self, parent=None, embedded=False, preset_path=None):
         super().__init__(parent)
         self.embedded = embedded
@@ -22,6 +26,7 @@ class RFToolsDialog(QDialog):
         self.resize(760, 780)
         self.inputs = {}
         self.snapshot = None
+        self._source = None
         self.preset_path = Path(preset_path) if preset_path is not None else data_root() / 'tool-presets.json'
         layout = QVBoxLayout(self)
         heading = QLabel('Field calculators')
@@ -56,6 +61,10 @@ class RFToolsDialog(QDialog):
         self.preset_status = QLabel()
         self.preset_status.setWordWrap(True)
         layout.addWidget(self.preset_status)
+        self.source_label = QLabel()
+        self.source_label.setWordWrap(True)
+        self.source_label.hide()
+        layout.addWidget(self.source_label)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setMinimumHeight(140)
@@ -69,10 +78,14 @@ class RFToolsDialog(QDialog):
         self.calculate_button.setDefault(True)
         self.copy_button = QPushButton('Copy result with inputs')
         self.save_button = QPushButton('Save result…')
+        self.handoff_button = QPushButton('Use path loss in new Link budget tab')
+        self.handoff_button.setEnabled(False)
+        self.handoff_button.hide()
         actions.addWidget(self.calculate_button)
         actions.addWidget(self.copy_button)
         actions.addWidget(self.save_button)
         layout.addLayout(actions)
+        layout.addWidget(self.handoff_button)
         self.status = QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -94,6 +107,7 @@ class RFToolsDialog(QDialog):
         self.calculate_button.clicked.connect(self.run_calculation)
         self.copy_button.clicked.connect(self.copy_result)
         self.save_button.clicked.connect(self.save_result)
+        self.handoff_button.clicked.connect(self.request_handoff)
         self.preset_save_button.clicked.connect(self._save_preset_clicked)
         self.preset_load_button.clicked.connect(self.load_selected_preset)
         self.preset_delete_button.clicked.connect(lambda: self.delete_selected_preset())
@@ -124,6 +138,8 @@ class RFToolsDialog(QDialog):
             self.select_tool()
 
     def select_tool(self, *_):
+        self._source = None
+        self.source_label.hide()
         self.inputs = {}
         while self.form.rowCount():
             self.form.removeRow(0)
@@ -201,6 +217,8 @@ class RFToolsDialog(QDialog):
         except (ValueError, OSError) as exc:
             self.preset_status.setText(f'Could not load preset: {exc}')
             return False
+        self._source = None
+        self.source_label.hide()
         for key, value in record['inputs'].items():
             self.inputs[key].setText(f'{value:g}')
         self.invalidate()
@@ -224,12 +242,22 @@ class RFToolsDialog(QDialog):
         return removed
 
     def invalidate(self, *_):
+        if self._source is not None:
+            try:
+                current = float(self.inputs['path_loss'].text())
+            except (KeyError, ValueError):
+                current = math.nan
+            if not math.isclose(current, self._source['value'], rel_tol=1e-10, abs_tol=1e-9):
+                self._source = None
+                self.source_label.hide()
         self.snapshot = None
         self.result.clear()
         self.diagram.set_snapshot(None)
         self.flow_diagram.set_snapshot(None)
         self.copy_button.setEnabled(False)
         self.save_button.setEnabled(False)
+        self.handoff_button.setEnabled(False)
+        self.handoff_button.setVisible(self.selector.currentData() == 'fspl')
         self.status.setText('Enter values and choose Calculate.' if self.inputs else '')
 
     def run_calculation(self):
@@ -241,14 +269,34 @@ class RFToolsDialog(QDialog):
         except ValueError as exc:
             self.status.setText(str(exc))
             return
+        if self._source is not None:
+            self.snapshot['source'] = deepcopy(self._source)
         self.result.setPlainText(format_snapshot(self.snapshot))
         self.diagram.set_snapshot(self.snapshot)
         self.flow_diagram.set_snapshot(self.snapshot)
         self.copy_button.setEnabled(True)
         self.save_button.setEnabled(True)
+        self.handoff_button.setEnabled(self.snapshot['tool_id'] == 'fspl')
         self.status.setText('WARNING: Approximation is unsuitable for clearance decisions at these inputs. See limitations below.'
                             if self.snapshot['limitations'].startswith('WARNING:') else
                             'Calculated estimate. Review the assumptions below before applying it to a survey.')
+
+    def apply_handoff(self, handoff):
+        if handoff.get('tool_id') != 'link_budget' or self.selector.currentData() != 'link_budget':
+            raise ValueError('Handoff destination must be Link budget.')
+        source = handoff['source']
+        self.inputs['path_loss'].setText(f'{handoff["inputs"]["path_loss"]:.15g}')
+        self._source = deepcopy(source)
+        self.source_label.setText('Path loss from Free-space path loss calculation · '
+                                  f'{source["inputs"]["frequency"]:g} MHz, '
+                                  f'{source["inputs"]["distance"]:g} km · ideal free-space model. '
+                                  'Review all other link inputs, then calculate.')
+        self.source_label.show()
+        self.invalidate()
+
+    def request_handoff(self):
+        if self.snapshot is not None and self.snapshot.get('tool_id') == 'fspl':
+            self.handoff_requested.emit(deepcopy(self.snapshot))
 
     def copy_result(self):
         if self.snapshot is not None:

@@ -180,5 +180,10 @@ def format_snapshot(snapshot):
     lines += [f'{label}: {value:.8g}' for label, value in snapshot['outputs'].items()]
     lines += ['', 'Inputs']
     lines += [f"{snapshot['input_labels'][key]}: {value:.8g}" for key, value in snapshot['inputs'].items()]
+    if source := snapshot.get('source'):
+        lines += ['', 'Input source · calculated estimate',
+                  f"{source['output']}: {source['value']:.8g} from {source['title']} (version {source['version']})"]
+        lines += [f"Source {key}: {value:.8g}" for key, value in source['inputs'].items()]
+        lines += ['Source method: ' + source['method'], 'Source limitations: ' + source['limitations']]
     lines += ['', 'Method', snapshot['method'], '', 'Interpretation / limitations', snapshot['limitations']]
     return '\n'.join(lines)

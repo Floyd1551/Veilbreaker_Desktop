@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.49.0rc1** adds named input presets to the tabbed Tools calculators. Saved specifications can be loaded across app restarts; they remain operator inputs, never measured evidence. The offline LTE/NR signal interpreter, channel, Wi-Fi and RF planning tools remain alongside the diagnostic, survey, report and CLI workflows.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.50.0rc1** adds an explicit Free-space path loss → Link budget handoff in Tools. The new tab carries the calculated path loss, source inputs and model limitations without replacing an existing Link budget tab. It does not run a diagnostic or automatically calculate the destination. Saved input presets and the offline cellular, channel, Wi-Fi and RF planning tools remain alongside survey, report and CLI workflows.
 
 ## Windows installation
 
-Run `Veilbreaker-0.49.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.50.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 
@@ -44,6 +44,7 @@ Use `pip install -e .` for CLI-only use. On Linux, Qt needs the system graphics/
 - **Run history:** reopen the latest 200 runs and compare against the preceding run at the same site and scenario.
 - **Tools & readiness:** dependency checks, serial-port listing, modem compatibility matrix and engine self-test.
 - **Tools workspace:** search or filter calculators and offline references, then open several in closable tabs. The Browse tools tab stays available. Each open calculator keeps its own inputs and result until closed; typing in the global search returns to Browse tools. Save named calculator input presets with optional notes, reload them later, or delete them from the selected calculator. A loaded preset requires a new Calculate action and does not create diagnostic evidence.
+- **Tool handoff:** after calculating Free-space path loss, choose **Use path loss in new Link budget tab**. Review the other link inputs and calculate there. The displayed, copied and exported result retains the source model and its limitations while the transferred loss is unchanged.
 - **SDR capture:** discover HackRF and capture three receive-only sweeps across 2400–2500 MHz. The Spectrum tab shows median/maximum traces from saved CSV evidence. RF amplifier and antenna power are off for this quick capture.
 - **Settings:** edit the shared JSON configuration, hardware targets, adapter commands and storage location.
 - **Evidence:** save ZIP bundles containing metric JSON, report JSON/text/HTML, collector notes and any recorded sweep evidence.

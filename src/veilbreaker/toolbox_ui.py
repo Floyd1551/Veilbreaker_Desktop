@@ -1,4 +1,5 @@
 """Offline toolbox workspace: calculations, address planning and field references."""
+from uuid import uuid4
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabel, QLineEdit,
                               QPushButton, QTextBrowser, QComboBox, QApplication, QScrollArea, QTabBar)
@@ -11,6 +12,7 @@ from .wifi_channels_ui import WifiChannelsPanel
 from .cell_channel_ui import CellChannelPanel
 from .cell_signal_ui import CellSignalPanel
 from .tool_workspace_ui import ReferenceArticle
+from .tool_handoff import fspl_to_link_budget
 from .paths import data_root
 from .widgets import FlowLayout
 
@@ -62,6 +64,7 @@ class ToolboxPage(QWidget):
         self.tabs = QTabWidget(self.workspace_tabs)
         self.opened_tabs = {}
         self.calculators = RFToolsDialog(self, embedded=True, preset_path=self.preset_path)
+        self.calculators.handoff_requested.connect(self.open_link_budget_from_fspl)
         self.tabs.addTab(self.calculators, 'Calculators')
         network = QWidget()
         form = QVBoxLayout(network)
@@ -162,6 +165,7 @@ class ToolboxPage(QWidget):
             return
         if record.kind == 'calculator':
             widget = RFToolsDialog(self.workspace_tabs, embedded=True, preset_path=self.preset_path)
+            widget.handoff_requested.connect(self.open_link_budget_from_fspl)
             widget.search.setText(record.title)
             if widget.selector.currentData() != record.target_id:
                 widget.deleteLater()
@@ -177,6 +181,26 @@ class ToolboxPage(QWidget):
         self.workspace_tabs.setTabToolTip(index, record.title)
         self.opened_tabs[record_id] = widget
         self.workspace_tabs.setCurrentIndex(index)
+
+    def open_link_budget_from_fspl(self, snapshot):
+        try:
+            handoff = fspl_to_link_budget(snapshot)
+        except ValueError:
+            return False
+        widget = RFToolsDialog(self.workspace_tabs, embedded=True, preset_path=self.preset_path)
+        widget.search.setText('Link budget / fade margin')
+        if widget.selector.currentData() != 'link_budget':
+            widget.deleteLater()
+            return False
+        widget.search.hide()
+        widget.selector.hide()
+        widget.apply_handoff(handoff)
+        title = 'Link budget · from FSPL'
+        index = self.workspace_tabs.addTab(widget, title)
+        self.workspace_tabs.setTabToolTip(index, title)
+        self.opened_tabs['handoff:' + uuid4().hex] = widget
+        self.workspace_tabs.setCurrentIndex(index)
+        return True
 
     def close_workspace_tab(self, index):
         if index <= 0 or index >= self.workspace_tabs.count():
