@@ -1,6 +1,6 @@
 # Veilbreaker field-platform progress checklist
 
-Updated 2026-10-27. This tracks implemented software separately from field qualification and 1.0 readiness. See `V1_FIELD_PLATFORM.md` for the 1.0 acceptance criteria.
+Updated 2026-10-28. This tracks implemented software separately from field qualification and 1.0 readiness. See `V1_FIELD_PLATFORM.md` for the 1.0 acceptance criteria.
 
 ## Implemented in the desktop build
 
@@ -15,13 +15,14 @@ Updated 2026-10-27. This tracks implemented software separately from field quali
 - [x] Seven-workspace desktop navigation, explanatory collector cards, Evidence utilities, and separated Configuration/Settings controls.
 - [x] Local vector icons for navigation, collector and Tools cards; Veilbreaker emblem in sidebar and Overview.
 - [x] Collector readiness snapshot labels in Investigate, with missing and untested states distinct from actual connection claims.
+- [x] Geographic survey map metric selector, relative measured-value coloring, legend and run-metric details. Manual/GPS outlines remain distinct; missing values stay uncolored.
 
 ## In progress or limited
 
 - [ ] Complete area preparation with coverage gap preview, verified tower/cell providers and offline imagery packs. The manager handles one terrain raster or one structure GeoJSON per pack; assessments can use several compatible terrain packs.
 - [ ] Authorized real tower and cell datasets, with physical structures distinct from estimated cell sites and serving-cell identity.
 - [ ] Automated adjacent-tile catalog preparation and field qualification of real terrain boundaries. The local sampler handles compatible installed tiles and missing data.
-- [ ] Survey measured-point metric colors, legends, identity/source filtering and detail cards across geographic and floor-plan views.
+- [ ] Extend measured-point metric colors and details to floor-plan views; add identity/source filtering and explicit capture-window attribution. Geographic map coloring currently uses saved per-run diagnostic aggregates, not per-fix samples.
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
 - [ ] Environmental observations and attaching calculation snapshots to surveys, points and reports.
 - [ ] Broader offline reference/tool library and field workflows from the approved inventory.

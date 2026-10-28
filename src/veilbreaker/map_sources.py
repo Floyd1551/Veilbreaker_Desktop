@@ -5,11 +5,16 @@ from . import core
 from .map_data import build_map_data
 from .android_capture import load_capture
 from .location_report import location_rows
+from .survey_metrics import clean_metrics
 
 def _run(config,store,run_id,label=None):
-    result=dict(run_id=run_id,label=label or run_id,locations=[])
+    result=dict(run_id=run_id,label=label or run_id,locations=[],metrics={})
     row=store.get_run(run_id)
     if row is None:return result
+    try:
+        result['metrics']=clean_metrics(json.loads(row['metrics_json'] or '{}')) if 'metrics_json' in row.keys() else {}
+    except (ValueError, TypeError):
+        pass
     try:
         report=json.loads(row['report_json'])
         locations=report.get('normalized_metrics',{}).get('location_report')
@@ -23,6 +28,7 @@ def _run(config,store,run_id,label=None):
 
 def _build(runs):
     model=build_map_data(runs)
+    model['run_metrics']={run['run_id']:run['metrics'] for run in runs if run['metrics']}
     model['warnings'].extend(r['warning'] for r in runs if r.get('warning'))
     return model
 

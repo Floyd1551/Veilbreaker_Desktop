@@ -5,6 +5,7 @@ from PySide6.QtCore import QObject,Signal,Slot,Qt,QUrl,QSettings,QTimer,QStandar
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QCheckBox,QComboBox,QSplitter,QTableWidget,QTableWidgetItem,QHeaderView,QFileDialog,QMessageBox,QWidget)
 from .map_data import map_bounds,export_geojson
 from .map_server import MapServer
+from .survey_metrics import METRICS, available_metrics, metric_scale, point_metric
 
 class MapBridge(QObject):
     refresh=Signal()
@@ -70,17 +71,36 @@ class MapWindow(QDialog):
             if row['run_id'] not in seen:
                 seen.add(row['run_id']);self.run_filter.addItem(row['label']+' · all observations',row['run_id'])
         outer.addWidget(self.run_filter)
+        metric_row=QHBoxLayout()
+        metric_row.addWidget(QLabel('Measured metric'))
+        self.metric_selector=QComboBox();self.metric_selector.setAccessibleName('Survey measured metric')
+        self.metric_selector.addItem('Location provenance',None)
+        for key in available_metrics(model):
+            title,unit=METRICS[key]
+            self.metric_selector.addItem(f'{title} ({unit})',key)
+        metric_row.addWidget(self.metric_selector,1)
+        outer.addLayout(metric_row)
+        self.metric_legend=QLabel()
+        self.metric_legend.setWordWrap(True)
+        self.metric_legend.setTextFormat(Qt.TextFormat.PlainText)
+        outer.addWidget(self.metric_legend)
+        self.metric_ramp=QWidget()
+        self.metric_ramp.setFixedHeight(8)
+        self.metric_ramp.setAccessibleName('Relative measured-value color scale: blue low, amber high')
+        self.metric_ramp.setStyleSheet('background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #4877ca,stop:1 #f5bf5d); border-radius: 4px;')
+        outer.addWidget(self.metric_ramp)
         self.pack_status=QLabel('Basemap unavailable · Import a Protomaps .pmtiles regional map. Points work without a basemap.')
         self.pack_status.setTextFormat(Qt.TextFormat.PlainText);self.pack_status.setWordWrap(True);outer.addWidget(self.pack_status)
         self.renderer_status=QLabel('Loading offline map…');self.renderer_status.setWordWrap(True);self.renderer_status.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.renderer_status)
         self.splitter=QSplitter(Qt.Orientation.Vertical);outer.addWidget(self.splitter,1)
         self.map_container=QWidget();self.map_layout=QVBoxLayout(self.map_container);self.map_layout.setContentsMargins(0,0,0,0);self.splitter.addWidget(self.map_container)
-        self.table=QTableWidget(0,5);self.table.setHorizontalHeaderLabels(['Run / point','Observation','GPS quality','Accuracy (m)','Age (ms)'])
+        self.table=QTableWidget(0,6);self.table.setHorizontalHeaderLabels(['Run / point','Observation','GPS quality','Accuracy (m)','Age (ms)','Selected run metric'])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows);self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection);self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.splitter.addWidget(self.table);self.splitter.setSizes([460,180])
         self.details=QLabel('Select a measurement to inspect its location evidence.');self.details.setWordWrap(True);self.details.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.details)
         self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);outer.addWidget(self.open_button)
         self.run_filter.currentIndexChanged.connect(self.change_run);self.questionable.toggled.connect(self.update_view)
+        self.metric_selector.currentIndexChanged.connect(self.update_view)
         self.table.itemSelectionChanged.connect(self.table_selected)
         self.update_view()
         if restore_pack:
@@ -102,11 +122,26 @@ class MapWindow(QDialog):
                 (f['properties'].get('manual') or (f['properties']['quality']['qualified'] and (run is not None or f['id'] in self.model['representatives'])) or (questionable and not f['properties']['quality']['qualified']))]
     def update_view(self):
         features=self.visible_features();ids={f['id'] for f in features};run=self.run_filter.currentData()
+        metric_key=self.metric_selector.currentData()
+        scale=metric_scale(self.model,metric_key) if metric_key else None
+        self.metric_ramp.setVisible(bool(scale))
+        if scale:
+            single=scale['minimum']==scale['maximum']
+            self.metric_ramp.setStyleSheet('background: #52b7ca; border-radius: 4px;' if single else
+                'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #4877ca,stop:1 #f5bf5d); border-radius: 4px;')
+            range_text=(f"single value {scale['minimum']:g} {scale['unit']}" if single else
+                        f"{scale['minimum']:g} to {scale['maximum']:g} {scale['unit']}")
+            count_text=f"{scale['count']} saved {'run' if scale['count']==1 else 'runs'}"
+            self.metric_legend.setText(f"{scale['label']} · {range_text} across {count_text}. Colors show relative measured values, not a quality verdict. Run metrics are not per-fix readings. Purple outline = operator placement; teal = qualified GPS; amber = questionable GPS; gray fill = value unavailable.")
+        else:
+            self.metric_legend.setText('Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
         coordinate_ids={f['id'] for f in self.model['features']['features']}
         self.visible_rows=[r for r in self.model['rows'] if (run is None or r['run_id']==run) and (r['id'] in ids or r['id'] not in coordinate_ids)]
         self.table.blockSignals(True);self.table.clearContents();self.table.setRowCount(len(self.visible_rows))
         for i,row in enumerate(self.visible_rows):
-            for j,value in enumerate([row['label'],row['observation_id'],row['quality']['label'],row.get('horizontal_accuracy_m'),row.get('fix_age_ms')]):
+            metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
+            metric_text=f"{metric['label']} {metric['value']:g} {metric['unit']}" if metric else '—'
+            for j,value in enumerate([row['label'],row['observation_id'],row['quality']['label'],row.get('horizontal_accuracy_m'),row.get('fix_age_ms'),metric_text]):
                 self.table.setItem(i,j,QTableWidgetItem('Not exposed' if value is None else str(value)))
         self.table.blockSignals(False);self.selected=None;self.open_button.setEnabled(False)
         counts=self.model['counts'];self.summary.setText(f"{counts['mapped']} qualified plottable observations · {counts['questionable']} questionable fixes · {counts['unpositioned_runs']} runs without a qualified position" + (' · '+ ' '.join(self.model['warnings'][:3]) if self.model['warnings'] else ''))
@@ -116,7 +151,18 @@ class MapWindow(QDialog):
         if not self.model['rows']:self.details.setText('No GPS evidence. Enable phone location during capture, then open the saved diagnostic or survey here.')
         else:self.details.setText('Select a measurement. Questionable fixes are hidden until enabled.')
         pack=self.server.pack
-        self.server.set_model(dict(features=dict(type='FeatureCollection',features=[f for f in features if f['properties']['renderable']]),bounds=self.cell_overlay['bounds'] if self.cell_overlay else map_bounds(features),cell_overlay=self.cell_overlay,pack={k:pack[k] for k in ('name','attribution','minzoom','maxzoom','resource')} if pack else None))
+        rendered=[]
+        for feature in features:
+            if not feature['properties']['renderable']:
+                continue
+            properties=dict(feature['properties'])
+            if metric_key and (properties.get('manual') or feature['id'] in self.model['representatives']):
+                metric=point_metric(self.model,properties['run_id'],metric_key,scale)
+                if metric:
+                    properties['metric_color']=metric['color']
+                    properties['metric_value']=metric['value']
+            rendered.append(dict(feature,properties=properties))
+        self.server.set_model(dict(features=dict(type='FeatureCollection',features=rendered),metric_mode=bool(metric_key),bounds=self.cell_overlay['bounds'] if self.cell_overlay else map_bounds(features),cell_overlay=self.cell_overlay,pack={k:pack[k] for k in ('name','attribution','minzoom','maxzoom','resource')} if pack else None))
         self.bridge.refresh.emit()
     def change_run(self):
         self.cell_overlay=None;self.update_view()
@@ -139,7 +185,12 @@ class MapWindow(QDialog):
                 self.table.blockSignals(True);self.table.selectRow(i);self.table.blockSignals(False)
                 self.selected=row;self.open_button.setEnabled(True)
                 def val(key):return str(row[key]) if row.get(key) is not None else 'Not exposed'
-                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
+                metric_key=self.metric_selector.currentData()
+                scale=metric_scale(self.model,metric_key) if metric_key else None
+                metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
+                metric_note=(f"\n{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric, not an individual fix reading."
+                             if metric else ('\nSelected run metric unavailable.' if metric_key else ''))
+                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + metric_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
                 self.bridge.highlight.emit(feature_id);return
     def table_selected(self):
         i=self.table.currentRow()

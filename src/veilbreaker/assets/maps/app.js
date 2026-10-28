@@ -23,7 +23,10 @@ function install(){
  map.addSource('measurements',{type:'geojson',data:model.features});map.addSource('accuracy',{type:'geojson',data:empty()});
  map.addLayer({id:'uncertainty',type:'fill',source:'accuracy',paint:{'fill-color':'#63dec8','fill-opacity':0.18}});
  map.addLayer({id:'uncertainty-border',type:'line',source:'accuracy',paint:{'line-color':'#63dec8','line-width':1}});
- map.addLayer({id:'points',type:'circle',source:'measurements',paint:{'circle-radius':7,'circle-color':['case',['==',['get','manual'],true],'#ba95f5',['==',['get','label',['get','quality']],'Qualified fix'],'#63dec8','#f3ad54'],'circle-stroke-width':2,'circle-stroke-color':'#101722'}});
+ map.addLayer({id:'points',type:'circle',source:'measurements',paint:{'circle-radius':7,
+  'circle-color':model.metric_mode?['coalesce',['get','metric_color'],'#65748b']:['case',['==',['get','manual'],true],'#ba95f5',['==',['get','label',['get','quality']],'Qualified fix'],'#63dec8','#f3ad54'],
+  'circle-stroke-width':model.metric_mode?3:2,
+  'circle-stroke-color':model.metric_mode?['case',['==',['get','manual'],true],'#ba95f5',['==',['get','label',['get','quality']],'Qualified fix'],'#63dec8','#f3ad54']:'#101722'}});
  map.addLayer({id:'selected',type:'circle',source:'measurements',filter:['==',['get','id'],''],paint:{'circle-radius':11,'circle-color':'transparent','circle-stroke-width':3,'circle-stroke-color':'#ffffff'}});
  map.on('click','points',e=>{if(e.features.length)bridge.selectFeature(String(e.features[0].properties.id));});
  map.on('click',e=>bridge.pickCoordinate(((e.lngLat.lng+180)%360+360)%360-180,e.lngLat.lat));
@@ -52,8 +55,8 @@ async function refresh(){
   notice.textContent=(model.pack?'Offline basemap · '+model.pack.name:'Basemap unavailable · Coordinate-only view')+(model.features.features.length?'':' · No plottable fixes in this view');
   map=new maplibregl.Map({container:'map',style,center:[-98,39],zoom:3,attributionControl:false,renderWorldCopies:true});
   map.addControl(new maplibregl.NavigationControl(),'top-right');
-  map.addControl(new maplibregl.AttributionControl({customAttribution:'Receiver positions · GPS quality evidence',compact:false}));
-  map.on('error',()=>{notice.textContent='Basemap or rendering error · GPS evidence remains in the point list';bridge.failed('local basemap or rendering error');});
+  map.addControl(new maplibregl.AttributionControl({customAttribution:'Receiver positions · GPS and operator placement; selected colors are saved run metrics',compact:false}));
+  map.on('error',()=>{notice.textContent='Basemap or rendering error · location and run evidence remain in the point list';bridge.failed('local basemap or rendering error');});
   map.on('load',install);
  }catch(e){notice.textContent='Map unavailable · '+e.message;bridge.failed(String(e.message));}
 }

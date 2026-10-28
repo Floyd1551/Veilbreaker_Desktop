@@ -26,6 +26,7 @@ def smoke(destination,pack_path=None):
     destination=Path(destination);destination.mkdir(parents=True,exist_ok=True)
     rows=[dict(status='available',latitude_deg=32.78+i*.001,longitude_deg=-96.8+i*.001,horizontal_accuracy_m=8,fix_age_ms=300,observation_id='Observation '+str(i+1),source='phone',provider='gps') for i in range(3)]
     model=build_map_data([dict(run_id='synthetic',label='Synthetic field survey',locations=rows)])
+    model['run_metrics']={'synthetic': {'rsrp': -91}}
     window=MapWindow(None,model,lambda _:None,restore_pack=False)
     fixture=destination/'synthetic.pmtiles';fixture.write_bytes(synthetic_pack());window.load_pack(pack_path or fixture,persist=False)
     window.run_filter.setCurrentIndex(1);window.show()
@@ -52,12 +53,17 @@ def smoke(destination,pack_path=None):
             QTest.qWait(200);report['external_blocked']=js('window.externalBlocked') is True
             report['url_allowlist']=not window.interceptor.permitted(QUrl('https://example.com'))
             window.grab().save(str(destination/'map.png'))
+            window.metric_selector.setCurrentIndex(window.metric_selector.findData('rsrp'))
+            window.ready=False;wait(lambda:window.ready);QTest.qWait(300)
+            report['metric_mode']=bool(window.server.model.get('metric_mode'))
+            report['colored_points']=js("window.veilbreakerMap.queryRenderedFeatures({layers:['points']}).filter(f=>f.properties.metric_color).length")
+            window.grab().save(str(destination/'metric-map.png'))
             anti=[dict(run_id=str(lon),locations=[dict(rows[0],longitude_deg=lon,latitude_deg=0)]) for lon in (179,-179)]
             window.model=build_map_data(anti);window.run_filter.blockSignals(True);window.run_filter.setCurrentIndex(0);window.run_filter.blockSignals(False)
             window.ready=False;window.update_view();wait(lambda:window.ready);QTest.qWait(1000)
             report['antimeridian_points']=js("window.veilbreakerMap.queryRenderedFeatures({layers:['points']}).length")
         report['status']=window.renderer_status.text()
-        report['passed']=bool('unavailable' not in report['status'].lower() and report.get('ready') and report.get('rendered_points',0)>=3 and report.get('selection') and report.get('local_pack_reads',0)>0 and report.get('external_blocked') and report.get('url_allowlist') and report.get('antimeridian_points',0)>=2)
+        report['passed']=bool('unavailable' not in report['status'].lower() and report.get('ready') and report.get('rendered_points',0)>=3 and report.get('selection') and report.get('local_pack_reads',0)>0 and report.get('external_blocked') and report.get('url_allowlist') and report.get('metric_mode') and report.get('colored_points',0)>=1 and report.get('antimeridian_points',0)>=2)
     finally:
         window.close();app.processEvents()
     (destination/'map-smoke.json').write_text(json.dumps(report,indent=2),encoding='utf-8');print(json.dumps(report,indent=2))
