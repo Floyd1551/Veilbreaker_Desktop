@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.55.0rc1** adds geographic survey-map coloring for saved run metrics such as RSRP, SINR, Wi-Fi RSSI, latency and throughput. A selector, relative-value legend and point list keep the metric readable while manual placement and captured GPS remain distinct. These values are saved diagnostic run aggregates, not per-fix samples or estimated coverage. Existing diagnostics, surveys, tools and regional packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.56.0rc1** extends measured-point coloring to indoor floor plans. Each floor gets its own relative scale; placed scans have readable values, missing-value markers and clickable details. The geographic map retains its measured-metric selector. Manual positions remain operator placement, and the values are saved diagnostic run aggregates rather than per-fix samples or estimated coverage. Existing diagnostics, surveys, tools and regional packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
 
 ## Windows installation
 
-Run `Veilbreaker-0.55.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.56.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 

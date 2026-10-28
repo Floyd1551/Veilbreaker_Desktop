@@ -1,6 +1,6 @@
 import unittest
 
-from veilbreaker.survey_metrics import available_metrics, metric_scale, clean_metrics, point_metric
+from veilbreaker.survey_metrics import available_metrics, metric_scale, clean_metrics, point_metric, floor_measurements
 
 
 class SurveyMetricTests(unittest.TestCase):
@@ -28,6 +28,23 @@ class SurveyMetricTests(unittest.TestCase):
     def test_invalid_values_never_offer_a_metric_choice(self):
         model = {'run_metrics': {'a': {'rsrp': True, 'sinr': float('inf')}}}
         self.assertEqual(available_metrics(model), [])
+
+    def test_floor_scale_uses_only_placed_scans_on_selected_floor(self):
+        steps = [
+            {'run_id': 'a', 'label': 'Lobby', 'metrics': {'rsrp': -110}},
+            {'run_id': 'b', 'label': 'Hall', 'metrics': {'rsrp': -80}},
+            {'run_id': 'c', 'label': 'Roof', 'metrics': {'rsrp': -30}},
+            {'run_id': 'd', 'label': 'No RSRP', 'metrics': {'sinr': 4}},
+        ]
+        placements = {key: {'kind': 'floor', 'floor_id': floor, 'x': .2, 'y': .4,
+                            'placed_utc': '2026-10-28T00:00:00Z'}
+                      for key, floor in [('a', 'f1'), ('b', 'f1'), ('c', 'roof'), ('d', 'f1')]}
+        markers, scale = floor_measurements(steps, placements, 'f1', 'rsrp')
+        self.assertEqual((scale['minimum'], scale['maximum'], scale['count']), (-110, -80, 2))
+        self.assertEqual([m['run_id'] for m in markers], ['a', 'b', 'd'])
+        self.assertEqual(markers[0]['placed_utc'], '2026-10-28T00:00:00Z')
+        self.assertIsNone(markers[-1]['metric'])
+        self.assertNotEqual(markers[0]['metric']['color'], markers[1]['metric']['color'])
 
 
 if __name__ == '__main__':

@@ -54,3 +54,23 @@ def point_metric(model, run_id, key, scale):
         a, b = (72, 119, 202), (245, 191, 93)
         color = '#%02x%02x%02x' % tuple(round(x + (y - x) * ratio) for x, y in zip(a, b))
     return {'value': value, 'color': color, 'unit': scale['unit'], 'label': scale['label']}
+
+
+def floor_measurements(steps, placements, floor_id, metric_key=None):
+    """Return positioned scans and a color scale scoped to one floor only."""
+    positioned = []
+    run_metrics = {}
+    for index, step in enumerate(steps, 1):
+        run_id = step['run_id']
+        position = placements.get(run_id)
+        if not position or position.get('kind') != 'floor' or position.get('floor_id') != floor_id:
+            continue
+        positioned.append({'run_id': run_id, 'scan_label': step.get('label') or run_id,
+                           'number': index, 'x': position['x'], 'y': position['y'],
+                           'placed_utc': position.get('placed_utc')})
+        run_metrics[run_id] = clean_metrics(step.get('metrics'))
+    model = {'run_metrics': run_metrics}
+    scale = metric_scale(model, metric_key) if metric_key else None
+    for marker in positioned:
+        marker['metric'] = point_metric(model, marker['run_id'], metric_key, scale) if metric_key else None
+    return positioned, scale

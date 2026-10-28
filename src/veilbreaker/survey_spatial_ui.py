@@ -8,10 +8,12 @@ from .survey import read_session
 from .survey_spatial import (load_spatial, import_floor, read_floor, save_placement,
                              clear_placement, calibrate_floor, remove_floor, unplaced_measurements)
 from .widgets import FlowLayout
+from .survey_metrics import METRICS, available_metrics, clean_metrics, floor_measurements
 
 
 class FloorCanvas(QGraphicsView):
     picked = Signal(float, float)
+    marker_selected = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -19,23 +21,39 @@ class FloorCanvas(QGraphicsView):
         self.dimensions = None
         self.press_position = None
         self.preview = None
+        self.marker_positions = []
         self.setMinimumHeight(280)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
         self.setAccessibleName('Floor plan. Click to place a point; drag to pan; scroll to zoom.')
 
-    def set_floor(self, image, markers):
+    def set_floor(self, image, markers, metric_mode=False):
         self.scene().clear()
         self.preview = None
+        self.marker_positions = []
         self.dimensions = (image.width(), image.height())
         self.scene().addPixmap(QPixmap.fromImage(image))
-        radius = max(image.width(), image.height()) / 100
-        for x, y, label in markers:
+        radius = max(6, max(image.width(), image.height()) / 100)
+        for marker in markers:
+            x, y = marker['x'], marker['y']
+            metric = marker.get('metric')
             px, py = x * image.width(), y * image.height()
-            self.scene().addEllipse(px - radius, py - radius, radius * 2, radius * 2,
-                                   QPen(QColor('#231438')), QColor('#ba95f5'))
-            text = self.scene().addSimpleText(str(label))
+            dot = self.scene().addEllipse(px - radius, py - radius, radius * 2, radius * 2,
+                                   QPen(QColor('#ba95f5'), max(2, radius / 4)),
+                                   QColor(metric['color'] if metric else ('#65748b' if metric_mode else '#ba95f5')))
+            value = f"{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric" if metric else 'Selected metric unavailable'
+            dot.setToolTip(f"{marker['scan_label']} · operator floor placement; not GPS evidence. {value}.")
+            if marker.get('run_id'):
+                self.marker_positions.append((px, py, radius, marker['run_id']))
+            caption = str(marker['number']) + (f" · {metric['value']:g} {metric['unit']}" if metric_mode and metric else '')
+            text = self.scene().addSimpleText(caption)
             text.setBrush(QColor('#111111'))
-            text.setPos(px + radius, py)
+            label_x, label_y = px + radius + 2, py - radius
+            extent = text.boundingRect()
+            background = self.scene().addRect(label_x - 2, label_y - 1, extent.width() + 4, extent.height() + 2,
+                                              QPen(QColor('#46566c')), QColor('#e6eef5'))
+            background.setZValue(1)
+            text.setPos(label_x, label_y)
+            text.setZValue(2)
         self.scene().setSceneRect(0, 0, image.width(), image.height())
 
     def fit_floor(self):
@@ -67,6 +85,10 @@ class FloorCanvas(QGraphicsView):
         super().mouseReleaseEvent(event)
         if not moved and event.button() == Qt.MouseButton.LeftButton and self.dimensions:
             point = self.mapToScene(event.position().toPoint())
+            for px, py, radius, run_id in reversed(self.marker_positions):
+                if (point.x() - px) ** 2 + (point.y() - py) ** 2 <= (radius + 2) ** 2:
+                    self.marker_selected.emit(run_id)
+                    return
             x, y = point.x() / self.dimensions[0], point.y() / self.dimensions[1]
             if 0 <= x <= 1 and 0 <= y <= 1:
                 self.picked.emit(x, y)
@@ -97,6 +119,24 @@ class SpatialDialog(QDialog):
         self.surface = QComboBox()
         self.surface.setAccessibleName('Geographic map or floor plan')
         layout.addWidget(self.surface)
+        self.metric_panel = QLabel('Floor-plan measured metric')
+        layout.addWidget(self.metric_panel)
+        self.metric_selector = QComboBox()
+        self.metric_selector.setAccessibleName('Floor-plan measured metric')
+        self.metric_selector.addItem('Placement positions', None)
+        metric_model = {'run_metrics': {step['run_id']: clean_metrics(step.get('metrics')) for step in self.session['steps']}}
+        for key in available_metrics(metric_model):
+            title, unit = METRICS[key]
+            self.metric_selector.addItem(f'{title} ({unit})', key)
+        layout.addWidget(self.metric_selector)
+        self.metric_legend = QLabel()
+        self.metric_legend.setWordWrap(True)
+        self.metric_legend.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.metric_legend)
+        self.measurement_detail = QLabel()
+        self.measurement_detail.setWordWrap(True)
+        self.measurement_detail.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.measurement_detail)
         actions = FlowLayout()
         add = QPushButton('Import floor plan…')
         add.clicked.connect(self.add_floor)
@@ -123,6 +163,7 @@ class SpatialDialog(QDialog):
         layout.addLayout(self.coordinate_form)
         self.canvas = FloorCanvas()
         self.canvas.picked.connect(self.floor_picked)
+        self.canvas.marker_selected.connect(self.select_floor_marker)
         layout.addWidget(self.canvas, 1)
         self.status = QLabel()
         self.status.setWordWrap(True)
@@ -141,6 +182,7 @@ class SpatialDialog(QDialog):
         layout.addLayout(buttons)
         self.surface.currentIndexChanged.connect(self.change_surface)
         self.point.currentIndexChanged.connect(self.change_point)
+        self.metric_selector.currentIndexChanged.connect(lambda _index: self.render_floor())
         self.refresh()
         self.change_point()
 
@@ -168,6 +210,12 @@ class SpatialDialog(QDialog):
             self.surface.setCurrentIndex(self.surface.findData(placement.get('floor_id', 'geographic')))
         self.change_surface()
 
+    def select_floor_marker(self, run_id):
+        index = self.point.findData(run_id)
+        if index >= 0:
+            self.point.setCurrentIndex(index)
+            self.render_floor()
+
     def change_surface(self):
         self.pending = None
         self.calibration_points = None
@@ -175,6 +223,10 @@ class SpatialDialog(QDialog):
         for row in range(self.coordinate_form.rowCount()):
             self.coordinate_form.setRowVisible(row, geographic)
         self.canvas.setVisible(not geographic)
+        self.metric_panel.setVisible(not geographic)
+        self.metric_selector.setVisible(not geographic)
+        self.metric_legend.setVisible(not geographic)
+        self.measurement_detail.setVisible(not geographic)
         self.pick_button.setEnabled(geographic)
         self.fit_button.setEnabled(not geographic)
         self.calibrate_button.setEnabled(not geographic)
@@ -190,20 +242,49 @@ class SpatialDialog(QDialog):
         if geographic:
             self.status.setText('Enter coordinates or pick on the offline map, then Save placement.')
         else:
-            try:
-                floor = self.surface.currentData()
-                image = read_floor(self.config, self.path, floor)
-                markers = [(p['x'], p['y'], i + 1) for i, step in enumerate(self.session['steps'])
-                           if (p := self.data['placements'].get(step['run_id'])) and p.get('floor_id') == floor]
-                self.canvas.set_floor(image, markers)
+            self.render_floor(fit=True)
+
+    def render_floor(self, fit=False):
+        if self.surface.currentData() == 'geographic':
+            return
+        try:
+            floor = self.surface.currentData()
+            image = read_floor(self.config, self.path, floor)
+            key = self.metric_selector.currentData()
+            markers, metric_scale = floor_measurements(self.session['steps'], self.data['placements'], floor, key)
+            self.canvas.set_floor(image, markers, metric_mode=bool(key))
+            unsaved = self.pending and self.pending.get('kind') == 'floor' and self.pending.get('floor_id') == floor and 'placed_utc' not in self.pending
+            if unsaved:
+                self.canvas.show_preview(self.pending['x'], self.pending['y'])
+            if fit:
                 self.canvas.fit_floor()
-                scale = self.data['floors'][floor].get('calibration', {}).get('meters_per_pixel')
-                self.status.setText('Click to choose a position; drag to pan; scroll to zoom. Save confirms placement. ' +
-                                    (f'Scale: {scale:.6g} m / image pixel.' if scale else 'Scale is not calibrated.'))
-            except (OSError, ValueError) as exc:
-                self.canvas.scene().clear()
-                self.canvas.dimensions = None
-                self.status.setText(str(exc))
+            if key and metric_scale:
+                low, high = metric_scale['minimum'], metric_scale['maximum']
+                spread = f'single value {low:g}' if low == high else f'{low:g} to {high:g}'
+                colors = 'Teal = the single observed value.' if low == high else 'Blue = lower observed value; amber = higher.'
+                self.metric_legend.setText(f"{metric_scale['label']} · {spread} {metric_scale['unit']} on this floor across {metric_scale['count']} placed scans. {colors} Colors are relative, not a quality verdict. Purple outlines = operator placement; gray fill = value unavailable. Saved run metrics are not exact per-position samples.")
+            elif key:
+                self.metric_legend.setText('No saved values for this metric on this floor. Gray points remain operator placements; no coverage is estimated.')
+            else:
+                self.metric_legend.setText('Purple markers are operator floor-plan placements, not GPS evidence. Choose a measured metric to color placed scans.')
+            selected_run = self.point.currentData()
+            selected = next((marker for marker in markers if marker['run_id'] == selected_run), None)
+            if selected:
+                metric = selected['metric']
+                value = f"{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric" if metric else ('Selected metric unavailable' if key else 'No metric selected')
+                placed = selected.get('placed_utc') or 'time unavailable'
+                self.measurement_detail.setText(f"{selected['scan_label']} · scan {selected['number']} · Run {selected['run_id']} · operator floor-plan placement · Operator placed {placed}. {value}. Original diagnostic evidence is unchanged.")
+            else:
+                self.measurement_detail.setText('The selected scan has no placement on this floor. Choose another scan or place it here.')
+            scale = self.data['floors'][floor].get('calibration', {}).get('meters_per_pixel')
+            self.status.setText('Click to choose a position; drag to pan; scroll to zoom. Save confirms placement. ' +
+                                (f'Scale: {scale:.6g} m / image pixel.' if scale else 'Scale is not calibrated.'))
+            if unsaved:
+                self.status.setText(f"Unsaved placement: {self.pending['x'] * 100:.1f}% across, {self.pending['y'] * 100:.1f}% down. Choose Save placement to confirm.")
+        except (OSError, ValueError) as exc:
+            self.canvas.scene().clear()
+            self.canvas.dimensions = None
+            self.status.setText(str(exc))
 
     def floor_picked(self, x, y):
         if self.calibration_points is not None:
