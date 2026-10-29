@@ -44,6 +44,21 @@ def imagery_html(imagery):
     return '\n'.join(parts)
 
 
+def observations_html(session):
+    raw=session.get('observations',[])
+    if not isinstance(raw,list):
+        return '<h2>Operator observations</h2><p>Observation data is unavailable.</p>'
+    rows=[row for row in raw if isinstance(row,dict) and not row.get('deleted_utc')]
+    if not rows:
+        return ''
+    labels={step.get('run_id'):step.get('label','Unnamed point') for step in session.get('steps',[])}
+    return ('<h2>Operator observations</h2><p>These are operator observations, not measured signal loss or proven propagation effects.</p>'+
+        table(['Observation ID','Recorded UTC','Point','Type / material','Description','Operator'],
+              [[row.get('id'),row.get('recorded_utc'),labels.get(row.get('run_id'),'Survey-wide' if not row.get('run_id') else 'Point unavailable'),
+                str(row.get('category','Unknown'))+' / '+str(row.get('material','Unknown')),
+                row.get('description'),row.get('author') or 'Not supplied'] for row in rows]))
+
+
 def report_html(session, imagery=None, cell_context=""):
     steps = session.get('steps', [])
     states = Counter(s.get('status', 'unknown') for s in steps)
@@ -54,7 +69,7 @@ def report_html(session, imagery=None, cell_context=""):
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
              '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
-             imagery_html(imagery), cell_context,
+             imagery_html(imagery), cell_context, observations_html(session),
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

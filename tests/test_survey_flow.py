@@ -87,6 +87,14 @@ class SurveyFlowGuiTests(unittest.TestCase):
         self.page.show_session(session, self.path)
         self.assertIn('remaining', self.page.continue_button.text())
 
+    def test_observation_editor_opens_with_selected_point(self):
+        self.page.results.selectRow(0)
+        run=self.page.session['steps'][0]['run_id']
+        with patch('veilbreaker.survey_observations_ui.ObservationsDialog') as editor:
+            self.page.open_observations()
+            editor.assert_called_once_with(self.window,self.cfg,self.path,run)
+            editor.return_value.exec.assert_called_once()
+
     def test_stale_readiness_and_completed_state(self):
         from veilbreaker.survey_flow import check_next_readiness
         flow = self.page.flow
