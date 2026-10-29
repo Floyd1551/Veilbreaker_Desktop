@@ -162,3 +162,32 @@ class SpatialUITests(unittest.TestCase):
                 self.assertLessEqual(close.mapTo(dialog, close.rect().bottomRight()).y(), dialog.height())
             finally:
                 dialog.close()
+
+    def test_floor_uses_read_only_live_cell_metric_from_map_model(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cfg = AppConfig(data_dir=folder)
+            made = create_survey(cfg, 'Indoor live', [{'label': 'Lobby'}])
+            path = made['survey_path']
+            image = QImage(100, 100, QImage.Format.Format_RGB32)
+            image.fill(QColor('white'))
+            source = Path(folder) / 'floor.png'
+            image.save(str(source))
+            floor = import_floor(cfg, path, source, 'Floor 1')
+            run_id = made['survey']['steps'][0]['run_id']
+            save_placement(cfg, path, run_id, {'kind': 'floor', 'floor_id': floor, 'x': .5, 'y': .5})
+            model = {'rows': [], 'representatives': [],
+                'run_metrics': {run_id: {'live_phone_lte_rsrp': -95}},
+                'run_context': {run_id: {'live_phone_lte_rsrp': {'sources': ['android_usb'],
+                    'statistic': 'single fresh sample', 'sample_count': 1,
+                    'window_start_utc': '2026-10-28T10:00:00Z',
+                    'window_end_utc': '2026-10-28T10:00:00Z',
+                    'cell_identity': {'cell_id': '1234'}, 'radio': 'LTE'}}}}
+            with patch('veilbreaker.map_sources.load_survey_map_data', return_value=model):
+                dialog = SpatialDialog(None, cfg, path)
+            try:
+                dialog.metric_selector.setCurrentIndex(dialog.metric_selector.findData('live_phone_lte_rsrp'))
+                dialog.surface.setCurrentIndex(dialog.surface.findData(floor))
+                self.assertIn('single value -95 dBm', dialog.metric_legend.text())
+                self.assertIn('cell_id 1234', dialog.measurement_detail.text())
+            finally:
+                dialog.close()

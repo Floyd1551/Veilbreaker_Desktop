@@ -217,7 +217,9 @@ class MapWindow(QDialog):
                 metric_key=self.metric_selector.currentData()
                 scale=metric_scale(self.model,metric_key) if metric_key else None
                 metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
-                metric_note=(f"\n{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric, not an individual fix reading."
+                metric_note=(f"\n{metric['label']} {metric['value']:g} {metric['unit']} · "
+                             + ('derived live-session value' if metric_key.startswith('live_phone_') else 'saved run metric')
+                             + ', not an individual fix reading.'
                              if metric else ('\nSelected run metric unavailable.' if metric_key else ''))
                 context=self.model.get('run_context',{}).get(row['run_id'],{}).get(metric_key,{}) if metric_key else {}
                 source_note='\n'+provenance_label(context) if metric_key else ''

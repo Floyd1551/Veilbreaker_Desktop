@@ -11,6 +11,26 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QPushButton
 
 class SourcesTests(unittest.TestCase):
+    def test_live_single_cell_report_adds_read_only_measured_metric(self):
+        with tempfile.TemporaryDirectory() as d:
+            from veilbreaker.core import AppConfig
+            from test_android_capture import fixture
+            from veilbreaker.cellular_report import build_report
+            config = AppConfig(data_dir=d)
+            artifact = Path(d) / 'artifact'
+            artifact.mkdir()
+            (artifact / 'collection.json').write_text(json.dumps({'android': {'source_kind': 'live_android_usb'}}), encoding='utf-8')
+            capture = fixture()
+            capture['collection']['mode'] = 'session'
+            row = dict(report_json=json.dumps({'normalized_metrics': {'location_report': [fix()],
+                'android_cellular_report': build_report(capture)}}), metrics_json='{}', artifact_dir=str(artifact))
+            with patch('veilbreaker.map_sources.core.VeilbreakerStore') as store:
+                store.return_value.get_run.return_value = row
+                model = load_run_map_data(config, 'live')
+            self.assertEqual(model['run_metrics']['live']['live_phone_lte_rsrp'], -95)
+            self.assertEqual(model['run_context']['live']['live_phone_lte_rsrp']['sources'], ['android_usb'])
+            self.assertEqual(row['metrics_json'], '{}')
+
     def test_real_sqlite_row_exposes_saved_metrics(self):
         with tempfile.TemporaryDirectory() as d:
             from veilbreaker.core import AppConfig
@@ -67,7 +87,7 @@ class SourcesTests(unittest.TestCase):
                 store.return_value.get_run.return_value = row
                 model = load_run_map_data(config, 'live')
             self.assertEqual(model['run_metrics'], {})
-            self.assertTrue(any('per-cell' in note for note in model['warnings']))
+            self.assertTrue(any('session details are unavailable' in note for note in model['warnings']))
             db.close()
 
     def test_saved_run_metrics_follow_survey_map_without_changing_location_evidence(self):

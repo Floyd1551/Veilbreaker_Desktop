@@ -18,13 +18,14 @@ Updated 2026-10-28. This tracks implemented software separately from field quali
 - [x] Geographic survey map metric selector, relative measured-value coloring, legend and run-metric details. Manual/GPS outlines remain distinct; missing values stay uncolored.
 - [x] Floor-plan measured-point coloring with per-floor scales, missing-value markers, manual-placement outlines, clickable scan details and persistent saved positions.
 - [x] Recorded metric-source filters and capture/phone-receipt timing in geographic and floor-plan survey views; attached phone LTE/NR metrics remain separate from desktop modem readings.
+- [x] Read-only survey median for a live Android session with one reported cell group and fresh, uncached samples; receipt window, sample count, identity and source stay visible.
 
 ## In progress or limited
 
 - [ ] Complete area preparation with coverage gap preview, verified tower/cell providers and offline imagery packs. The manager handles one terrain raster or one structure GeoJSON per pack; assessments can use several compatible terrain packs.
 - [ ] Authorized real tower and cell datasets, with physical structures distinct from estimated cell sites and serving-cell identity.
 - [ ] Automated adjacent-tile catalog preparation and field qualification of real terrain boundaries. The local sampler handles compatible installed tiles and missing data.
-- [ ] Add reliable per-cell identity filtering and an explicit aggregation window/statistic for live Android series. Current colors use saved per-run scalar values, not per-fix samples; live multi-cell sessions are not reduced to one signal.
+- [ ] Add per-cell selection/filtering for live Android sessions with several reported groups. These remain separate detailed evidence; current live survey colors are run-level medians, not per-fix samples.
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
 - [ ] Environmental observations and attaching calculation snapshots to surveys, points and reports.
 - [ ] Broader offline reference/tool library and field workflows from the approved inventory.

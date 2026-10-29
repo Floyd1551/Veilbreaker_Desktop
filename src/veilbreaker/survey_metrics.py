@@ -23,6 +23,12 @@ METRICS = {
     'phone_nr_rsrp': ('Phone NR SS-RSRP', 'dBm'),
     'phone_nr_rsrq': ('Phone NR SS-RSRQ', 'dB'),
     'phone_nr_sinr': ('Phone NR SS-SINR', 'dB'),
+    'live_phone_lte_rsrp': ('Live phone LTE RSRP', 'dBm'),
+    'live_phone_lte_rsrq': ('Live phone LTE RSRQ', 'dB'),
+    'live_phone_lte_rssi': ('Live phone LTE RSSI', 'dBm'),
+    'live_phone_nr_rsrp': ('Live phone NR SS-RSRP', 'dBm'),
+    'live_phone_nr_rsrq': ('Live phone NR SS-RSRQ', 'dB'),
+    'live_phone_nr_sinr': ('Live phone NR SS-SINR', 'dB'),
 }
 
 
@@ -88,6 +94,16 @@ def provenance_label(context):
     context = context if isinstance(context, dict) else {}
     named = context.get('sources') or []
     source = ', '.join(source_label(item) for item in named) if named else 'Source unrecorded'
+    if context.get('statistic') and context.get('window_start_utc'):
+        identity = context.get('cell_identity') or {}
+        cell = ', '.join(f'{key} {identity[key]}' for key in ('mcc', 'mnc', 'cell_id', 'pci', 'earfcn', 'nrarfcn') if identity.get(key) is not None)
+        band = context.get('band_reported')
+        carrier = context.get('carrier_reported')
+        return (f"{source} · {context['statistic']} of {context.get('sample_count', 0)} fresh uncached modem samples"
+                f" · Receipt window {context['window_start_utc']} to {context.get('window_end_utc', '?')}"
+                f" · Reported {context.get('radio', 'cell')} {cell or 'identity unavailable'}"
+                + (f' · carrier {carrier}' if carrier else '') + (f' · band {band}' if band else '')
+                + ' · Reported cell identity does not locate a physical tower or DAS antenna')
     if context.get('received_utc'):
         age = context.get('age_ms')
         return f"{source} · Phone observation received {context['received_utc']}" + (f" · sample age {age:g} ms" if age is not None else ' · sample age unrecorded')

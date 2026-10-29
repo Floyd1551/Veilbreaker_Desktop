@@ -6,6 +6,7 @@ from .map_data import build_map_data
 from .android_capture import load_capture
 from .location_report import location_rows
 from .survey_metrics import clean_metrics, metric_provenance
+from .survey_live_cellular import reduce_live_cell_report
 
 def _run(config,store,run_id,label=None):
     result=dict(run_id=run_id,label=label or run_id,locations=[],metrics={},context={})
@@ -25,10 +26,14 @@ def _run(config,store,run_id,label=None):
         pass
     result['context'] = {key: metric_provenance(key, collection) for key in result['metrics']}
     phone = collection.get('android') if isinstance(collection, dict) else None
-    if isinstance(phone, dict) and phone.get('source_kind') == 'live_android_usb' and not any(key.startswith('phone_') for key in result['metrics']):
-        result['warning'] = 'Live Android per-cell series were not reduced to one survey signal; review the Cellular report.'
     try:
         report=json.loads(row['report_json'])
+        if isinstance(phone, dict) and phone.get('source_kind') == 'live_android_usb':
+            reduced = reduce_live_cell_report(report.get('normalized_metrics', {}).get('android_cellular_report'))
+            result['metrics'].update(clean_metrics(reduced['metrics']))
+            result['context'].update(reduced['context'])
+            if reduced.get('warning'):
+                result['warning'] = reduced['warning']
         locations=report.get('normalized_metrics',{}).get('location_report')
         if locations is None:
             path=Path(row['artifact_dir'] or config.artifacts_dir/run_id)/'android-capture.json'

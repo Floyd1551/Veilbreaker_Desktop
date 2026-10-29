@@ -200,6 +200,21 @@ class SpatialDialog(QDialog):
         from .map_sources import load_survey_map_data
         model = load_survey_map_data(self.config, self.path)
         self.map_model = model
+        self.metric_steps = []
+        for step in self.session['steps']:
+            view_step = dict(step)
+            view_step['metrics'] = {**clean_metrics(step.get('metrics')),
+                **clean_metrics(model.get('run_metrics', {}).get(step['run_id']))}
+            self.metric_steps.append(view_step)
+        selected_metric = self.metric_selector.currentData()
+        self.metric_selector.blockSignals(True)
+        self.metric_selector.clear()
+        self.metric_selector.addItem('Placement positions', None)
+        for key in available_metrics({'run_metrics': {s['run_id']: s['metrics'] for s in self.metric_steps}}):
+            title, unit = METRICS[key]
+            self.metric_selector.addItem(f'{title} ({unit})', key)
+        self.metric_selector.setCurrentIndex(max(0, self.metric_selector.findData(selected_metric)))
+        self.metric_selector.blockSignals(False)
         gps_runs = {row['run_id'] for row in model['rows'] if row['id'] in model['representatives'] and row.get('renderable')}
         unplaced = unplaced_measurements(self.session['steps'], self.data, gps_runs)
         self.placement_summary.setText(f'Unplaced measurements: {len(unplaced)} · Select a scan below to place it now or later.')
@@ -265,7 +280,7 @@ class SpatialDialog(QDialog):
     def refresh_floor_sources(self):
         floor = self.surface.currentData()
         key = self.metric_selector.currentData()
-        run_metrics = {step['run_id']: clean_metrics(step.get('metrics')) for step in self.session['steps']
+        run_metrics = {step['run_id']: clean_metrics(step.get('metrics')) for step in self.metric_steps
                        if (position := self.data['placements'].get(step['run_id'])) and
                        position.get('kind') == 'floor' and position.get('floor_id') == floor}
         model = {'run_metrics': run_metrics, 'run_context': self.map_model.get('run_context', {})}
@@ -287,7 +302,7 @@ class SpatialDialog(QDialog):
             image = read_floor(self.config, self.path, floor)
             key = self.metric_selector.currentData()
             source = self.source_filter.currentData()
-            markers, metric_scale = floor_measurements(self.session['steps'], self.data['placements'], floor, key,
+            markers, metric_scale = floor_measurements(self.metric_steps, self.data['placements'], floor, key,
                                                        source_filter=source, run_context=self.map_model.get('run_context', {}))
             self.canvas.set_floor(image, markers, metric_mode=bool(key))
             unsaved = self.pending and self.pending.get('kind') == 'floor' and self.pending.get('floor_id') == floor and 'placed_utc' not in self.pending
@@ -308,7 +323,8 @@ class SpatialDialog(QDialog):
             selected = next((marker for marker in markers if marker['run_id'] == selected_run), None)
             if selected:
                 metric = selected['metric']
-                value = f"{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric" if metric else ('Selected metric unavailable' if key else 'No metric selected')
+                kind = 'derived live-session value' if key and key.startswith('live_phone_') else 'saved run metric'
+                value = f"{metric['label']} {metric['value']:g} {metric['unit']} · {kind}" if metric else ('Selected metric unavailable' if key else 'No metric selected')
                 placed = selected.get('placed_utc') or 'time unavailable'
                 context = self.map_model.get('run_context', {}).get(selected['run_id'], {}).get(key, {}) if key else {}
                 timing = ' ' + provenance_label(context) + '.' if key else ''
