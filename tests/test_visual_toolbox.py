@@ -73,7 +73,7 @@ class VisualToolboxTests(unittest.TestCase):
     def test_global_search_category_and_empty_state(self):
         from veilbreaker.toolbox_ui import ToolboxPage
         page = ToolboxPage()
-        self.assertEqual(page.result_count.text(), '28 results')
+        self.assertEqual(page.result_count.text(), '32 results')
         page.global_search.setText('RSRP SINR')
         self.assertEqual({card.record.kind for card in page.result_cards}, {'reference', 'inspector'})
         page.global_search.setText('')
@@ -84,6 +84,26 @@ class VisualToolboxTests(unittest.TestCase):
         self.assertEqual(page.result_cards, [])
         self.assertTrue(page.empty_state.isVisibleTo(page))
         page.close()
+
+    def test_rf_calculators_search_open_and_fit_field_width(self):
+        from veilbreaker.toolbox_ui import ToolboxPage
+        page=ToolboxPage()
+        try:
+            page.resize(760,650)
+            page.global_search.setText('polarization mismatch')
+            self.assertIn('calculator:polarization',[card.record.record_id for card in page.result_cards])
+            page.open_record_tab('calculator:polarization')
+            panel=page.workspace_tabs.currentWidget()
+            panel.inputs['angle'].setText('45')
+            panel.run_calculation()
+            self.assertIn('50',panel.result.toPlainText())
+            self.assertIsNotNone(panel.flow_diagram.data)
+            page.show();self.app.processEvents()
+            self.assertLessEqual(page.width(),760)
+            self.assertLessEqual(page.height(),900)
+            page.open_record_tab('calculator:vswr')
+            self.assertEqual(page.workspace_tabs.currentWidget().selector.currentData(),'vswr')
+        finally:page.close()
 
     def test_search_result_routes_to_existing_hosts(self):
         from veilbreaker.toolbox_ui import ToolboxPage

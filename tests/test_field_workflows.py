@@ -109,6 +109,16 @@ class SurveyOrganizationTests(unittest.TestCase):
         self.assertFalse(session_matches(session,"roof","paused"))
         self.assertTrue(session_matches(session,"roof","complete"))
 
+    def test_session_filter_finds_active_observations_and_point_notes(self):
+        session=visit(1)
+        session['steps'][0]['notes']='Donor antenna tilted'
+        session['observations']=[{'category':'Obstruction','material':'Reinforced concrete',
+            'description':'Pillar near riser','author':'Taylor'},
+            {'category':'Other','description':'obsolete marker','deleted_utc':'2026-10-29T00:00:00Z'}]
+        for term in ('tilted','pillar','reinforced concrete','taylor'):
+            self.assertTrue(session_matches(session,term))
+        self.assertFalse(session_matches(session,'obsolete marker'))
+
     def test_gui_reorder_rename_and_duplicate_generation(self):
         from veilbreaker.gui import MainWindow
         app=QApplication.instance() or QApplication([])

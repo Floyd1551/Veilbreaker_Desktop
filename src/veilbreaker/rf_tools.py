@@ -86,6 +86,26 @@ TOOLS = (
           Field('nf2', 'Second-stage noise figure (dB)', 8, 0, 50)),
          'F_total = F1 + (F2−1)/G1, with F1/F2 and available G1 converted from dB to linear ratios; NF_total = 10 log10(F_total).',
          'Two matched stages with conventional noise-factor definitions referenced to 290 K. Mixer sideband conventions, impedance mismatch, compression, bandwidth dependence and later stages are excluded. Reference: Analog Devices MT-006.'),
+    Tool('vswr', 'VSWR to return loss / reflection', 'Convert a voltage standing wave ratio into return loss and reflected power.',
+         (Field('vswr', 'VSWR (ratio to 1)', 2, 1, 10000),),
+         '|Γ| = (VSWR − 1)/(VSWR + 1); return loss = −20 log10(|Γ|); reflected power = |Γ|²; mismatch loss = −10 log10(1 − |Γ|²).',
+         'Scalar magnitude at one frequency. This does not measure an antenna or reveal reflection phase. Ideal VSWR 1:1 has infinite return loss. Source: Keysight application note 5952-3706, https://go.keysight.com/us/en/assets/7018-06829/application-notes/5952-3706.pdf.'),
+    Tool('aperture', 'Antenna gain / effective aperture', 'Estimate effective receiving aperture from antenna gain and frequency.',
+         (FREQUENCY, Field('gain', 'Antenna gain (dBi)', 0, -100, 100)),
+         'Effective aperture = linear gain × vacuum wavelength² / (4π), with gain = 10^(dBi/10).',
+         'Assumes a far-field plane wave, matched polarization and gain in the incoming direction. Effective aperture is not physical antenna area and this does not measure an antenna. Source: NIST SP 300-4, https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nbsspecialpublication300v4.pdf.'),
+    Tool('polarization', 'Linear polarization mismatch', 'Estimate loss from an angle between ideal linear polarizations.',
+         (Field('angle', 'Polarization angle difference (degrees)', 0, 0, 90),),
+         'Relative power = cos²(angle); polarization mismatch loss = −10 log10(relative power).',
+         'Ideal linearly polarized plane waves only. Excludes depolarization, reflections, antenna cross-polar response and circular or elliptical polarization. A 90° mismatch has infinite ideal loss, not a finite measured value. Source: Naval Postgraduate School, https://faculty.nps.edu/jenn/EC3630/Systems_and_Noise%28v1.5.4%29.pdf.'),
+    Tool('receiver_sensitivity', 'Receiver sensitivity estimate', 'Estimate a receiver input threshold from noise and an assumed required SNR.',
+         (Field('bandwidth', 'Equivalent noise bandwidth (MHz)', 20, .000001, 100000),
+          Field('temperature', 'Source temperature (K)', 290, 1, 10000),
+          Field('noise_figure', 'Receiver noise figure (dB)', 5, 0, 100),
+          Field('required_snr', 'Required output SNR (dB)', 10, -100, 100),
+          Field('implementation_loss', 'Additional implementation margin (dB)', 2, 0, 100)),
+         'Equivalent noise temperature Te = 290 × (10^(NF/10) − 1) K; input-referred noise = 10 log10(kB × (T + Te) × B × 1000) dBm. Sensitivity estimate = input-referred noise + required SNR + implementation margin.',
+         'Not a measured receiver sensitivity or a guarantee of connectivity. Enter equivalent noise bandwidth and the required output SNR for the specified waveform and error rate. Do not double-count implementation loss already included in the SNR. Excludes interference, mismatch, compression and gain variation. Source: Analog Devices, https://www.analog.com/en/resources/analog-dialogue/articles/receiver-design-simplified-by-if-digitizing-subsystem.html.'),
 )
 REGISTRY = {tool.key: tool for tool in TOOLS}
 
@@ -107,6 +127,7 @@ def calculate(tool_id, inputs):
         values[field.key] = value
     v = values
     limitations = tool.limitations
+    result_notes = []
     if tool_id.startswith('power_'):
         mw = 10 ** (v['power'] / 10) if tool_id == 'power_dbm' else v['power'] * (1000 if tool_id == 'power_w' else 1)
         outputs = {'Power (dBm)': 10 * math.log10(mw), 'Power (mW)': mw, 'Power (W)': mw / 1000}
@@ -140,11 +161,13 @@ def calculate(tool_id, inputs):
             refracted = assess_profile(distances, [0, 0, 0], 0, 0, earth_factor=4/3)
             outputs = {'Geometric Earth bulge (m)': profile['terrain_effective_m'][1],
                        '4/3 effective Earth bulge (m)': refracted['terrain_effective_m'][1]}
-    elif tool_id == 'noise':
+    elif tool_id in ('noise', 'receiver_sensitivity'):
         scale = 1.380649e-23 * v['bandwidth'] * 1e6 * 1000
         equivalent_temperature = 290 * (10 ** (v['noise_figure'] / 10) - 1)
         outputs = {'Thermal noise (dBm)': 10 * math.log10(scale * v['temperature']),
                    'Input-referred receiver noise (dBm)': 10 * math.log10(scale * (v['temperature'] + equivalent_temperature))}
+        if tool_id == 'receiver_sensitivity':
+            outputs['Estimated receiver sensitivity (dBm)'] = outputs['Input-referred receiver noise (dBm)'] + v['required_snr'] + v['implementation_loss']
     elif tool_id == 'cable_loss':
         loss = v['length'] / 100 * v['attenuation'] + v['connector_loss']
         outputs = {'Total feed loss (dB)': loss, 'Power delivered (%)': 100 * 10 ** (-loss / 10)}
@@ -163,6 +186,26 @@ def calculate(tool_id, inputs):
         outputs = {'First-stage gain (linear)': first_gain,
                    'Cascaded noise factor (linear)': total_factor,
                    'Cascaded noise figure (dB)': 10 * math.log10(total_factor)}
+    elif tool_id == 'vswr':
+        gamma = (v['vswr']-1)/(v['vswr']+1)
+        reflected = gamma*gamma
+        outputs = {'Reflection coefficient magnitude': gamma, 'Reflected power (%)': reflected*100,
+                   'Mismatch loss (dB)': 0.0 if not reflected else -10*math.log1p(-reflected)/math.log(10)}
+        if gamma > 0:
+            outputs['Return loss (dB)'] = -20*math.log10(gamma)
+        else:
+            result_notes.append('Return loss (dB): infinite (ideal)')
+    elif tool_id == 'aperture':
+        wavelength = 299792458/(v['frequency']*1e6)
+        outputs = {'Wavelength (m)': wavelength,
+                   'Effective aperture (m²)': 10**(v['gain']/10)*wavelength*wavelength/(4*math.pi)}
+    elif tool_id == 'polarization':
+        fraction = 0.0 if v['angle']==90 else math.cos(math.radians(v['angle']))**2
+        outputs = {'Relative received power (%)': fraction*100}
+        if fraction > 0:
+            outputs['Polarization mismatch loss (dB)'] = 0.0 if fraction == 1 else -10*math.log10(fraction)
+        else:
+            result_notes.append('Polarization mismatch loss (dB): infinite (ideal)')
     else:
         eirp = v['tx_power'] + v['tx_gain'] - v['tx_loss']
         outputs = {'EIRP (dBm)': eirp}
@@ -170,14 +213,18 @@ def calculate(tool_id, inputs):
             received = eirp - v['path_loss'] + v['rx_gain'] - v['rx_loss'] - v['other_loss']
             outputs.update({'Estimated received power (dBm)': received,
                             'Margin above sensitivity (dB)': received - v['sensitivity']})
-    return {'tool_id': tool_id, 'version': 1, 'title': tool.title, 'kind': 'calculated estimate',
-            'inputs': values, 'input_labels': {f.key: f.label for f in tool.fields},
-            'outputs': outputs, 'method': tool.method, 'limitations': limitations}
+    snapshot = {'tool_id': tool_id, 'version': 1, 'title': tool.title, 'kind': 'calculated estimate',
+                'inputs': values, 'input_labels': {f.key: f.label for f in tool.fields},
+                'outputs': outputs, 'method': tool.method, 'limitations': limitations}
+    if result_notes:
+        snapshot['result_notes'] = result_notes
+    return snapshot
 
 
 def format_snapshot(snapshot):
     lines = [snapshot['title'], 'Calculated estimate · calculator version ' + str(snapshot['version']), '', 'Results']
     lines += [f'{label}: {value:.8g}' for label, value in snapshot['outputs'].items()]
+    lines += snapshot.get('result_notes', [])
     lines += ['', 'Inputs']
     lines += [f"{snapshot['input_labels'][key]}: {value:.8g}" for key, value in snapshot['inputs'].items()]
     if source := snapshot.get('source'):

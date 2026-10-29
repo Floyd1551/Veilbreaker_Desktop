@@ -109,7 +109,7 @@ class SurveyPage(QWidget):
         layout.addWidget(label("Saved surveys", "section"))
         self.session_search = QLineEdit()
         self.session_search.setAccessibleName("Search survey sessions")
-        self.session_search.setPlaceholderText("Find surveys by name, site, point, ID or UTC date")
+        self.session_search.setPlaceholderText("Find surveys by name, site, point, notes, observations, ID or UTC date")
         self.session_search.setClearButtonEnabled(True)
         self.session_filter = QComboBox()
         self.session_filter.setAccessibleName("Survey session state")

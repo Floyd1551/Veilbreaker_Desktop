@@ -6,11 +6,20 @@ Record a type, material, description and optional operator name. Choose
 The survey retains the time and stable observation ID. Unknown material is a
 valid choice; describe only what the operator actually observed.
 
+Select an observation and choose **Edit selected** to correct its point, type,
+material, description or operator. Save changes or cancel the edit. The original
+recorded time and ID remain intact, and the journal retains prior values and
+an update time. Select **View edit history** to review previous and updated
+values, including after survey completion. If another window changes the record, reload and review the
+new values before editing or removing it.
+
 Observations are operator-entered context, not measured material loss or proof of
 reflection, diffraction, obstruction or a root cause. The point association
 does not create GPS evidence or a precise obstacle position. The survey report
 includes active observations and the export includes the survey journal and
-its integrity manifest. Removed observations are hidden from the active report
+its integrity manifest. The observations CSV prefixes formula-like cells with
+an apostrophe for spreadsheet safety; `survey.json` retains the exact values.
+Removed observations are hidden from the active report
 but their removal time remains in the journal. Reopen a completed survey before
 changing observations.
 

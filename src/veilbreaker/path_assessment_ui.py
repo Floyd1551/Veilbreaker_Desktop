@@ -166,7 +166,13 @@ class PathAssessmentDialog(JobDialog):
             pixmap=QPixmap();pixmap.loadFromData(png);self.preview.setPixmap(pixmap.scaled(980,390,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation))
         else:self.preview.setText('Incomplete terrain coverage; no clearance conclusion is available.')
         self.assessment=value
-        p=value['profile'];self.status.setText(f"{p['status']} · Fresnel: {p['fresnel_status']} · Minimum sampled clearance: {p['minimum_clearance_m']} m. Buildings and vegetation are not included.")
+        p=value['profile']
+        if p['status']=='incomplete':
+            missing=sum(v is None for v in p['elevations_m'])
+            graphic = 'The graph shows observed elevations and missing intervals.' if png else 'No partial profile is available.'
+            self.status.setText(f"Incomplete terrain · {missing} of {len(p['elevations_m'])} samples unavailable. {graphic} No clearance conclusion is available.")
+        else:
+            self.status.setText(f"{p['status']} · Fresnel: {p['fresnel_status']} · Minimum sampled clearance: {p['minimum_clearance_m']} m. Buildings and vegetation are not included.")
     def set_busy(self,busy):
         super().set_busy(busy);self.keep.setEnabled(not busy and self.assessment is not None)
     @Slot()

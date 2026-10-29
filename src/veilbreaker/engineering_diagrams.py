@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QWidget
 
 
 def diagram_data(snapshot):
-    if not snapshot or snapshot['tool_id'] not in ('fiber_budget', 'poe_budget', 'return_loss', 'cascade_nf'):
+    if not snapshot or snapshot['tool_id'] not in ('fiber_budget', 'poe_budget', 'return_loss', 'cascade_nf', 'vswr', 'aperture', 'polarization', 'receiver_sensitivity'):
         return None
     values, outputs = snapshot['inputs'], snapshot['outputs']
     if snapshot['tool_id'] == 'fiber_budget':
@@ -26,11 +26,34 @@ def diagram_data(snapshot):
                   f"Reflected power\n{outputs['Reflected power (%)']:.3g}%")
         caption = f"VSWR {outputs['VSWR']:.3g}:1 · mismatch loss {outputs['Mismatch loss (dB)']:.3g} dB"
         shortfall = False
-    else:
+    elif snapshot['tool_id'] == 'cascade_nf':
         stages = (f"Stage 1\nNF {values['nf1']:g} dB",
                   f"Gain {values['gain1']:g} dB\n→ stage 2",
                   f"Stage 2\nNF {values['nf2']:g} dB")
         caption = f"Two-stage noise figure: {outputs['Cascaded noise figure (dB)']:.3g} dB"
+        shortfall = False
+    elif snapshot['tool_id'] == 'vswr':
+        stages = ('Forward wave\n100% reference', f"VSWR\n{values['vswr']:g}:1",
+                  f"Reflected power\n{outputs['Reflected power (%)']:.3g}%")
+        loss = outputs.get('Return loss (dB)')
+        caption = 'Ideal match: infinite return loss' if loss is None else f'Return loss: {loss:.3g} dB'
+        shortfall = False
+    elif snapshot['tool_id'] == 'aperture':
+        stages = (f"Frequency\n{values['frequency']:g} MHz", f"Directional gain\n{values['gain']:g} dBi",
+                  f"Effective area\n{outputs['Effective aperture (m²)']:.3g} m²")
+        caption = 'Effective receiving area; physical antenna dimensions are not inferred.'
+        shortfall = False
+    elif snapshot['tool_id'] == 'polarization':
+        stages = ('Linear polarization\nincident field', f"Angle difference\n{values['angle']:g}°",
+                  f"Relative power\n{outputs['Relative received power (%)']:.3g}%")
+        loss = outputs.get('Polarization mismatch loss (dB)')
+        caption = 'Ideal orthogonal polarizations: infinite modeled loss' if loss is None else f'Ideal mismatch loss: {loss:.3g} dB'
+        shortfall = False
+    else:
+        stages = (f"Input noise\n{outputs['Input-referred receiver noise (dBm)']:.3g} dBm",
+                  f"Required SNR + margin\n{values['required_snr'] + values['implementation_loss']:g} dB",
+                  f"Estimated threshold\n{outputs['Estimated receiver sensitivity (dBm)']:.3g} dBm")
+        caption = 'Entered assumptions; not a measured receiver sensitivity.'
         shortfall = False
     return dict(kind=snapshot['tool_id'], stages=stages, caption=caption, shortfall=shortfall)
 

@@ -22,6 +22,15 @@ class SurveyReportTests(unittest.TestCase):
     def test_empty_session(self):
         self.assertIn('No numeric measurements from complete tests', report_html({'steps': []}))
 
+    def test_observations_report_original_and_edited_timestamps(self):
+        html=report_html({'steps': [], 'observations': [{'id':'one','source':'operator',
+            'recorded_utc':'2026-10-29T09:00:00Z','updated_utc':'2026-10-29T10:00:00Z',
+            'category':'Obstruction','material':'Concrete','description':'Pillar','author':'Tech'}]})
+        self.assertIn('Recorded UTC',html)
+        self.assertIn('Last edited UTC',html)
+        self.assertIn('2026-10-29T09:00:00Z',html)
+        self.assertIn('2026-10-29T10:00:00Z',html)
+
     def test_embedded_imagery_and_stale_warning(self):
         html = report_html({'steps': []}, dict(image=b'png', source='<source>',
             attribution='A & B', imagery_date=None, prepared_utc='2026-10-20',

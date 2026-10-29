@@ -393,6 +393,11 @@ def export_session(config, path, destination=None):
             elif evidence:
                 step["export_note"] = "Original evidence ZIP is missing"
         (folder / "comparison.csv").write_text(stream.getvalue(), encoding="utf-8-sig")
+        from .survey_observation_export import observations_csv
+        observation_csv = observations_csv(session)
+        if observation_csv is not None:
+            with (folder / 'operator-observations.csv').open('w', encoding='utf-8-sig', newline='') as output:
+                output.write(observation_csv)
         from .survey_report import report_html
         from .survey_imagery import report_context
         from .cell_context import saved_context_html, load_context

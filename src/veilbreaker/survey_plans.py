@@ -26,5 +26,9 @@ def session_matches(session, query="", status="All states"):
     if status != "All states" and session["status"] != status:
         return False
     text = " ".join(str(session.get(k,"")) for k in ("name","site_id","survey_id","created_utc","scenario"))
-    text += " " + " ".join(str(s.get("label","")) for s in session["steps"])
+    text += " " + " ".join(str(s.get(key,"")) for s in session["steps"] for key in ("label","notes"))
+    observations=session.get('observations',[])
+    if isinstance(observations,list):
+        text += " " + " ".join(str(row.get(key,'')) for row in observations
+            if isinstance(row,dict) and not row.get('deleted_utc') for key in ('category','material','description','author'))
     return query.strip().casefold() in text.casefold()

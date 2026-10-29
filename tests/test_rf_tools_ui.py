@@ -34,6 +34,22 @@ class RFToolsUITests(unittest.TestCase):
         self.assertFalse(dialog.copy_button.isEnabled())
         dialog.close()
 
+    def test_ideal_limits_are_visible_in_result_and_schematic(self):
+        dialog=RFToolsDialog()
+        try:
+            dialog.selector.setCurrentIndex(dialog.selector.findData('vswr'))
+            dialog.inputs['vswr'].setText('1')
+            dialog.run_calculation()
+            self.assertIn('Return loss (dB): infinite (ideal)',dialog.result.toPlainText())
+            self.assertIn('infinite return loss',dialog.flow_diagram.accessibleDescription())
+            dialog.selector.setCurrentIndex(dialog.selector.findData('polarization'))
+            dialog.inputs['angle'].setText('90')
+            dialog.run_calculation()
+            self.assertIn('Polarization mismatch loss (dB): infinite (ideal)',dialog.result.toPlainText())
+            self.assertIn('infinite modeled loss',dialog.flow_diagram.accessibleDescription())
+        finally:
+            dialog.close()
+
     def test_search_preserves_inputs_for_same_calculator(self):
         dialog = RFToolsDialog()
         dialog.inputs['power'].setText('33')

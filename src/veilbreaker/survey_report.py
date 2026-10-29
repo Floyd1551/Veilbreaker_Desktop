@@ -53,8 +53,8 @@ def observations_html(session):
         return ''
     labels={step.get('run_id'):step.get('label','Unnamed point') for step in session.get('steps',[])}
     return ('<h2>Operator observations</h2><p>These are operator observations, not measured signal loss or proven propagation effects.</p>'+
-        table(['Observation ID','Recorded UTC','Point','Type / material','Description','Operator'],
-              [[row.get('id'),row.get('recorded_utc'),labels.get(row.get('run_id'),'Survey-wide' if not row.get('run_id') else 'Point unavailable'),
+        table(['Observation ID','Recorded UTC','Last edited UTC','Point','Type / material','Description','Operator'],
+              [[row.get('id'),row.get('recorded_utc'),row.get('updated_utc') or 'Not edited',labels.get(row.get('run_id'),'Survey-wide' if not row.get('run_id') else 'Point unavailable'),
                 str(row.get('category','Unknown'))+' / '+str(row.get('material','Unknown')),
                 row.get('description'),row.get('author') or 'Not supplied'] for row in rows]))
 
