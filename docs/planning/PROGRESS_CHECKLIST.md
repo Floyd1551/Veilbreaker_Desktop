@@ -22,10 +22,11 @@ Updated 2026-10-28. This tracks implemented software separately from field quali
 - [x] Optional deployment of the supplied CONUS overview and OpenCellID MCC 311 snapshot, with observed coverage, source attribution, and LTE/NR full-identity lookup.
 - [x] Offline area preview for registered map bounds, terrain extent gaps, structure extents and actual cell-reference record counts by radio and network.
 - [x] USGS area catalog suggestions for adjacent terrain extents, older-result review and detection of already installed source URLs.
+- [x] Optional sparse 121-point terrain no-data preview, with missing examples, overlap fallback and declared datum/unit comparison.
 
 ## In progress or limited
 
-- [ ] Complete area preparation with no-data-aware terrain checks, verified tower/cell providers and offline imagery packs. The area preview compares extents and records; it does not establish complete coverage.
+- [ ] Complete area preparation with denser or full no-data analysis, verified tower/cell providers and offline imagery packs. The 121-point preview can miss holes between samples.
 - [ ] Extend beyond the supplied MCC 311 estimated-cell snapshot with authorized broader cell and physical tower datasets; retain the distinction between sites and serving-cell identity.
 - [ ] Expand adjacent-tile preparation to batch downloads and field qualification of real terrain boundaries. Four Huntsville USGS tiles are installed locally; one cross-boundary test sampled 217 points without missing elevations. This is not a full-area no-data or LOS validation.
 - [ ] Add per-cell selection/filtering for live Android sessions with several reported groups. These remain separate detailed evidence; current live survey colors are run-level medians, not per-fix samples.

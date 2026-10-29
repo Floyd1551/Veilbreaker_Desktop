@@ -101,7 +101,7 @@ class RegionalPacksUITests(unittest.TestCase):
             self.assertEqual(dialog.workspace_tabs.widget(1).horizontalScrollBar().maximum(),0)
             dialog.workspace_tabs.setCurrentIndex(2)
             self.app.processEvents()
-            for widget in (dialog.coverage_bounds,dialog.coverage_check,dialog.coverage_table,dialog.coverage_details):
+            for widget in (dialog.coverage_bounds,dialog.coverage_check,dialog.coverage_sample,dialog.coverage_table,dialog.coverage_details):
                 self.assertLessEqual(widget.mapTo(dialog,widget.rect().bottomRight()).x(),dialog.width())
                 self.assertLessEqual(widget.mapTo(dialog,widget.rect().bottomRight()).y(),dialog.height())
             dialog.close()
@@ -142,6 +142,29 @@ class RegionalPacksUITests(unittest.TestCase):
                 self.assertIn('1 records',dialog.coverage_table.item(2,1).text())
                 dialog.coverage_table.selectRow(2)
                 self.assertIn('LTE 311/480: 1',dialog.coverage_details.toPlainText())
+            finally:
+                dialog.close()
+
+    def test_area_preview_optional_terrain_sampling_reports_nodata(self):
+        from tests.test_terrain_raster import make_dem, rasterio
+        if rasterio is None:
+            self.skipTest('terrain dependencies unavailable')
+        with tempfile.TemporaryDirectory() as folder:
+            config=AppConfig(data_dir=folder);source=Path(folder)/'dem.tif';make_dem(source,True)
+            RegionalPackStore(config.root/'regional-packs').install_local('terrain',source,
+                dict(name='Test',source='Fixture',license='Test',source_date='2026-10-29',vertical_datum='NAVD88',units='m'),lambda:False)
+            dialog=RegionalPacksDialog(None,config)
+            try:
+                dialog.coverage_bounds.setText('-97, 32.99, -96.99, 33')
+                dialog.coverage_sample.setChecked(True)
+                dialog.check_coverage()
+                deadline=time.monotonic()+5
+                while dialog.worker is not None and time.monotonic()<deadline:
+                    self.app.processEvents();time.sleep(.01)
+                self.assertIsNone(dialog.worker)
+                self.assertIn('sampled missing',dialog.coverage_table.item(1,1).text())
+                dialog.coverage_table.selectRow(1)
+                self.assertIn('Sparse grid',dialog.coverage_details.toPlainText())
             finally:
                 dialog.close()
 

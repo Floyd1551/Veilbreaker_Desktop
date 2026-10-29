@@ -2,7 +2,7 @@
 from functools import partial
 
 from PySide6.QtCore import Qt, Slot, QStandardPaths
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
                                QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 from pathlib import Path
@@ -32,7 +32,7 @@ def _search_usgs_job(bounds, cancelled, progress):
     return {'catalog': result}
 
 
-def _coverage_job(root, catalog_path, bounds, cancelled, progress):
+def _coverage_job(root, catalog_path, bounds, sample_terrain, cancelled, progress):
     from .area_coverage import area_preview
     from .map_catalog import PackCatalog
     from .deployment_data import bundled_map
@@ -42,8 +42,12 @@ def _coverage_job(root, catalog_path, bounds, cancelled, progress):
     if included and not any(row['path'] == str(included.resolve()) for row in maps):
         pack = inspect_pack(included)
         maps.append(dict(pack, available=True, source_date='Included map'))
-    return {'coverage': area_preview(bounds, RegionalPackStore(Path(root)/'regional-packs').list_packs(),
-                                     maps, Path(root)/'cell-references', cancelled)}
+    store=RegionalPackStore(Path(root)/'regional-packs')
+    report=area_preview(bounds,store.list_packs(),maps,Path(root)/'cell-references',cancelled)
+    if sample_terrain:
+        from .terrain_area_sample import sample_area
+        report['terrain']['sample']=sample_area(store,bounds,cancelled)
+    return {'coverage':report}
 
 
 class RegionalPacksDialog(JobDialog):
@@ -83,6 +87,9 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_check.clicked.connect(self.check_coverage)
         coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_check)
         coverage_layout.addLayout(coverage_actions)
+        self.coverage_sample = QCheckBox('Also sample terrain at 121 grid points')
+        self.coverage_sample.setToolTip('Optional sparse no-data check; it does not verify every raster cell or the file checksum.')
+        coverage_layout.addWidget(self.coverage_sample)
         self.coverage_table = QTableWidget(0, 2)
         self.coverage_table.setHorizontalHeaderLabels(['Layer', 'Result'])
         self.coverage_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -198,7 +205,7 @@ class RegionalPacksDialog(JobDialog):
                          self.units, self.bounds, self.url, self.checksum, self.import_button,
                          self.download_button, self.search_button, self.products, self.use_product_button, self.catalog_view]
         self.controls.append(self.huntsville_button)
-        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_table])
+        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_sample, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
         self.refresh()
         self.update_kind()
@@ -247,7 +254,7 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_table.setRowCount(0)
         self.coverage_details.setPlainText('Checking the selected area…')
         self.status.setText('Checking local extents and cell records…')
-        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds))
+        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, self.coverage_sample.isChecked()))
 
     @Slot()
     def show_coverage_details(self):
@@ -273,6 +280,14 @@ class RegionalPacksDialog(JobDialog):
                 lines.append(f"{len(row['packs'])-8} more packs overlap.")
             if key == 'terrain' and row.get('gaps'):
                 lines.append('Example uncovered bounds: '+str(row['gaps'][:3]))
+            if key == 'terrain' and (sample := row.get('sample')):
+                lines.append(sample['note'])
+                if sample['status'] == 'sampled':
+                    lines.append(f"Grid: {sample['grid_size']} × {sample['grid_size']} · valid: {sample['valid']} · missing: {sample['missing']} (outside: {sample['outside']}; no-data: {sample['nodata']}).")
+                    lines.append(f"Declared datum: {', '.join(sample['datums'])} · units: {', '.join(sample['units'])} · " + ('consistent declarations' if sample['compatible'] else 'mixed declarations; do not combine for a path assessment'))
+                    if sample['examples']:lines.append('Example missing coordinates (longitude, latitude): '+str(sample['examples'][:3]))
+                else:
+                    lines.append('No overlapping available terrain packs were sampled.')
         self.coverage_details.setPlainText('\n'.join(lines))
 
     @Slot()
@@ -452,6 +467,8 @@ class RegionalPacksDialog(JobDialog):
                     summary += f" · {item['count']:,} records"
                 if key == 'terrain' and item['gap_count']:
                     summary += f" · {item['gap_count']} extent gaps"
+                if key == 'terrain' and (sample := item.get('sample')) and sample['status'] == 'sampled':
+                    summary += f" · {sample['missing']}/{sample['total']} sampled missing"
                 self.coverage_table.setItem(index,0,QTableWidgetItem(title))
                 self.coverage_table.setItem(index,1,QTableWidgetItem(summary))
             self.coverage_table.selectRow(0)

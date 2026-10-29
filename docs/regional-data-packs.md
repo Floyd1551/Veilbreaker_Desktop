@@ -12,6 +12,16 @@ compatible datums; map bounds do not guarantee detail; and cell records are
 estimated locations, not a complete tower inventory. Pack availability is
 based on file presence and size, not a fresh checksum verification.
 
+For a quick check for missing elevations, enable **Also sample terrain at 121
+grid points**. The preview inspects an 11 × 11 grid of cell centers using
+available overlapping rasters and reports valid, outside-raster and no-data
+counts, examples of missing coordinates, and declared datums and units. It
+falls back to an overlapping raster where possible. This sparse check can miss
+holes between points; it does not verify checksums, establish full coverage, or
+replace an actual path assessment. Incompatible datum or unit declarations are
+shown and cannot be combined for a terrain path. The check opens local files
+only and can be cancelled.
+
 ## Huntsville preparation
 
 Choose **Huntsville, AL area**, then **Find USGS terrain for area**. The preset `[-87.2, 34.3, -86.2, 35.2]` is a search box covering Huntsville and nearby areas, not a promise that any one product covers the whole box. Select a result, inspect its provider metadata, and enter the confirmed vertical datum and elevation units before downloading. Install adjacent products separately where necessary. In a path assessment, **Use installed path coverage** samples across compatible installed rasters. Missing data remains missing; the app does not interpolate terrain through gaps.
