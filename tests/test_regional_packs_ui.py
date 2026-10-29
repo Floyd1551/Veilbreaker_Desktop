@@ -1,6 +1,7 @@
 import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -59,8 +60,52 @@ class RegionalPacksUITests(unittest.TestCase):
             self.app.processEvents()
             self.assertLessEqual(dialog.width(), 900)
             self.assertLessEqual(dialog.height(), 700)
-            self.assertEqual(dialog.workspace_tabs.count(), 2)
+            self.assertEqual(dialog.workspace_tabs.count(), 3)
+            dialog.workspace_tabs.setCurrentIndex(2)
+            self.app.processEvents()
+            for widget in (dialog.coverage_bounds,dialog.coverage_check,dialog.coverage_table,dialog.coverage_details):
+                self.assertLessEqual(widget.mapTo(dialog,widget.rect().bottomRight()).x(),dialog.width())
+                self.assertLessEqual(widget.mapTo(dialog,widget.rect().bottomRight()).y(),dialog.height())
             dialog.close()
+
+    def test_area_preview_reports_bounds_and_cell_counts_without_coverage_claims(self):
+        from veilbreaker.area_coverage import area_preview
+        with tempfile.TemporaryDirectory() as folder:
+            dialog=RegionalPacksDialog(None, AppConfig(data_dir=folder))
+            try:
+                dialog.coverage_huntsville()
+                self.assertEqual(dialog.coverage_bounds.text(), '-87.2, 34.3, -86.2, 35.2')
+                preview=area_preview([-87.2,34.3,-86.2,35.2],[],[],Path(folder)/'refs')
+                dialog.job_ready({'coverage':preview})
+                self.assertEqual(dialog.coverage_table.rowCount(),4)
+                self.assertIn('no available terrain', dialog.coverage_table.item(1,1).text())
+                dialog.coverage_table.selectRow(2)
+                self.assertIn('not verified towers', dialog.coverage_details.toPlainText())
+            finally:
+                dialog.close()
+
+    def test_area_preview_worker_counts_local_reference_records(self):
+        from veilbreaker.cell_reference import import_reference, activate_reference
+        from test_cell_reference import HEADER, ROW, META
+        with tempfile.TemporaryDirectory() as folder:
+            config=AppConfig(data_dir=folder)
+            source=Path(folder)/'cells.csv';source.write_text(HEADER+ROW,encoding='utf-8')
+            root=config.root/'cell-references'
+            imported=import_reference(root,source,META,lambda:False,lambda _:None)
+            activate_reference(root,imported['dataset_id'])
+            dialog=RegionalPacksDialog(None,config)
+            try:
+                dialog.coverage_bounds.setText('-97, 32, -96, 34')
+                dialog.check_coverage()
+                deadline=time.monotonic()+5
+                while dialog.worker is not None and time.monotonic()<deadline:
+                    self.app.processEvents();time.sleep(.01)
+                self.assertIsNone(dialog.worker)
+                self.assertIn('1 records',dialog.coverage_table.item(2,1).text())
+                dialog.coverage_table.selectRow(2)
+                self.assertIn('LTE 311/480: 1',dialog.coverage_details.toPlainText())
+            finally:
+                dialog.close()
 
     def test_huntsville_preset_sets_search_area_without_claiming_coverage(self):
         with tempfile.TemporaryDirectory() as folder:

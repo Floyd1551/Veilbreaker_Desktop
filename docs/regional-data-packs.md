@@ -2,6 +2,16 @@
 
 Open **Configuration → Regional terrain and structure packs**. The **Add / download** tab can copy a local file or download one explicit HTTPS URL. The **Installed packs** tab shows coverage bounds, provider, source date, license/terms, SHA-256, install time and integrity status. Use **Verify SHA-256** after moving or restoring the data directory.
 
+The **Area preview** tab compares a WGS84 bounding box with registered maps,
+installed terrain and structure extents, and the active cell-reference records.
+Choose the Huntsville preset or enter west, south, east and north, then select
+**Check local data**. Select each layer for source details, example terrain
+extent gaps, or cell-record counts grouped by radio and network. This is an
+offline check. Terrain bounds do not expose internal no-data holes or establish
+compatible datums; map bounds do not guarantee detail; and cell records are
+estimated locations, not a complete tower inventory. Pack availability is
+based on file presence and size, not a fresh checksum verification.
+
 ## Huntsville preparation
 
 Choose **Huntsville, AL area**, then **Find USGS terrain for area**. The preset `[-87.2, 34.3, -86.2, 35.2]` is a search box covering Huntsville and nearby areas, not a promise that any one product covers the whole box. Select a result, inspect its provider metadata, and enter the confirmed vertical datum and elevation units before downloading. Install adjacent products separately where necessary. In a path assessment, **Use installed path coverage** samples across compatible installed rasters. Missing data remains missing; the app does not interpolate terrain through gaps.
