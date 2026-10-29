@@ -21,12 +21,13 @@ Updated 2026-10-28. This tracks implemented software separately from field quali
 - [x] Read-only survey median for a live Android session with one reported cell group and fresh, uncached samples; receipt window, sample count, identity and source stay visible.
 - [x] Optional deployment of the supplied CONUS overview and OpenCellID MCC 311 snapshot, with observed coverage, source attribution, and LTE/NR full-identity lookup.
 - [x] Offline area preview for registered map bounds, terrain extent gaps, structure extents and actual cell-reference record counts by radio and network.
+- [x] USGS area catalog suggestions for adjacent terrain extents, older-result review and detection of already installed source URLs.
 
 ## In progress or limited
 
 - [ ] Complete area preparation with no-data-aware terrain checks, verified tower/cell providers and offline imagery packs. The area preview compares extents and records; it does not establish complete coverage.
 - [ ] Extend beyond the supplied MCC 311 estimated-cell snapshot with authorized broader cell and physical tower datasets; retain the distinction between sites and serving-cell identity.
-- [ ] Automated adjacent-tile catalog preparation and field qualification of real terrain boundaries. The local sampler handles compatible installed tiles and missing data.
+- [ ] Expand adjacent-tile preparation to batch downloads and field qualification of real terrain boundaries. Four Huntsville USGS tiles are installed locally; one cross-boundary test sampled 217 points without missing elevations. This is not a full-area no-data or LOS validation.
 - [ ] Add per-cell selection/filtering for live Android sessions with several reported groups. These remain separate detailed evidence; current live survey colors are run-level medians, not per-fix samples.
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
 - [ ] Environmental observations and attaching calculation snapshots to surveys, points and reports.

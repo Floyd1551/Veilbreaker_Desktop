@@ -2,7 +2,7 @@ import io
 import json
 import unittest
 
-from veilbreaker.usgs_terrain_catalog import search_terrain_products
+from veilbreaker.usgs_terrain_catalog import search_terrain_products, plan_terrain_products
 
 
 class Response(io.BytesIO):
@@ -14,6 +14,40 @@ class Response(io.BytesIO):
 
 
 class TerrainCatalogTests(unittest.TestCase):
+    def test_plan_finds_adjacent_tiles_and_suppresses_older_duplicates(self):
+        def tile(name,date,bounds,size=100):
+            return dict(title=name,source_date=date,reported_bounds_wgs84=bounds,bytes=size,url='https://example.com/'+name+'.tif')
+        products=[tile('n35w087 old','2020-01-01',[0,0,1,1]),tile('n35w087 new','2026-01-01',[0,0,1,1]),
+                  tile('n35w088 new','2025-01-01',[1,0,2,1])]
+        plan=plan_terrain_products([0,0,2,1],products)
+        self.assertEqual({p['title'] for p in plan['products']},{'n35w087 new','n35w088 new'})
+        self.assertEqual(plan['duplicate_count'],1)
+        self.assertEqual(plan['gap_count'],0)
+        self.assertEqual(plan['bytes'],200)
+
+    def test_plan_reports_gaps_unknown_bounds_and_empty_results(self):
+        products=[dict(title='known',source_date='2026-01-01',reported_bounds_wgs84=[0,0,1,1],bytes=100),
+                  dict(title='unknown',source_date='2026-01-01',reported_bounds_wgs84=None,bytes=100)]
+        plan=plan_terrain_products([0,0,2,1],products)
+        self.assertEqual(plan['gap_count'],1)
+        self.assertEqual(plan['unknown_bounds'],1)
+        self.assertEqual(plan['gaps'],[[1.0,0.0,2.0,1.0]])
+
+    def test_nearby_extent_is_not_discarded_when_it_covers_an_edge(self):
+        products=[dict(title='new',source_date='2026-01-01',reported_bounds_wgs84=[0,0,1,1],bytes=100),
+                  dict(title='old',source_date='2025-01-01',reported_bounds_wgs84=[0,0,1.001,1],bytes=100)]
+        plan=plan_terrain_products([0,0,1.001,1],products)
+        self.assertEqual(plan['gap_count'],0)
+        self.assertIn('old',[item['title'] for item in plan['products']])
+
+    def test_suggestion_prefers_newer_tile_when_old_extra_edge_is_already_covered(self):
+        products=[dict(title='south',source_date='2026-01-01',reported_bounds_wgs84=[0,0,2,1.0005],bytes=100),
+                  dict(title='north new',source_date='2026-01-01',reported_bounds_wgs84=[0,0.9995,2,2],bytes=100),
+                  dict(title='north old',source_date='2019-01-01',reported_bounds_wgs84=[0,0.9994,2,2],bytes=1)]
+        plan=plan_terrain_products([0,0,2,2],products)
+        self.assertEqual(plan['gap_count'],0)
+        self.assertEqual({item['title'] for item in plan['products']},{'south','north new'})
+
     def test_regional_search_retains_provider_dates_size_and_url(self):
         payload = {'total': 2, 'items': [
             dict(title='USGS 1/3 Arc Second n33w097 20260406', publicationDate='2026-04-06',
@@ -41,6 +75,11 @@ class TerrainCatalogTests(unittest.TestCase):
         result = search_terrain_products([-97.1, 32.8, -96.8, 33.1],
                                          opener=lambda *args, **kwargs: Response(json.dumps(payload).encode()))
         self.assertEqual(result['products'], [])
+
+    def test_catalog_indicates_incomplete_page_when_total_exceeds_returned(self):
+        payload={'total': 200, 'items': []}
+        result=search_terrain_products([0,0,1,1],opener=lambda *args,**kwargs:Response(json.dumps(payload).encode()))
+        self.assertTrue(result['truncated'])
 
 
 if __name__ == '__main__':

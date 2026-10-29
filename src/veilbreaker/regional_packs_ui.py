@@ -3,14 +3,14 @@ from functools import partial
 
 from PySide6.QtCore import Qt, Slot, QStandardPaths
 from PySide6.QtWidgets import (QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
+                               QHeaderView, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
                                QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 from pathlib import Path
 
 from .background_dialog import JobDialog
 from .regional_pack_download import download_and_install
 from .regional_packs import RegionalPackStore
-from .usgs_terrain_catalog import search_terrain_products
+from .usgs_terrain_catalog import search_terrain_products, plan_terrain_products
 
 
 def _install_job(root, kind, path, metadata, cancelled, progress):
@@ -27,7 +27,9 @@ def _verify_job(root, pack_id, cancelled, progress):
 
 
 def _search_usgs_job(bounds, cancelled, progress):
-    return {'catalog': search_terrain_products(bounds, cancelled, progress)}
+    result = search_terrain_products(bounds, cancelled, progress)
+    result['plan'] = plan_terrain_products(bounds, result['products'])
+    return {'catalog': result}
 
 
 def _coverage_job(root, catalog_path, bounds, cancelled, progress):
@@ -61,7 +63,10 @@ class RegionalPacksDialog(JobDialog):
         prepare_page = QWidget()
         prepare_layout = QVBoxLayout(prepare_page)
         self.workspace_tabs.addTab(installed_page, 'Installed packs')
-        self.workspace_tabs.addTab(prepare_page, 'Add / download')
+        prepare_scroll = QScrollArea()
+        prepare_scroll.setWidgetResizable(True)
+        prepare_scroll.setWidget(prepare_page)
+        self.workspace_tabs.addTab(prepare_scroll, 'Add / download')
         coverage_page = QWidget()
         coverage_layout = QVBoxLayout(coverage_page)
         self.workspace_tabs.addTab(coverage_page, 'Area preview')
@@ -150,6 +155,14 @@ class RegionalPacksDialog(JobDialog):
         catalog_row = QHBoxLayout()
         self.search_button = QPushButton('Find USGS terrain for area')
         self.search_button.clicked.connect(self.search_usgs)
+        self.catalog_view = QComboBox()
+        self.catalog_view.addItem('Suggested tiles', 'suggested')
+        self.catalog_view.addItem('All catalog results', 'all')
+        self.catalog_view.currentIndexChanged.connect(self.show_catalog_products)
+        self.catalog_result = None
+        self.catalog_summary = QLabel('Search an area to review suggested tiles and estimated download size.')
+        self.catalog_summary.setWordWrap(True)
+        self.catalog_summary.setTextFormat(Qt.TextFormat.PlainText)
         self.products = QComboBox()
         self.products.setAccessibleName('USGS terrain products for area')
         self.products.setMinimumContentsLength(25)
@@ -157,6 +170,8 @@ class RegionalPacksDialog(JobDialog):
         self.use_product_button = QPushButton('Use selected product')
         self.use_product_button.clicked.connect(self.use_product)
         prepare_layout.addWidget(self.search_button)
+        prepare_layout.addWidget(self.catalog_view)
+        prepare_layout.addWidget(self.catalog_summary)
         catalog_row.addWidget(self.products, 1)
         catalog_row.addWidget(self.use_product_button)
         prepare_layout.addLayout(catalog_row)
@@ -181,7 +196,7 @@ class RegionalPacksDialog(JobDialog):
         self.controls = [self.table, self.verify_button, self.remove_button, self.records_button,
                          self.kind, self.name, self.source, self.license, self.date, self.datum,
                          self.units, self.bounds, self.url, self.checksum, self.import_button,
-                         self.download_button, self.search_button, self.products, self.use_product_button]
+                         self.download_button, self.search_button, self.products, self.use_product_button, self.catalog_view]
         self.controls.append(self.huntsville_button)
         self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
@@ -285,7 +300,32 @@ class RegionalPacksDialog(JobDialog):
         self.checksum.clear()
         self.datum.clear()
         self.units.setCurrentIndex(0)
-        self.status.setText('USGS product selected. Confirm its vertical datum and elevation units from the product metadata before downloading. Product date is not the download date.')
+        prefix = 'This exact source URL is already installed. ' if self.product_installed(item) else ''
+        self.status.setText(prefix+'USGS product selected. Confirm its vertical datum and elevation units from the product metadata before downloading. Product date is not the download date.')
+
+    def product_installed(self, item):
+        from .regional_pack_download import sanitized_source_url
+        try:
+            origin = sanitized_source_url(item['url'])
+        except (ValueError, KeyError):
+            return False
+        return any(row.get('status') == 'available' and row.get('download_origin') == origin for row in self.store.list_packs())
+
+    @Slot()
+    def show_catalog_products(self):
+        catalog = self.catalog_result
+        if not catalog:
+            return
+        plan = catalog.get('plan')
+        items = plan['products'] if plan and self.catalog_view.currentData() == 'suggested' else catalog['products']
+        self.products.clear()
+        for item in items:
+            text = f"{item['title']} · {item['bytes'] / 1024 / 1024:.0f} MiB · {item['source_date']}"
+            if self.product_installed(item):
+                text += ' · Installed'
+            self.products.addItem(text, item)
+            self.products.setItemData(self.products.count()-1, f"Reported bounds: {item['reported_bounds_wgs84']}", Qt.ItemDataRole.ToolTipRole)
+        self.update_kind()
 
     def refresh(self, selected_id=None):
         self.rows = self.store.list_packs()
@@ -421,14 +461,14 @@ class RegionalPacksDialog(JobDialog):
             self.refresh(row['pack_id'])
             self.status.setText(f"Installed {row['name']} · {row['bytes'] / 1024 / 1024:.1f} MiB · SHA-256 {row['sha256']}.")
         elif catalog := result.get('catalog'):
-            self.products.clear()
-            for item in catalog['products']:
-                text = f"{item['title']} · {item['bytes'] / 1024 / 1024:.0f} MiB · {item['source_date']}"
-                self.products.addItem(text, item)
-                self.products.setItemData(self.products.count() - 1,
-                                          f"Reported bounds: {item['reported_bounds_wgs84']}", Qt.ItemDataRole.ToolTipRole)
-            self.update_kind()
-            self.status.setText(f"USGS returned {catalog['total']} products; showing {len(catalog['products'])} supported GeoTIFF downloads. Choose a product, then confirm datum and units. Historical products may appear.")
+            self.catalog_result = catalog
+            plan = catalog.get('plan')
+            if plan:
+                installed = [p for p in plan['products'] if self.product_installed(p)]
+                remaining = plan['bytes'] - sum(p['bytes'] for p in installed)
+                self.catalog_summary.setText(f"{len(plan['products'])} suggested · {len(installed)} installed · {remaining/1024/1024:.0f} MiB remaining · {plan['gap_count']} extent gaps · {plan['duplicate_count']} older duplicate extents. Reported bounds only; no-data and datum remain unverified." + (' Catalog results are truncated.' if catalog.get('truncated') else ''))
+            self.show_catalog_products()
+            self.status.setText(f"USGS returned {catalog['total']} products. Select a suggested tile or view all results, then confirm datum and units. Historical products may appear.")
         elif 'verified' in result:
             self.status.setText('Pack SHA-256 matches its recorded bytes.' if result['verified'] else
                                 'Pack SHA-256 does not match; do not use it for assessment.')

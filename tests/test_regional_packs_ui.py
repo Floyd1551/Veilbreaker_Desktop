@@ -52,6 +52,41 @@ class RegionalPacksUITests(unittest.TestCase):
             self.assertEqual(dialog.units.currentIndex(), 0)
             dialog.close()
 
+    def test_usgs_catalog_suggests_adjacent_tiles_with_historical_access(self):
+        from veilbreaker.usgs_terrain_catalog import plan_terrain_products
+        def tile(title, date, bounds):
+            return dict(title=title,source_date=date,reported_bounds_wgs84=bounds,bytes=1000000,
+                        url='https://example.com/'+title+'.tif',source='USGS',license='Public domain')
+        products=[tile('west old','2020-01-01',[0,0,1,1]),tile('west new','2026-01-01',[0,0,1,1]),tile('east','2026-01-01',[1,0,2,1])]
+        with tempfile.TemporaryDirectory() as folder:
+            dialog=RegionalPacksDialog(None,AppConfig(data_dir=folder))
+            try:
+                plan=plan_terrain_products([0,0,2,1],products)
+                dialog.job_ready({'catalog':dict(products=products,total=3,truncated=False,plan=plan)})
+                self.assertEqual(dialog.products.count(),2)
+                self.assertIn('2 suggested',dialog.catalog_summary.text())
+                self.assertIn('no-data',dialog.catalog_summary.text())
+                dialog.catalog_view.setCurrentIndex(1)
+                self.assertEqual(dialog.products.count(),3)
+            finally: dialog.close()
+
+    def test_catalog_marks_installed_downloads(self):
+        from unittest.mock import patch
+        item=dict(title='USGS tile',source_date='2026-01-01',reported_bounds_wgs84=[0,0,1,1],
+                  bytes=1000000,url='https://example.com/tile.tif',source='USGS',license='Public domain')
+        with tempfile.TemporaryDirectory() as folder:
+            dialog=RegionalPacksDialog(None,AppConfig(data_dir=folder))
+            try:
+                with patch.object(dialog.store,'list_packs',return_value=[{'download_origin':item['url'],'status':'available'}]):
+                    from veilbreaker.usgs_terrain_catalog import plan_terrain_products
+                    plan=plan_terrain_products([0,0,1,1],[item])
+                    dialog.job_ready({'catalog':dict(products=[item],total=1,plan=plan)})
+                    self.assertIn('Installed',dialog.products.itemText(0))
+                    self.assertIn('1 installed',dialog.catalog_summary.text())
+                    dialog.use_product()
+                    self.assertIn('already installed',dialog.status.text())
+            finally: dialog.close()
+
     def test_manager_tabs_fit_field_window(self):
         with tempfile.TemporaryDirectory() as folder:
             dialog = RegionalPacksDialog(None, AppConfig(data_dir=folder))
@@ -61,6 +96,9 @@ class RegionalPacksUITests(unittest.TestCase):
             self.assertLessEqual(dialog.width(), 900)
             self.assertLessEqual(dialog.height(), 700)
             self.assertEqual(dialog.workspace_tabs.count(), 3)
+            dialog.workspace_tabs.setCurrentIndex(1)
+            self.app.processEvents()
+            self.assertEqual(dialog.workspace_tabs.widget(1).horizontalScrollBar().maximum(),0)
             dialog.workspace_tabs.setCurrentIndex(2)
             self.app.processEvents()
             for widget in (dialog.coverage_bounds,dialog.coverage_check,dialog.coverage_table,dialog.coverage_details):
