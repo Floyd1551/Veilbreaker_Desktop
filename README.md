@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.58.0rc1** adds a read-only survey value for live Android sessions with one reported cell group: the median of fresh, uncached modem samples, with receipt window and reported cell identity. Multi-cell sessions remain separate evidence and are not reduced to one map value. Point colors represent run-level values, not exact readings at each position or estimated coverage. Existing diagnostics, surveys, tools and regional packs remain available. See [regional pack guidance](docs/regional-data-packs.md) for preparation steps and limits.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.59.0rc1** supports an included CONUS overview map and an OpenCellID MCC 311 reference snapshot, including LTE and NR full-identity matching. Included data is optional at build time; see [offline deployment data](docs/offline-deployment-data.md) for staging, coverage and provenance. Community-estimated cell positions are not verified physical towers.
 
 ## Windows installation
 
-Run `Veilbreaker-0.58.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.59.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 

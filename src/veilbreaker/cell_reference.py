@@ -123,6 +123,7 @@ def import_reference(root,source,metadata,cancelled,progress):
     dataset_id=uuid.uuid4().hex; folder=_folder(root,dataset_id)
     folder.mkdir()
     accepted=rejected=unsupported=count=0
+    bounds=None; radio_counts={}; mccs=set()
     db=None
     try:
         db=sqlite3.connect(folder/'cells.sqlite')
@@ -140,8 +141,15 @@ def import_reference(root,source,metadata,cancelled,progress):
                 total=0
                 with opener(source,'rb') as stream:
                     header=stream.readline(MAX_LINE+1);total+=len(header)
-                    if len(header)>MAX_LINE or next(csv.reader([header.decode('utf-8-sig').strip()]))!=COLUMNS:
-                        raise ValueError('Invalid OpenCellID full-export header.')
+                    if len(header)>MAX_LINE: raise ValueError('Invalid OpenCellID full-export first row.')
+                    first=next(csv.reader([header.decode('utf-8-sig').strip()]))
+                    if first!=COLUMNS:
+                        # Country exports may omit the heading; require the exact 14-column
+                        # schema and an integer MCC before treating the line as data.
+                        if len(first)!=len(COLUMNS) or first[0] not in ('LTE','NR','GSM','UMTS','CDMA') or not re.fullmatch(r'[0-9]{3}',first[1]):
+                            raise ValueError('Invalid OpenCellID full-export header or first row.')
+                        yield dict(zip(COLUMNS,first),mnc=first[2],tac=first[3],cell_id=first[4],
+                                   source='OpenCellID',verification='estimated cell location')
                     while raw:=stream.readline(MAX_LINE+1):
                         check(); total+=len(raw)
                         if len(raw)>MAX_LINE or total>MAX_BYTES: raise ValueError('Reference decompressed size limit exceeded.')
@@ -158,7 +166,7 @@ def import_reference(root,source,metadata,cancelled,progress):
             if count==1 or count%10000==0:
                 if shutil.disk_usage(root).free<512*1024*1024: raise ValueError('Insufficient staging disk space.')
                 progress({'read':count,'accepted':accepted,'rejected':rejected,'unsupported':unsupported})
-            if isinstance(row,dict) and row.get('radio') not in (('LTE','NR') if operator else ('LTE',)):
+            if isinstance(row,dict) and row.get('radio') not in ('LTE','NR'):
                 unsupported+=1;continue
             try:
                 key=identity_key(row)
@@ -173,6 +181,10 @@ def import_reference(root,source,metadata,cancelled,progress):
                 if len(encoded.encode())>MAX_LINE: raise ValueError('Reference record too large.')
             except (ValueError,TypeError,AttributeError,OverflowError): rejected+=1;continue
             db.execute('INSERT INTO cells VALUES(?,?,?,?,?,?)',(*key,encoded));accepted+=1
+            lon,lat=payload['lon'],payload['lat']
+            bounds=[lon,lat,lon,lat] if bounds is None else [min(bounds[0],lon),min(bounds[1],lat),max(bounds[2],lon),max(bounds[3],lat)]
+            radio_counts[key[0]]=radio_counts.get(key[0],0)+1
+            mccs.add(key[1])
         if not accepted: raise ValueError('No supported valid reference records were found.')
         check()
         db.execute('CREATE INDEX identity_lookup ON cells(radio,mcc,mnc,tac,cell_id)')
@@ -180,8 +192,10 @@ def import_reference(root,source,metadata,cancelled,progress):
         manifest=dict(schema_version=1,adapter_version=1,dataset_id=dataset_id,sha256=sha,
                       imported_utc=utcnow_iso(),accepted=accepted,rejected=rejected,unsupported=unsupported,
                       source=metadata['source'],license=metadata['license'],date=metadata['date'],
+                      coverage=dict(bounds=bounds,radio_counts=radio_counts,mccs=sorted(mccs),
+                                    note='Bounds describe observed records, not complete coverage.'),
                       format='operator' if operator else 'opencellid',
-                      attribution='OpenCellID — https://opencellid.org — CC BY-SA 4.0 — https://creativecommons.org/licenses/by-sa/4.0/' if not operator else metadata['source'])
+                      attribution='OpenCellID — https://opencellid.org — CC BY-SA 4.0 — https://creativecommons.org/licenses/by-sa/4.0/ — converted to SQLite; unsupported and invalid records excluded' if not operator else metadata['source'])
         check();atomic_json(folder/'manifest.json',manifest)
         return manifest
     except Exception:

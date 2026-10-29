@@ -119,6 +119,20 @@ class SourcesTests(unittest.TestCase):
 class MapUiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
+    def test_bundled_conus_map_is_default_when_no_saved_choice(self):
+        from veilbreaker.map_smoke import synthetic_pack
+        with tempfile.TemporaryDirectory() as folder:
+            pack = Path(folder) / 'CONUS-overview.pmtiles'
+            pack.write_bytes(synthetic_pack())
+            with patch('veilbreaker.map_ui.QSettings') as settings, \
+                 patch('veilbreaker.deployment_data.bundled_map', return_value=pack), \
+                 patch('veilbreaker.map_catalog.PackCatalog.register'):
+                settings.return_value.value.return_value = ''
+                window = MapWindow(None, build_map_data([]), lambda _: None, enable_web=False)
+            try:
+                self.assertEqual(Path(window.server.pack['path']), pack)
+            finally:
+                window.close()
     def test_native_fallback_selection_filters_and_export(self):
         model=build_map_data([dict(run_id='r',label='<script>',locations=[fix(),fix(fix_age_ms=11000),fix(latitude_deg=89)])])
         opened=[];w=MapWindow(None,model,opened.append,enable_web=False,restore_pack=False)

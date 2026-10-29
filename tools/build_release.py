@@ -93,13 +93,34 @@ def main():
                     shutil.copy2(source, destination)
     shutil.copy2(ROOT / "README.md", bundle / "README.md")
     shutil.copytree(ROOT / "docs", bundle / "docs", dirs_exist_ok=True)
+    offline_manifest = None
+    map_file = ROOT / "map-packs/CONUS-overview-20261019.pmtiles"
+    map_sidecar = ROOT / "map-packs/CONUS-overview-20261019.json"
+    cell_file = ROOT / "offline-input/311.csv"
+    cell_metadata = ROOT / "offline-input/311.json"
+    inputs = (map_file, map_sidecar, cell_file, cell_metadata)
+    if all(path.is_file() for path in inputs):
+        from prepare_offline_data import prepare
+        offline_manifest = prepare(map_file, map_sidecar, cell_file, bundle / "offline-data",
+                                   json.loads(cell_metadata.read_text(encoding="utf-8-sig")))
+        if not skip_tests:
+            run(gui, "--map-smoke", ROOT / "test-artifacts/packaged-real-map",
+                bundle / "offline-data/maps/CONUS-overview.pmtiles", timeout=120)
+            real_report = json.loads((ROOT / "test-artifacts/packaged-real-map/map-smoke.json").read_text(encoding="utf-8"))
+            if not real_report.get("passed"):
+                raise RuntimeError("Packaged CONUS map smoke failed")
+    elif os.environ.get("VEILBREAKER_OFFLINE_DATA_REQUIRED") == "1":
+        raise RuntimeError("Offline map, sidecar, cell export and metadata must all be staged for this build.")
+    else:
+        print("Optional offline deployment data not included: stage the map, cell export and metadata.", flush=True)
     if os.name != "nt":
         (bundle / "installer").mkdir(exist_ok=True)
         shutil.copy2(ROOT / "installer/install-linux.sh", bundle / "installer/install-linux.sh")
         shutil.copy2(ROOT / "installer/uninstall-linux.sh", bundle / "installer/uninstall-linux.sh")
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
-                "passed": not skip_tests, "tests_skipped": skip_tests, "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI seven pages", "frozen offline map rendering and selection", "frozen terrain raster projection and profile"]}
+                "passed": not skip_tests, "tests_skipped": skip_tests, "offline_data": offline_manifest,
+                "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI seven pages", "frozen offline map rendering and selection", "frozen terrain raster projection and profile"] + (["frozen CONUS map rendering"] if offline_manifest else [])}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"
     archive = Path(shutil.make_archive(str(ROOT / "dist" / name), "zip" if os.name == "nt" else "gztar", ROOT / "dist", "Veilbreaker"))

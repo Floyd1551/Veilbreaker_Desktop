@@ -3,6 +3,7 @@ os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from PySide6.QtWidgets import QApplication
 from veilbreaker.core import AppConfig
@@ -13,6 +14,15 @@ from test_cell_reference import HEADER,ROW,META
 class ReferenceUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
+    def test_dialog_seeds_included_reference_before_listing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg=AppConfig(data_dir=tmp)
+            with patch('veilbreaker.deployment_data.seed_reference') as seed:
+                dialog=CellReferenceDialog(None,cfg)
+            try:
+                seed.assert_called_once_with(cfg.root/'cell-references')
+            finally:
+                dialog.close()
     def test_import_and_activation_and_cancel(self):
         with tempfile.TemporaryDirectory() as tmp:
             cfg=AppConfig(data_dir=tmp);source=Path(tmp)/'test.csv';source.write_text(HEADER+ROW)
@@ -22,6 +32,9 @@ class ReferenceUITests(unittest.TestCase):
             while dialog.worker is not None and time.monotonic()<deadline:
                 self.app.processEvents();time.sleep(.01)
             self.assertIsNone(dialog.worker);self.assertEqual(dialog.datasets.count(),1)
+            self.assertIn('Observed bounds',dialog.dataset_details.text())
+            self.assertIn('LTE: 1',dialog.dataset_details.text())
+            self.assertIn('CC BY-SA',dialog.dataset_details.text())
             dialog.activate();self.assertIn('Active',dialog.datasets.currentText())
             dialog.deactivate();self.assertNotIn('Active',dialog.datasets.currentText())
             def slow(cancelled,progress):

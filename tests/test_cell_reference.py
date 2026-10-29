@@ -12,6 +12,27 @@ ROW='LTE,311,480,42,12345,10,-96.8,32.8,1000,15,1,1600000000,1700000000,0\n'
 META=dict(source='OpenCellID',license='CC BY-SA 4.0',date='2026-10-20')
 
 class ReferenceTests(unittest.TestCase):
+    def test_headerless_country_export_and_nr_full_identity(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp)/'refs';source=Path(temp)/'311.csv'
+            nr='NR,311,480,16777214,55341514827,-1,-86.5,34.7,1000,5,1,1600000000,1700000000,0\n'
+            source.write_text(ROW+nr,encoding='utf-8')
+            result=ref.import_reference(root,source,META,lambda:False,lambda _:None)
+            self.assertEqual(result['accepted'],2)
+            self.assertEqual(result['unsupported'],0)
+            self.assertEqual(result['coverage']['radio_counts'], {'LTE':1, 'NR':1})
+            self.assertEqual(result['coverage']['mccs'], [311])
+            self.assertEqual(result['coverage']['bounds'], [-96.8, 32.8, -86.5, 34.7])
+            ref.activate_reference(root,result['dataset_id'])
+            self.assertEqual(len(ref.lookup_reference(root,('NR',311,480,16777214,55341514827))),1)
+
+    def test_headerless_export_rejects_unknown_first_row(self):
+        with tempfile.TemporaryDirectory() as temp:
+            source=Path(temp)/'wrong.csv'
+            source.write_text('not,a,valid,export\n'+ROW,encoding='utf-8')
+            with self.assertRaisesRegex(ValueError,'header|first row'):
+                ref.import_reference(Path(temp)/'refs',source,META,lambda:False,lambda _:None)
+
     def test_import_lookup_conflict_and_cancel(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp)/'refs'; source=Path(temp)/'cells.csv.gz'

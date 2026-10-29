@@ -34,7 +34,7 @@ def match_capture(envelope,reference_root,cancelled=lambda:False):
                      location=location,location_quality=quality,modem_age_ms=cell.get('age_ms'),candidates=[])
             a,b=cell.get('age_ms'),location.get('fix_age_ms')
             row['location_after_modem_ms']=a-b if type(a) in (int,float) and type(b) in (int,float) else None
-            if cell['radio'] not in ('LTE','NR') or (cell['radio']=='NR' and manifest and manifest['format']!='operator'):
+            if cell['radio'] not in ('LTE','NR'):
                 row['status']='unsupported technology'
             else:
                 try: key=identity_key(dict(cell['identity'],radio=cell['radio']))

@@ -1886,7 +1886,7 @@ def main():
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
     if len(sys.argv) > 1 and sys.argv[1] == '--map-smoke':
         from .map_smoke import smoke as map_smoke
-        return map_smoke(sys.argv[2])
+        return map_smoke(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
     if len(sys.argv) > 1 and sys.argv[1] == "--smoke-test":
         return smoke(sys.argv[2])
     app = QApplication.instance() or QApplication(sys.argv)

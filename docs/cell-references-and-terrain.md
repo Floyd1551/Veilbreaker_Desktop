@@ -20,9 +20,9 @@ send captured cell identities to a provider.
    identities, measurements, candidates and source attribution. For a standalone
    diagnostic, save JSON or save HTML from the report viewer.
 
-The OpenCellID adapter currently supports LTE full identity: radio, MCC, MNC, TAC
-and ECI. It does not identify sites by PCI, SIM-carrier name, or nearest mast. NR
-bulk schema support is not claimed; explicit operator LTE/NR records are supported.
+The OpenCellID adapter supports LTE and NR full identity: radio, MCC, MNC, TAC
+and ECI or NCI. It accepts headered and headerless exports. It does not identify
+sites by PCI, SIM-carrier name, or nearest mast; matching requires the full identity.
 Conflicting coordinates remain visible as conflicting references. Identical
 coordinates may have multiple source records. OpenCellID estimates are not surveyed
 physical structures. Reference sample count and provider range are context, not
@@ -105,7 +105,9 @@ pyproj 3.7.2. Cell matching remains usable without those GIS packages. Linux sou
 support is retained; Linux native packaging has not been validated on this host.
 
 Numerical and workflow tests use synthetic references/DEMs. A small real USGS
-3DEP Dallas extract was sampled as an adapter check. No authorized real cell export
-or surveyed tower/antenna endpoint was supplied, so serving-site and field LOS
+3DEP Dallas extract was sampled as an adapter check. The supplied MCC 311 OpenCellID
+country export is available for local cell-reference testing. It does not cover all
+US MCCs, and community-estimated positions are not verified physical structures.
+No surveyed tower/antenna endpoint was supplied, so serving-site and field LOS
 validation remain outstanding. The supplied application does not include a tower
 inventory or a national DEM.

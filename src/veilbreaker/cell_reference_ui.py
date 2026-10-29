@@ -25,9 +25,12 @@ class CellReferenceDialog(JobDialog):
         self.survey_path=survey_path;self.on_candidate=on_candidate;self.matches={};self.choices=[];self.assessments=[]
         self.setWindowTitle('Cell references and path assessment');self.resize(1100,760)
         layout=QVBoxLayout(self)
-        intro=QLabel('Match full serving-cell identities against local references. Estimated cell positions are not verified towers. No online lookup is performed.')
+        intro=QLabel('Match full serving-cell identities against local references. Estimated cell positions are not verified towers. No online lookup is performed. OpenCellID data: opencellid.org · CC BY-SA 4.0 (creativecommons.org/licenses/by-sa/4.0/).')
         intro.setWordWrap(True);layout.addWidget(intro)
         self.datasets=QComboBox();layout.addWidget(self.datasets)
+        self.dataset_details=QLabel('No reference selected.')
+        self.dataset_details.setWordWrap(True);self.dataset_details.setTextFormat(Qt.TextFormat.PlainText);layout.addWidget(self.dataset_details)
+        self.datasets.currentIndexChanged.connect(self.show_dataset_details)
         actions=QHBoxLayout();layout.addLayout(actions)
         self.use=QPushButton('Use selected reference');self.use.clicked.connect(self.activate);actions.addWidget(self.use)
         self.clear=QPushButton('Deactivate reference');self.clear.clicked.connect(self.deactivate);actions.addWidget(self.clear)
@@ -52,6 +55,11 @@ class CellReferenceDialog(JobDialog):
         self.save_button=QPushButton('Save context to survey' if survey_path else 'Save context JSON…');self.save_button.clicked.connect(self.save);bottom.addWidget(self.save_button)
         self.status=QLabel('Import or select a reference snapshot, then choose a diagnostic.');self.status.setWordWrap(True);self.status.setTextFormat(Qt.TextFormat.PlainText);layout.addWidget(self.status)
         self.controls=[self.datasets,self.use,self.clear,self.source,self.license,self.date,self.import_button,self.runs,self.match_button,self.map_button,self.path_button,self.report_button,self.save_button]
+        try:
+            from .deployment_data import seed_reference
+            seed_reference(self.root)
+        except (OSError,ValueError,KeyError) as exc:
+            self.status.setText('Included cell reference unavailable: '+str(exc))
         self.refresh();self.select_candidate()
         self.runs.currentIndexChanged.connect(self.populate)
         if survey_path:
@@ -70,7 +78,20 @@ class CellReferenceDialog(JobDialog):
             active=active_reference(self.root)
             for row in list_references(self.root):
                 self.datasets.addItem(f"{row['source']} · {row['date']} · {row['accepted']:,} records"+(' · Active' if active and active['dataset_id']==row['dataset_id'] else ''),row['dataset_id'])
+                self.datasets.setItemData(self.datasets.count()-1,row,Qt.ItemDataRole.UserRole+1)
+            self.show_dataset_details()
         except (OSError,ValueError,KeyError) as exc:self.status.setText(str(exc))
+    def show_dataset_details(self):
+        row=self.datasets.currentData(Qt.ItemDataRole.UserRole+1)
+        if not isinstance(row,dict):
+            self.dataset_details.setText('No reference selected.');return
+        coverage=row.get('coverage') or {}
+        counts=coverage.get('radio_counts') or {}
+        counts_text=', '.join(f'{key}: {value:,}' for key,value in sorted(counts.items())) or 'Technology counts unavailable'
+        self.dataset_details.setText(f"{row.get('attribution',row.get('source','Source unknown'))}\n"
+            f"Observed bounds (west, south, east, north): {coverage.get('bounds','Unavailable')} · "
+            f"MCCs: {', '.join(map(str,coverage.get('mccs',[]))) or 'Unknown'} · {counts_text}. "
+            'Bounds describe recorded estimates; coverage may be incomplete.')
     @Slot()
     def activate(self):
         if self.datasets.currentData():

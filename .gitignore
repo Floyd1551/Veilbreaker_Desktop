@@ -37,3 +37,4 @@ android-companion/local.properties
 
 # Downloaded offline maps and reference datasets are separate from source releases.
 map-packs/
+offline-input/

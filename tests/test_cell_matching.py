@@ -4,6 +4,18 @@ from test_android_capture import fixture
 from veilbreaker import cell_matching as match
 
 class MatchingTests(unittest.TestCase):
+    def test_nr_full_identity_matches_opencellid_snapshot(self):
+        envelope=fixture()
+        cell=envelope['observations'][0]['cells'][0]
+        cell['radio']='NR'
+        cell['identity'].update(tac=123456,cell_id='55341514827')
+        cell['signal']={'ss_rsrp': {'value': -101, 'unit': 'dBm'}}
+        with patch.object(match,'active_reference',return_value={'format':'opencellid','dataset_id':'fixed'}), \
+             patch.object(match,'lookup_reference',return_value=[dict(lon=-86.5,lat=34.7)]) as lookup:
+            row=match.match_capture(envelope,'unused')['rows'][0]
+            self.assertEqual(row['status'],'reference match')
+            self.assertEqual(lookup.call_args.args[1],('NR',310,260,123456,55341514827))
+
     def test_identity_and_observation_alignment(self):
         envelope=fixture()
         observation=envelope['observations'][0]

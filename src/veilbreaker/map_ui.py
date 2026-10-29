@@ -117,6 +117,13 @@ class MapWindow(QDialog):
             if path:
                 try:self.load_pack(path,persist=False)
                 except (OSError,ValueError) as exc:self.pack_status.setText('Basemap unavailable · '+str(exc))
+            cleared = str(self.settings.value('pack_cleared', False)).lower() in ('true', '1')
+            if self.server.pack is None and not cleared:
+                from .deployment_data import bundled_map
+                included = bundled_map()
+                if included:
+                    try:self.load_pack(included)
+                    except (OSError,ValueError) as exc:self.pack_status.setText('Included basemap unavailable · '+str(exc))
         if enable_web:
             try:self.create_web()
             except (ImportError,RuntimeError,OSError) as exc:self.bridge.failed(str(exc))
@@ -236,6 +243,7 @@ class MapWindow(QDialog):
         if persist:
             self.catalog.register(path);self.refresh_catalog()
             self.settings.setValue('pack_path',str(Path(path).resolve()))
+            self.settings.setValue('pack_cleared',False)
         self.update_view()
     def refresh_catalog(self):
         self.pack_selector.clear()
@@ -261,7 +269,7 @@ class MapWindow(QDialog):
                 self.refresh_catalog()
             except (OSError,ValueError) as exc:QMessageBox.warning(self,'Cannot update map list',str(exc))
     def clear_pack(self):
-        self.server.set_pack(None);self.settings.remove('pack_path');self.pack_status.setText('Basemap unavailable · Coordinate-only view. Import a Protomaps regional map.');self.update_view()
+        self.server.set_pack(None);self.settings.remove('pack_path');self.settings.setValue('pack_cleared',True);self.pack_status.setText('Basemap unavailable · Coordinate-only view. Import a Protomaps regional map.');self.update_view()
     def import_pack(self):
         path,_=QFileDialog.getOpenFileName(self,'Import offline Protomaps map','','PMTiles map (*.pmtiles)')
         if path:

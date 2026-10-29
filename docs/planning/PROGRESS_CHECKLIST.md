@@ -19,11 +19,12 @@ Updated 2026-10-28. This tracks implemented software separately from field quali
 - [x] Floor-plan measured-point coloring with per-floor scales, missing-value markers, manual-placement outlines, clickable scan details and persistent saved positions.
 - [x] Recorded metric-source filters and capture/phone-receipt timing in geographic and floor-plan survey views; attached phone LTE/NR metrics remain separate from desktop modem readings.
 - [x] Read-only survey median for a live Android session with one reported cell group and fresh, uncached samples; receipt window, sample count, identity and source stay visible.
+- [x] Optional deployment of the supplied CONUS overview and OpenCellID MCC 311 snapshot, with observed coverage, source attribution, and LTE/NR full-identity lookup.
 
 ## In progress or limited
 
 - [ ] Complete area preparation with coverage gap preview, verified tower/cell providers and offline imagery packs. The manager handles one terrain raster or one structure GeoJSON per pack; assessments can use several compatible terrain packs.
-- [ ] Authorized real tower and cell datasets, with physical structures distinct from estimated cell sites and serving-cell identity.
+- [ ] Extend beyond the supplied MCC 311 estimated-cell snapshot with authorized broader cell and physical tower datasets; retain the distinction between sites and serving-cell identity.
 - [ ] Automated adjacent-tile catalog preparation and field qualification of real terrain boundaries. The local sampler handles compatible installed tiles and missing data.
 - [ ] Add per-cell selection/filtering for live Android sessions with several reported groups. These remain separate detailed evidence; current live survey colors are run-level medians, not per-fix samples.
 - [ ] Guarded estimated heat-map surfaces, visibly distinct from measured points.
