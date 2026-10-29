@@ -5,16 +5,28 @@ from . import core
 from .map_data import build_map_data
 from .android_capture import load_capture
 from .location_report import location_rows
-from .survey_metrics import clean_metrics
+from .survey_metrics import clean_metrics, metric_provenance
 
 def _run(config,store,run_id,label=None):
-    result=dict(run_id=run_id,label=label or run_id,locations=[],metrics={})
+    result=dict(run_id=run_id,label=label or run_id,locations=[],metrics={},context={})
     row=store.get_run(run_id)
     if row is None:return result
     try:
         result['metrics']=clean_metrics(json.loads(row['metrics_json'] or '{}')) if 'metrics_json' in row.keys() else {}
     except (ValueError, TypeError):
         pass
+    collection = {}
+    try:
+        folder = Path(row['artifact_dir'] or config.artifacts_dir / run_id)
+        source = folder / 'collection.json'
+        if source.is_file() and source.stat().st_size <= 4 * 1024 * 1024:
+            collection = json.loads(source.read_text(encoding='utf-8'))
+    except (OSError, ValueError, TypeError):
+        pass
+    result['context'] = {key: metric_provenance(key, collection) for key in result['metrics']}
+    phone = collection.get('android') if isinstance(collection, dict) else None
+    if isinstance(phone, dict) and phone.get('source_kind') == 'live_android_usb' and not any(key.startswith('phone_') for key in result['metrics']):
+        result['warning'] = 'Live Android per-cell series were not reduced to one survey signal; review the Cellular report.'
     try:
         report=json.loads(row['report_json'])
         locations=report.get('normalized_metrics',{}).get('location_report')
@@ -23,12 +35,13 @@ def _run(config,store,run_id,label=None):
             if path.is_file():locations=location_rows(load_capture(path)['envelope'])
         result['locations']=locations or []
     except (OSError,ValueError,TypeError,AttributeError,KeyError):
-        result['warning']='Location evidence could not be read for '+run_id
+        result['warning']=result.get('warning', '')+' Location evidence could not be read for '+run_id
     return result
 
 def _build(runs):
     model=build_map_data(runs)
     model['run_metrics']={run['run_id']:run['metrics'] for run in runs if run['metrics']}
+    model['run_context']={run['run_id']:run['context'] for run in runs if run['context']}
     model['warnings'].extend(r['warning'] for r in runs if r.get('warning'))
     return model
 

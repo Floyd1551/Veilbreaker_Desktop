@@ -117,7 +117,14 @@ class SpatialUITests(unittest.TestCase):
             session = copy.deepcopy(made['survey'])
             for step, value in zip(session['steps'], (-110, -80, -30)):
                 step['metrics'] = {'rsrp': value}
-            with patch('veilbreaker.survey_spatial_ui.read_session', return_value=session):
+            context = {
+                runs[0]: {'rsrp': {'sources': ['cellular_modem'], 'started_utc': '2026-10-28T09:00:00Z', 'duration_s': 1}},
+                runs[1]: {'rsrp': {'sources': ['android_import'], 'received_utc': '2026-10-28T09:01:00Z', 'age_ms': 50}},
+                runs[2]: {'rsrp': {'sources': ['cellular_modem']}},
+            }
+            map_model = {'rows': [], 'representatives': [], 'run_context': context}
+            with patch('veilbreaker.survey_spatial_ui.read_session', return_value=session), \
+                 patch('veilbreaker.map_sources.load_survey_map_data', return_value=map_model):
                 dialog = SpatialDialog(None, cfg, path)
             try:
                 dialog.metric_selector.setCurrentIndex(dialog.metric_selector.findData('rsrp'))
@@ -126,6 +133,12 @@ class SpatialUITests(unittest.TestCase):
                 self.assertIn('RSRP -110 dBm', dialog.measurement_detail.text())
                 self.assertIn(runs[0], dialog.measurement_detail.text())
                 self.assertIn('Operator placed', dialog.measurement_detail.text())
+                dialog.source_filter.setCurrentIndex(dialog.source_filter.findData('android_import'))
+                self.assertIn('single value -80 dBm', dialog.metric_legend.text())
+                dialog.point.setCurrentIndex(1)
+                self.assertIn('Phone observation received 2026-10-28T09:01:00Z', dialog.measurement_detail.text())
+                dialog.source_filter.setCurrentIndex(0)
+                dialog.point.setCurrentIndex(0)
                 dialog.canvas.scale(1.5, 1.5)
                 zoom = dialog.canvas.transform().m11()
                 dialog.floor_picked(.4, .6)
@@ -140,6 +153,7 @@ class SpatialUITests(unittest.TestCase):
                 dialog.resize(900, 680)
                 dialog.show()
                 QTest.qWait(30)
+                self.assertLessEqual(dialog.height(), 720)
                 QTest.mouseClick(dialog.canvas.viewport(), Qt.MouseButton.LeftButton,
                                  pos=dialog.canvas.mapFromScene(QPointF(50, 50)))
                 self.assertEqual(dialog.point.currentData(), runs[2])

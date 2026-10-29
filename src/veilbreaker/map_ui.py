@@ -5,7 +5,9 @@ from PySide6.QtCore import QObject,Signal,Slot,Qt,QUrl,QSettings,QTimer,QStandar
 from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,QCheckBox,QComboBox,QSplitter,QTableWidget,QTableWidgetItem,QHeaderView,QFileDialog,QMessageBox,QWidget)
 from .map_data import map_bounds,export_geojson
 from .map_server import MapServer
-from .survey_metrics import METRICS, available_metrics, metric_scale, point_metric
+from .survey_metrics import (METRICS, UNATTRIBUTED, available_metrics, clean_metrics,
+    metric_scale, point_metric, provenance_label, source_options, source_matches)
+from .display_labels import source_label
 
 class MapBridge(QObject):
     refresh=Signal()
@@ -80,6 +82,12 @@ class MapWindow(QDialog):
             self.metric_selector.addItem(f'{title} ({unit})',key)
         metric_row.addWidget(self.metric_selector,1)
         outer.addLayout(metric_row)
+        source_row=QHBoxLayout()
+        source_row.addWidget(QLabel('Metric source'))
+        self.source_filter=QComboBox();self.source_filter.setAccessibleName('Filter survey metrics by recorded source')
+        self.source_filter.addItem('All recorded sources',None)
+        source_row.addWidget(self.source_filter,1)
+        outer.addLayout(source_row)
         self.metric_legend=QLabel()
         self.metric_legend.setWordWrap(True)
         self.metric_legend.setTextFormat(Qt.TextFormat.PlainText)
@@ -100,7 +108,8 @@ class MapWindow(QDialog):
         self.details=QLabel('Select a measurement to inspect its location evidence.');self.details.setWordWrap(True);self.details.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.details)
         self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);outer.addWidget(self.open_button)
         self.run_filter.currentIndexChanged.connect(self.change_run);self.questionable.toggled.connect(self.update_view)
-        self.metric_selector.currentIndexChanged.connect(self.update_view)
+        self.metric_selector.currentIndexChanged.connect(self.change_metric)
+        self.source_filter.currentIndexChanged.connect(self.update_view)
         self.table.itemSelectionChanged.connect(self.table_selected)
         self.update_view()
         if restore_pack:
@@ -118,12 +127,30 @@ class MapWindow(QDialog):
         if self.web and not self.ready:self.bridge.failed('renderer did not initialize')
     def visible_features(self):
         run=self.run_filter.currentData();questionable=self.questionable.isChecked()
+        key=self.metric_selector.currentData();source=self.source_filter.currentData()
         return [f for f in self.model['features']['features'] if (run is None or f['properties']['run_id']==run) and
+                (source is None or (key in clean_metrics(self.model.get('run_metrics',{}).get(f['properties']['run_id'],{})) and
+                                    source_matches(self.model,f['properties']['run_id'],key,source))) and
                 (f['properties'].get('manual') or (f['properties']['quality']['qualified'] and (run is not None or f['id'] in self.model['representatives'])) or (questionable and not f['properties']['quality']['qualified']))]
+    def change_metric(self):
+        key=self.metric_selector.currentData()
+        selected=self.source_filter.currentData()
+        self.source_filter.blockSignals(True)
+        self.source_filter.clear()
+        self.source_filter.addItem('All recorded sources',None)
+        for source in source_options(self.model,key) if key else []:
+            self.source_filter.addItem('Source unrecorded' if source==UNATTRIBUTED else source_label(source),source)
+        index=self.source_filter.findData(selected)
+        self.source_filter.setCurrentIndex(max(0,index))
+        self.source_filter.blockSignals(False)
+        self.update_view()
     def update_view(self):
         features=self.visible_features();ids={f['id'] for f in features};run=self.run_filter.currentData()
         metric_key=self.metric_selector.currentData()
-        scale=metric_scale(self.model,metric_key) if metric_key else None
+        source=self.source_filter.currentData()
+        metric_model=dict(self.model,run_metrics={run_id:values for run_id,values in self.model.get('run_metrics',{}).items()
+            if source_matches(self.model,run_id,metric_key,source)})
+        scale=metric_scale(metric_model,metric_key) if metric_key else None
         self.metric_ramp.setVisible(bool(scale))
         if scale:
             single=scale['minimum']==scale['maximum']
@@ -147,6 +174,8 @@ class MapWindow(QDialog):
         counts=self.model['counts'];self.summary.setText(f"{counts['mapped']} qualified plottable observations · {counts['questionable']} questionable fixes · {counts['unpositioned_runs']} runs without a qualified position" + (' · '+ ' '.join(self.model['warnings'][:3]) if self.model['warnings'] else ''))
         if counts.get('manual'):
             self.summary.setText(self.summary.text()+f" · {counts['manual']} manual placements (purple; not GPS)")
+        if source is not None:
+            self.summary.setText(self.summary.text()+f' · {len(features)} positioned observations shown for selected metric source')
         self.summary.setTextFormat(Qt.TextFormat.PlainText)
         if not self.model['rows']:self.details.setText('No GPS evidence. Enable phone location during capture, then open the saved diagnostic or survey here.')
         else:self.details.setText('Select a measurement. Questionable fixes are hidden until enabled.')
@@ -190,7 +219,9 @@ class MapWindow(QDialog):
                 metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
                 metric_note=(f"\n{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric, not an individual fix reading."
                              if metric else ('\nSelected run metric unavailable.' if metric_key else ''))
-                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + metric_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
+                context=self.model.get('run_context',{}).get(row['run_id'],{}).get(metric_key,{}) if metric_key else {}
+                source_note='\n'+provenance_label(context) if metric_key else ''
+                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + metric_note + source_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
                 self.bridge.highlight.emit(feature_id);return
     def table_selected(self):
         i=self.table.currentRow()

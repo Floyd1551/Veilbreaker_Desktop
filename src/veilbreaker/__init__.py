@@ -1,2 +1,2 @@
 """Veilbreaker Desktop and CLI share one diagnostic engine."""
-__version__ = "0.56.0rc1"
+__version__ = "0.57.0rc1"

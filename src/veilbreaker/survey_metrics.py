@@ -1,5 +1,8 @@
 """Read-only measured run metrics for spatial survey views."""
 import math
+from .display_labels import source_label
+
+UNATTRIBUTED = '__unattributed__'
 
 
 METRICS = {
@@ -14,6 +17,12 @@ METRICS = {
     'latency_ms': ('Latency', 'ms'),
     'jitter_ms': ('Jitter', 'ms'),
     'packet_loss_pct': ('Packet loss', '%'),
+    'phone_lte_rsrp': ('Phone LTE RSRP', 'dBm'),
+    'phone_lte_rsrq': ('Phone LTE RSRQ', 'dB'),
+    'phone_lte_rssi': ('Phone LTE RSSI', 'dBm'),
+    'phone_nr_rsrp': ('Phone NR SS-RSRP', 'dBm'),
+    'phone_nr_rsrq': ('Phone NR SS-RSRQ', 'dB'),
+    'phone_nr_sinr': ('Phone NR SS-SINR', 'dB'),
 }
 
 
@@ -22,6 +31,70 @@ def clean_metrics(values):
         return {}
     return {key: value for key, value in values.items()
             if key in METRICS and type(value) in (int, float) and math.isfinite(value)}
+
+
+def metric_provenance(key, collection):
+    """Return only collector and receipt details persisted with this metric."""
+    collection = collection if isinstance(collection, dict) else {}
+    sources_map = collection.get('metric_sources')
+    sources_map = sources_map if isinstance(sources_map, dict) else {}
+    raw = sources_map.get(key)
+    sources = [source for source in raw if isinstance(source, str)] if isinstance(raw, list) else []
+    result = {'sources': list(dict.fromkeys(sources))}
+    records = collection.get('collectors')
+    if isinstance(records, list) and len(result['sources']) == 1:
+        record = next((row for row in records if isinstance(row, dict) and row.get('source') == sources[0]), None)
+        if record:
+            if isinstance(record.get('started_utc'), str):
+                result['started_utc'] = record['started_utc']
+            duration = record.get('duration_s')
+            if type(duration) in (int, float) and math.isfinite(duration) and duration >= 0:
+                result['duration_s'] = duration
+    if len(result['sources']) == 1 and result['sources'][0] in ('android_input', 'android_usb', 'android_import'):
+        phone = collection.get('android')
+        if isinstance(phone, dict):
+            if isinstance(phone.get('received_utc'), str):
+                result['received_utc'] = phone['received_utc']
+            age = phone.get('age_ms')
+            if type(age) in (int, float) and math.isfinite(age) and age >= 0:
+                result['age_ms'] = age
+    return result
+
+
+def source_options(model, key):
+    sources = []
+    for run_id, metrics in model.get('run_metrics', {}).items():
+        if key not in clean_metrics(metrics):
+            continue
+        context = model.get('run_context', {}).get(run_id, {}).get(key, {})
+        named = context.get('sources') or [UNATTRIBUTED]
+        for source in named:
+            if source not in sources:
+                sources.append(source)
+    return sources
+
+
+def source_matches(model, run_id, key, source):
+    if source is None:
+        return True
+    if key not in clean_metrics(model.get('run_metrics', {}).get(run_id, {})):
+        return False
+    context = model.get('run_context', {}).get(run_id, {}).get(key, {})
+    named = context.get('sources') or []
+    return not named if source == UNATTRIBUTED else source in named
+
+
+def provenance_label(context):
+    context = context if isinstance(context, dict) else {}
+    named = context.get('sources') or []
+    source = ', '.join(source_label(item) for item in named) if named else 'Source unrecorded'
+    if context.get('received_utc'):
+        age = context.get('age_ms')
+        return f"{source} · Phone observation received {context['received_utc']}" + (f" · sample age {age:g} ms" if age is not None else ' · sample age unrecorded')
+    if context.get('started_utc'):
+        duration = context.get('duration_s')
+        return f"{source} · Collector started {context['started_utc']}" + (f" · duration {duration:g} s" if duration is not None else ' · duration unrecorded')
+    return source + ' · Capture time unrecorded'
 
 
 def available_metrics(model):
@@ -56,7 +129,7 @@ def point_metric(model, run_id, key, scale):
     return {'value': value, 'color': color, 'unit': scale['unit'], 'label': scale['label']}
 
 
-def floor_measurements(steps, placements, floor_id, metric_key=None):
+def floor_measurements(steps, placements, floor_id, metric_key=None, source_filter=None, run_context=None):
     """Return positioned scans and a color scale scoped to one floor only."""
     positioned = []
     run_metrics = {}
@@ -69,7 +142,12 @@ def floor_measurements(steps, placements, floor_id, metric_key=None):
                            'number': index, 'x': position['x'], 'y': position['y'],
                            'placed_utc': position.get('placed_utc')})
         run_metrics[run_id] = clean_metrics(step.get('metrics'))
-    model = {'run_metrics': run_metrics}
+    model = {'run_metrics': run_metrics, 'run_context': run_context or {}}
+    if source_filter is not None:
+        positioned = [marker for marker in positioned if source_matches(model, marker['run_id'], metric_key, source_filter)]
+        run_metrics = {run_id: values for run_id, values in run_metrics.items()
+                       if source_matches(model, run_id, metric_key, source_filter)}
+        model['run_metrics'] = run_metrics
     scale = metric_scale(model, metric_key) if metric_key else None
     for marker in positioned:
         marker['metric'] = point_metric(model, marker['run_id'], metric_key, scale) if metric_key else None

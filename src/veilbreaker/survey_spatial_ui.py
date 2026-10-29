@@ -8,7 +8,9 @@ from .survey import read_session
 from .survey_spatial import (load_spatial, import_floor, read_floor, save_placement,
                              clear_placement, calibrate_floor, remove_floor, unplaced_measurements)
 from .widgets import FlowLayout
-from .survey_metrics import METRICS, available_metrics, clean_metrics, floor_measurements
+from .survey_metrics import (METRICS, UNATTRIBUTED, available_metrics, clean_metrics,
+    floor_measurements, provenance_label, source_options)
+from .display_labels import source_label
 
 
 class FloorCanvas(QGraphicsView):
@@ -129,6 +131,12 @@ class SpatialDialog(QDialog):
             title, unit = METRICS[key]
             self.metric_selector.addItem(f'{title} ({unit})', key)
         layout.addWidget(self.metric_selector)
+        self.source_caption = QLabel('Metric source')
+        layout.addWidget(self.source_caption)
+        self.source_filter = QComboBox()
+        self.source_filter.setAccessibleName('Filter floor-plan measurements by recorded source')
+        self.source_filter.addItem('All recorded sources', None)
+        layout.addWidget(self.source_filter)
         self.metric_legend = QLabel()
         self.metric_legend.setWordWrap(True)
         self.metric_legend.setTextFormat(Qt.TextFormat.PlainText)
@@ -182,7 +190,8 @@ class SpatialDialog(QDialog):
         layout.addLayout(buttons)
         self.surface.currentIndexChanged.connect(self.change_surface)
         self.point.currentIndexChanged.connect(self.change_point)
-        self.metric_selector.currentIndexChanged.connect(lambda _index: self.render_floor())
+        self.metric_selector.currentIndexChanged.connect(lambda _index: self.change_metric())
+        self.source_filter.currentIndexChanged.connect(lambda _index: self.render_floor())
         self.refresh()
         self.change_point()
 
@@ -190,6 +199,7 @@ class SpatialDialog(QDialog):
         self.data = load_spatial(self.config, self.path)
         from .map_sources import load_survey_map_data
         model = load_survey_map_data(self.config, self.path)
+        self.map_model = model
         gps_runs = {row['run_id'] for row in model['rows'] if row['id'] in model['representatives'] and row.get('renderable')}
         unplaced = unplaced_measurements(self.session['steps'], self.data, gps_runs)
         self.placement_summary.setText(f'Unplaced measurements: {len(unplaced)} · Select a scan below to place it now or later.')
@@ -225,6 +235,8 @@ class SpatialDialog(QDialog):
         self.canvas.setVisible(not geographic)
         self.metric_panel.setVisible(not geographic)
         self.metric_selector.setVisible(not geographic)
+        self.source_caption.setVisible(not geographic)
+        self.source_filter.setVisible(not geographic)
         self.metric_legend.setVisible(not geographic)
         self.measurement_detail.setVisible(not geographic)
         self.pick_button.setEnabled(geographic)
@@ -242,7 +254,30 @@ class SpatialDialog(QDialog):
         if geographic:
             self.status.setText('Enter coordinates or pick on the offline map, then Save placement.')
         else:
+            self.refresh_floor_sources()
             self.render_floor(fit=True)
+
+    def change_metric(self):
+        if self.surface.currentData() != 'geographic':
+            self.refresh_floor_sources()
+            self.render_floor()
+
+    def refresh_floor_sources(self):
+        floor = self.surface.currentData()
+        key = self.metric_selector.currentData()
+        run_metrics = {step['run_id']: clean_metrics(step.get('metrics')) for step in self.session['steps']
+                       if (position := self.data['placements'].get(step['run_id'])) and
+                       position.get('kind') == 'floor' and position.get('floor_id') == floor}
+        model = {'run_metrics': run_metrics, 'run_context': self.map_model.get('run_context', {})}
+        selected = self.source_filter.currentData()
+        self.source_filter.blockSignals(True)
+        self.source_filter.clear()
+        self.source_filter.addItem('All recorded sources', None)
+        for source in source_options(model, key) if key else []:
+            self.source_filter.addItem('Source unrecorded' if source == UNATTRIBUTED else source_label(source), source)
+        index = self.source_filter.findData(selected)
+        self.source_filter.setCurrentIndex(max(0, index))
+        self.source_filter.blockSignals(False)
 
     def render_floor(self, fit=False):
         if self.surface.currentData() == 'geographic':
@@ -251,7 +286,9 @@ class SpatialDialog(QDialog):
             floor = self.surface.currentData()
             image = read_floor(self.config, self.path, floor)
             key = self.metric_selector.currentData()
-            markers, metric_scale = floor_measurements(self.session['steps'], self.data['placements'], floor, key)
+            source = self.source_filter.currentData()
+            markers, metric_scale = floor_measurements(self.session['steps'], self.data['placements'], floor, key,
+                                                       source_filter=source, run_context=self.map_model.get('run_context', {}))
             self.canvas.set_floor(image, markers, metric_mode=bool(key))
             unsaved = self.pending and self.pending.get('kind') == 'floor' and self.pending.get('floor_id') == floor and 'placed_utc' not in self.pending
             if unsaved:
@@ -273,9 +310,11 @@ class SpatialDialog(QDialog):
                 metric = selected['metric']
                 value = f"{metric['label']} {metric['value']:g} {metric['unit']} · saved run metric" if metric else ('Selected metric unavailable' if key else 'No metric selected')
                 placed = selected.get('placed_utc') or 'time unavailable'
-                self.measurement_detail.setText(f"{selected['scan_label']} · scan {selected['number']} · Run {selected['run_id']} · operator floor-plan placement · Operator placed {placed}. {value}. Original diagnostic evidence is unchanged.")
+                context = self.map_model.get('run_context', {}).get(selected['run_id'], {}).get(key, {}) if key else {}
+                timing = ' ' + provenance_label(context) + '.' if key else ''
+                self.measurement_detail.setText(f"{selected['scan_label']} · scan {selected['number']} · Run {selected['run_id']} · operator floor-plan placement · Operator placed {placed}. {value}.{timing} Original diagnostic evidence is unchanged.")
             else:
-                self.measurement_detail.setText('The selected scan has no placement on this floor. Choose another scan or place it here.')
+                self.measurement_detail.setText('The selected scan is not shown for this floor and source. Choose another scan, source or floor.')
             scale = self.data['floors'][floor].get('calibration', {}).get('meters_per_pixel')
             self.status.setText('Click to choose a position; drag to pan; scroll to zoom. Save confirms placement. ' +
                                 (f'Scale: {scale:.6g} m / image pixel.' if scale else 'Scale is not calibrated.'))
