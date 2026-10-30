@@ -32,7 +32,7 @@ def _search_usgs_job(bounds, cancelled, progress):
     return {'catalog': result}
 
 
-def _coverage_job(root, catalog_path, bounds, sample_terrain, cancelled, progress):
+def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress):
     from .area_coverage import area_preview
     from .map_catalog import PackCatalog
     from .deployment_data import bundled_map
@@ -44,9 +44,9 @@ def _coverage_job(root, catalog_path, bounds, sample_terrain, cancelled, progres
         maps.append(dict(pack, available=True, source_date='Included map'))
     store=RegionalPackStore(Path(root)/'regional-packs')
     report=area_preview(bounds,store.list_packs(),maps,Path(root)/'cell-references',cancelled)
-    if sample_terrain:
+    if sample_grid is not None:
         from .terrain_area_sample import sample_area
-        report['terrain']['sample']=sample_area(store,bounds,cancelled)
+        report['terrain']['sample']=sample_area(store,bounds,cancelled,grid_size=sample_grid)
     return {'coverage':report}
 
 
@@ -85,11 +85,20 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_preset.clicked.connect(self.coverage_huntsville)
         self.coverage_check = QPushButton('Check local data')
         self.coverage_check.clicked.connect(self.check_coverage)
-        coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_check)
+        self.coverage_save = QPushButton('Save preview report…')
+        self.coverage_save.setEnabled(False)
+        self.coverage_save.clicked.connect(self.save_coverage_report)
+        coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_check);coverage_actions.addWidget(self.coverage_save)
         coverage_layout.addLayout(coverage_actions)
-        self.coverage_sample = QCheckBox('Also sample terrain at 121 grid points')
+        self.coverage_sample = QCheckBox('Also sample terrain')
         self.coverage_sample.setToolTip('Optional sparse no-data check; it does not verify every raster cell or the file checksum.')
-        coverage_layout.addWidget(self.coverage_sample)
+        self.coverage_grid = QComboBox()
+        self.coverage_grid.setAccessibleName('Terrain sample grid density')
+        for size in (11,21,41):
+            self.coverage_grid.addItem(f'{size} × {size} · {size*size} points',size)
+        self.coverage_grid.setEnabled(False)
+        self.coverage_sample.toggled.connect(self.coverage_grid.setEnabled)
+        sample_row=QHBoxLayout();sample_row.addWidget(self.coverage_sample);sample_row.addWidget(self.coverage_grid);coverage_layout.addLayout(sample_row)
         self.coverage_table = QTableWidget(0, 2)
         self.coverage_table.setHorizontalHeaderLabels(['Layer', 'Result'])
         self.coverage_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -104,6 +113,9 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_details.setPlainText('Select an area and check local data, then select a layer for details.')
         coverage_layout.addWidget(self.coverage_details)
         self.coverage_result = None
+        self.coverage_bounds.textChanged.connect(self.invalidate_coverage)
+        self.coverage_sample.toggled.connect(self.invalidate_coverage)
+        self.coverage_grid.currentIndexChanged.connect(self.invalidate_coverage)
         layout.addWidget(self.workspace_tabs, 1)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(['Kind', 'Pack', 'WGS84 bounds', 'Source / date', 'Size', 'Status'])
@@ -205,7 +217,7 @@ class RegionalPacksDialog(JobDialog):
                          self.units, self.bounds, self.url, self.checksum, self.import_button,
                          self.download_button, self.search_button, self.products, self.use_product_button, self.catalog_view]
         self.controls.append(self.huntsville_button)
-        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_sample, self.coverage_table])
+        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
         self.refresh()
         self.update_kind()
@@ -217,6 +229,13 @@ class RegionalPacksDialog(JobDialog):
         self.search_button.setEnabled(terrain)
         self.products.setEnabled(terrain)
         self.use_product_button.setEnabled(terrain and self.products.count() > 0)
+
+    def set_busy(self, busy):
+        super().set_busy(busy)
+        self.coverage_grid.setEnabled(not busy and self.coverage_sample.isChecked())
+        self.coverage_save.setEnabled(not busy and self.coverage_result is not None)
+        if not busy:
+            self.update_kind()
 
     def metadata(self):
         value = dict(name=self.name.text().strip(), source=self.source.text().strip(),
@@ -242,6 +261,15 @@ class RegionalPacksDialog(JobDialog):
     def coverage_huntsville(self):
         self.coverage_bounds.setText('-87.2, 34.3, -86.2, 35.2')
 
+    def invalidate_coverage(self, *_args):
+        if self.coverage_result is None:
+            return
+        self.coverage_result = None
+        self.coverage_save.setEnabled(False)
+        self.coverage_table.setRowCount(0)
+        self.coverage_details.setPlainText('Area or sampling options changed. Check local data again before saving a report.')
+        self.status.setText('Area preview needs to be checked again.')
+
     @Slot()
     def check_coverage(self):
         try:
@@ -251,10 +279,26 @@ class RegionalPacksDialog(JobDialog):
             self.status.setText('Enter valid area bounds: '+str(exc));return
         catalog = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))/'map-catalog.json'
         self.coverage_result = None
+        self.coverage_save.setEnabled(False)
         self.coverage_table.setRowCount(0)
         self.coverage_details.setPlainText('Checking the selected area…')
         self.status.setText('Checking local extents and cell records…')
-        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, self.coverage_sample.isChecked()))
+        grid=self.coverage_grid.currentData() if self.coverage_sample.isChecked() else None
+        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, grid))
+
+    @Slot()
+    def save_coverage_report(self):
+        if self.coverage_result is None:
+            return
+        target,_=QFileDialog.getSaveFileName(self,'Save area readiness preview','area-readiness.html','HTML report (*.html)')
+        if not target:
+            return
+        try:
+            from .area_coverage_report import report_html
+            Path(target).write_text(report_html(self.coverage_result),encoding='utf-8')
+            self.status.setText('Area readiness preview saved. It reflects the checked area at the time of the preview.')
+        except (OSError,ValueError,KeyError) as exc:
+            self.status.setText('Could not save preview: '+str(exc))
 
     @Slot()
     def show_coverage_details(self):
@@ -429,6 +473,7 @@ class RegionalPacksDialog(JobDialog):
             return
         try:
             self.store.remove(row['pack_id'])
+            self.invalidate_coverage()
             self.refresh()
             self.status.setText('Installed pack removed. Existing reports and original source files are unchanged.')
         except (OSError, ValueError) as exc:
@@ -459,6 +504,7 @@ class RegionalPacksDialog(JobDialog):
             return
         if coverage := result.get('coverage'):
             self.coverage_result = coverage
+            self.coverage_save.setEnabled(self.worker is None)
             self.coverage_table.setRowCount(4)
             for index, (key, title) in enumerate((('map','Map'),('terrain','Terrain'),('cell','Cell references'),('structures','Structures'))):
                 item=coverage[key]
@@ -475,6 +521,7 @@ class RegionalPacksDialog(JobDialog):
             self.show_coverage_details()
             self.status.setText(f"Area {coverage['bounds']} checked. Extents and reference records do not guarantee field coverage.")
         elif row := result.get('installed'):
+            self.invalidate_coverage()
             self.refresh(row['pack_id'])
             self.status.setText(f"Installed {row['name']} · {row['bytes'] / 1024 / 1024:.1f} MiB · SHA-256 {row['sha256']}.")
         elif catalog := result.get('catalog'):

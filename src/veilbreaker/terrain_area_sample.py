@@ -10,8 +10,8 @@ from .terrain_raster import _metadata, _path
 def sample_area(store, bounds, cancelled, grid_size=11):
     """Inspect grid-cell centers. Results never establish full raster coverage."""
     area = _bounds(bounds)
-    if type(grid_size) is not int or not 2 <= grid_size <= 25:
-        raise ValueError('Terrain preview grid must be between 2 and 25 points per side.')
+    if type(grid_size) is not int or not 2 <= grid_size <= 41:
+        raise ValueError('Terrain preview grid must be between 2 and 41 points per side.')
     def check():
         if cancelled():
             raise ValueError('Terrain preview cancelled.')

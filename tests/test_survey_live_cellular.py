@@ -3,10 +3,57 @@ import unittest
 
 from test_android_capture import fixture
 from veilbreaker.cellular_report import build_report
-from veilbreaker.survey_live_cellular import reduce_live_cell_report
+from veilbreaker.survey_live_cellular import reduce_live_cell_report, live_cell_groups
 
 
 class LiveCellSurveyTests(unittest.TestCase):
+    def test_explicit_groups_keep_full_identity_and_samples_separate(self):
+        capture=fixture();capture['collection']['mode']='session'
+        first=capture['observations'][0]['cells'][0];first['identity']['tac']=42
+        second=copy.deepcopy(first);second['identity']['cell_id']='5678'
+        second['signal']['rsrp']['value']=-110
+        capture['observations'][0]['cells'].append(second)
+        groups=live_cell_groups(build_report(capture))
+        self.assertEqual(len(groups),2)
+        self.assertNotEqual(groups[0]['key'],groups[1]['key'])
+        self.assertEqual({g['metrics']['live_phone_lte_rsrp'] for g in groups},{-95,-110})
+        self.assertEqual({g['context']['live_phone_lte_rsrp']['cell_identity']['cell_id'] for g in groups},{'1234','5678'})
+
+    def test_incomplete_identity_is_not_a_comparable_group(self):
+        capture=fixture();capture['collection']['mode']='session'
+        self.assertEqual(live_cell_groups(build_report(capture)),[])
+
+    def test_group_identity_does_not_merge_different_receiver_models(self):
+        capture=fixture();capture['collection']['mode']='session';capture['observations'][0]['cells'][0]['identity']['tac']=42
+        first=live_cell_groups(build_report(capture))[0]
+        capture['device']['model']='Different receiver'
+        second=live_cell_groups(build_report(capture))[0]
+        self.assertNotEqual(first['key'],second['key'])
+
+    def test_invalid_full_identity_is_not_offered(self):
+        capture=fixture();capture['collection']['mode']='session'
+        identity=capture['observations'][0]['cells'][0]['identity']
+        identity['tac']=70000
+        self.assertEqual(live_cell_groups(build_report(capture)),[])
+
+    def test_channel_changes_are_separate_and_visible_in_labels(self):
+        capture=fixture();capture['collection']['mode']='session'
+        first=capture['observations'][0]['cells'][0];first['identity']['tac']=42
+        second=copy.deepcopy(first);second['identity']['earfcn']=200
+        capture['observations'][0]['cells'].append(second)
+        groups=live_cell_groups(build_report(capture))
+        self.assertEqual(len(groups),2)
+        self.assertNotEqual(groups[0]['key'],groups[1]['key'])
+        self.assertNotEqual(groups[0]['label'],groups[1]['label'])
+
+    def test_omitted_entries_disable_automatic_reduction_but_keep_explicit_groups(self):
+        capture=fixture();capture['collection']['mode']='session';capture['observations'][0]['cells'][0]['identity']['tac']=42
+        report=build_report(capture);report['omitted']=3
+        automatic=reduce_live_cell_report(report)
+        self.assertEqual(automatic['metrics'],{})
+        self.assertIn('omitted 3',automatic['warning'])
+        self.assertEqual(len(live_cell_groups(report)),1)
+
     def test_one_stable_cell_uses_fresh_uncached_median_and_receipt_window(self):
         capture = fixture()
         capture['collection']['mode'] = 'session'

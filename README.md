@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.64.0rc1** adds editable [operator observations](docs/survey-observations.md), clearer incomplete terrain profiles, and RF calculators for VSWR, effective aperture, polarization mismatch and receiver sensitivity. The included CONUS overview map and OpenCellID MCC 311 snapshot are optional at build time; see [offline deployment data](docs/offline-deployment-data.md) for staging, coverage and provenance. Community-estimated cell positions are not verified physical towers.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.65.0rc1** adds survey calculation attachments, [per-run live phone cell selection](docs/survey-cell-groups.md), denser terrain sampling, and additional networking and power calculators and references. The included CONUS overview map and OpenCellID MCC 311 snapshot are optional at build time; see [offline deployment data](docs/offline-deployment-data.md) for staging, coverage and provenance. Community-estimated cell positions are not verified physical towers.
 
 ## Windows installation
 
-Run `Veilbreaker-0.64.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.65.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 

@@ -2,10 +2,19 @@ import unittest
 
 from veilbreaker.survey_metrics import (available_metrics, metric_scale, clean_metrics,
                                         point_metric, floor_measurements, metric_provenance,
-                                        source_options, source_matches, provenance_label)
+                                        source_options, source_matches, provenance_label, select_cell_group)
 
 
 class SurveyMetricTests(unittest.TestCase):
+    def test_automatic_live_values_do_not_compare_multiple_unverified_receivers(self):
+        model={'run_metrics':{'a':{'live_phone_lte_rsrp':-95,'rsrp':-80},'b':{'live_phone_lte_rsrp':-110}},
+               'run_context':{},'cell_groups':{'one':{'runs':{'a':{'metrics':{'live_phone_lte_rsrp':-95},'context':{}}}}}}
+        automatic=select_cell_group(model,None)
+        self.assertNotIn('live_phone_lte_rsrp',automatic['run_metrics']['a'])
+        self.assertNotIn('live_phone_lte_rsrp',automatic['run_metrics']['b'])
+        self.assertEqual(automatic['run_metrics']['a']['rsrp'],-80)
+        self.assertEqual(select_cell_group(model,'one')['run_metrics']['a']['live_phone_lte_rsrp'],-95)
+        self.assertEqual(model['run_metrics']['b']['live_phone_lte_rsrp'],-110)
     def test_only_supported_finite_measurements_are_retained(self):
         values = clean_metrics({'rsrp': -91, 'sinr': float('nan'), 'wifi_rssi_dbm': True,
                                 'latency_ms': 0, 'operator_note': 17, 'download_mbps': '42'})

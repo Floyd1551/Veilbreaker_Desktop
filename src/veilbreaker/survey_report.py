@@ -59,6 +59,32 @@ def observations_html(session):
                 row.get('description'),row.get('author') or 'Not supplied'] for row in rows]))
 
 
+def calculations_html(session):
+    records=session.get('calculations',[])
+    if not isinstance(records,list):
+        return '<h2>Operator calculations</h2><p>Calculation records are unavailable.</p>'
+    rows=[row for row in records if isinstance(row,dict) and not row.get('deleted_utc') and isinstance(row.get('snapshot'),dict)]
+    if not rows:return ''
+    labels={step.get('run_id'):step.get('label','Unnamed point') for step in session.get('steps',[])}
+    parts=['<h2>Operator calculations</h2><p>Calculated estimates based on operator-entered inputs; these are not measured evidence.</p>']
+    for row in rows:
+        snap=row['snapshot'];run=row.get('run_id')
+        parts.append('<h3>'+text(snap.get('title','Calculation'))+'</h3>')
+        parts.append('<p>Calculated estimate · Calculator version: '+text(snap.get('version'))+' · Attached UTC: '+text(row.get('attached_utc'))+' · Point: '+text(labels.get(run,'Survey-wide' if not run else 'Point unavailable'))+' · ID: '+text(row.get('id'))+'</p>')
+        parts.append('<p>Operator notes: '+text(row.get('notes') or 'None recorded')+'</p>')
+        inputs=snap.get('inputs') if isinstance(snap.get('inputs'),dict) else {}
+        names=snap.get('input_labels') if isinstance(snap.get('input_labels'),dict) else {}
+        outputs=snap.get('outputs') if isinstance(snap.get('outputs'),dict) else {}
+        parts.append(table(['Input','Entered value'],[[names.get(key,key),value] for key,value in inputs.items()]))
+        parts.append(table(['Calculated result','Value'],[[key,value] for key,value in outputs.items()]))
+        notes=snap.get('result_notes')
+        for note in notes if isinstance(notes,list) else []:parts.append('<p>'+text(note)+'</p>')
+        parts.append('<p>Method: '+text(snap.get('method'))+'<br>Assumptions and limitations: '+text(snap.get('limitations'))+'</p>')
+        if isinstance(snap.get('source'),dict):
+            source=snap['source'];parts.append('<p>Calculation input source: '+text(source.get('title'))+' · '+text(source.get('output'))+': '+text(source.get('value'))+'<br>Source inputs: '+text(source.get('inputs'))+'<br>Source method: '+text(source.get('method'))+'<br>Source limitations: '+text(source.get('limitations'))+'</p>')
+    return '\n'.join(parts)
+
+
 def report_html(session, imagery=None, cell_context=""):
     steps = session.get('steps', [])
     states = Counter(s.get('status', 'unknown') for s in steps)
@@ -69,7 +95,7 @@ def report_html(session, imagery=None, cell_context=""):
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
              '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
-             imagery_html(imagery), cell_context, observations_html(session),
+             imagery_html(imagery), cell_context, observations_html(session), calculations_html(session),
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

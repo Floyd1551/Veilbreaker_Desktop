@@ -6,10 +6,10 @@ from .map_data import build_map_data
 from .android_capture import load_capture
 from .location_report import location_rows
 from .survey_metrics import clean_metrics, metric_provenance
-from .survey_live_cellular import reduce_live_cell_report
+from .survey_live_cellular import reduce_live_cell_report, live_cell_groups
 
 def _run(config,store,run_id,label=None):
-    result=dict(run_id=run_id,label=label or run_id,locations=[],metrics={},context={})
+    result=dict(run_id=run_id,label=label or run_id,locations=[],metrics={},context={},cell_groups=[])
     row=store.get_run(run_id)
     if row is None:return result
     try:
@@ -29,11 +29,16 @@ def _run(config,store,run_id,label=None):
     try:
         report=json.loads(row['report_json'])
         if isinstance(phone, dict) and phone.get('source_kind') == 'live_android_usb':
-            reduced = reduce_live_cell_report(report.get('normalized_metrics', {}).get('android_cellular_report'))
+            cellular = report.get('normalized_metrics', {}).get('android_cellular_report')
+            reduced = reduce_live_cell_report(cellular)
+            result['cell_groups'] = live_cell_groups(cellular)
             result['metrics'].update(clean_metrics(reduced['metrics']))
             result['context'].update(reduced['context'])
             if reduced.get('warning'):
                 result['warning'] = reduced['warning']
+            cells=cellular.get('cells') if isinstance(cellular,dict) else None
+            if isinstance(cells,list) and len(cells)>1 and len(result['cell_groups']) < len(cells):
+                result['warning'] = (result.get('warning','') + ' Some cell groups lack a complete identity or fresh uncached readings and cannot be selected.')
         locations=report.get('normalized_metrics',{}).get('location_report')
         if locations is None:
             path=Path(row['artifact_dir'] or config.artifacts_dir/run_id)/'android-capture.json'
@@ -47,6 +52,19 @@ def _build(runs):
     model=build_map_data(runs)
     model['run_metrics']={run['run_id']:run['metrics'] for run in runs if run['metrics']}
     model['run_context']={run['run_id']:run['context'] for run in runs if run['context']}
+    groups={}
+    for run in runs:
+        entries=run.get('cell_groups',[])
+        counts={entry['key']:sum(1 for other in entries if other['key']==entry['key']) for entry in entries}
+        if any(count != 1 for count in counts.values()):
+            model['warnings'].append('Ambiguous duplicate cell groups in '+run['run_id']+' were excluded from selection.')
+        for entry in entries:
+            if counts[entry['key']] != 1:
+                continue
+            scoped=json.dumps([run['run_id'],entry['key']],separators=(',',':'))
+            group=groups.setdefault(scoped,{'label':f"{run.get('label') or run['run_id']} · Run {run['run_id']} · {entry['label']}",'runs':{}})
+            group['runs'][run['run_id']]={'metrics':entry['metrics'],'context':entry['context']}
+    model['cell_groups']=groups
     model['warnings'].extend(r['warning'] for r in runs if r.get('warning'))
     return model
 

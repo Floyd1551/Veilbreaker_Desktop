@@ -73,7 +73,7 @@ class VisualToolboxTests(unittest.TestCase):
     def test_global_search_category_and_empty_state(self):
         from veilbreaker.toolbox_ui import ToolboxPage
         page = ToolboxPage()
-        self.assertEqual(page.result_count.text(), '32 results')
+        self.assertEqual(page.result_count.text(), '40 results')
         page.global_search.setText('RSRP SINR')
         self.assertEqual({card.record.kind for card in page.result_cards}, {'reference', 'inspector'})
         page.global_search.setText('')

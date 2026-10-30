@@ -398,6 +398,11 @@ def export_session(config, path, destination=None):
         if observation_csv is not None:
             with (folder / 'operator-observations.csv').open('w', encoding='utf-8-sig', newline='') as output:
                 output.write(observation_csv)
+        calculations=session.get('calculations',[])
+        if isinstance(calculations,list):
+            active=[row for row in calculations if isinstance(row,dict) and not row.get('deleted_utc')]
+            if active:
+                atomic_json(folder/'calculations.json',dict(format='veilbreaker.survey.calculations',version=1,calculations=active))
         from .survey_report import report_html
         from .survey_imagery import report_context
         from .cell_context import saved_context_html, load_context
@@ -420,7 +425,7 @@ def export_session(config, path, destination=None):
         atomic_json(folder / "survey.json", session)
         from .survey_spatial import export_spatial
         export_spatial(config, path, folder)
-        (folder / "README.txt").write_text("Each step retains its original evidence. Point notes and survey imagery are annotations and do not rewrite original run evidence. Imagery source, bounds and preparation date accompany attached map assets. Missing values are blank, never zero. Compare equivalent tests and receiver settings; differing test flags or antenna placement can change results. Recovered/partial measurements remain explicitly labeled.\n", encoding="utf-8")
+        (folder / "README.txt").write_text("Each step retains its original evidence. Point notes, operator calculations and survey imagery are annotations and do not rewrite original run evidence. Calculations are estimates from operator-entered inputs, not measured evidence. Imagery source, bounds and preparation date accompany attached map assets. Missing values are blank, never zero. Compare equivalent tests and receiver settings; differing test flags or antenna placement can change results. Recovered/partial measurements remain explicitly labeled.\n", encoding="utf-8")
         write_manifest(folder, {"survey_id": session["survey_id"], "site_id": session["site_id"], "status": session["status"]})
         with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
             for item in folder.iterdir():

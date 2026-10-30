@@ -195,6 +195,8 @@ class SurveyPage(QWidget):
         report_actions.addWidget(button('Place points / floor plans…', self.place_points))
         self.observations_button = button('Operator observations…', self.open_observations)
         report_actions.addWidget(self.observations_button)
+        self.calculations_button = button('Survey calculations…', self.open_calculations)
+        report_actions.addWidget(self.calculations_button)
         self.imagery_button = button('Prepare report map…', self.prepare_report_map)
         report_actions.addWidget(self.imagery_button)
         layout.insertLayout(3, report_actions)
@@ -291,6 +293,7 @@ class SurveyPage(QWidget):
         self.point_notes.setEnabled(not busy and bool(self.session) and self.session.get("status") != "running" and self.results.currentRow() >= 0)
         self.save_notes.setEnabled(self.point_notes.isEnabled())
         self.observations_button.setEnabled(not busy and bool(self.session))
+        self.calculations_button.setEnabled(not busy and bool(self.session))
         self.update_queue_actions()
         self.flow.refresh(busy)
 
@@ -482,6 +485,7 @@ class SurveyPage(QWidget):
         self.export_button.setEnabled(True)
         self.report_button.setEnabled(True)
         self.observations_button.setEnabled(self.window.process is None)
+        self.calculations_button.setEnabled(self.window.process is None)
         self.builder_toggle.setChecked(False)
         self.continue_button.setEnabled(self.window.process is None and self.can_continue())
         self.point_notes.clear()
@@ -569,6 +573,18 @@ class SurveyPage(QWidget):
         try:
             SurveyImageryDialog(self.window, self.window.config, self.session_path).exec()
         except (OSError, ValueError, KeyError) as exc:
+            self.window.error(str(exc))
+
+    def open_calculations(self):
+        if not self.session_path or not self.session:
+            return
+        from .survey_calculations_ui import CalculationsDialog
+        index=self.results.currentRow()
+        run=self.session['steps'][index]['run_id'] if 0 <= index < len(self.session['steps']) else None
+        try:
+            CalculationsDialog(self.window,self.window.config,self.session_path,run).exec()
+            self.session=read_session(self.window.config,self.session_path)
+        except (OSError,ValueError,KeyError) as exc:
             self.window.error(str(exc))
 
     def open_observations(self):

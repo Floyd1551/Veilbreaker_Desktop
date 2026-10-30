@@ -11,6 +11,73 @@ from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QPushButton
 
 class SourcesTests(unittest.TestCase):
+    def test_same_model_and_cell_in_different_runs_remain_separate(self):
+        from veilbreaker.map_sources import _build
+        from veilbreaker.survey_metrics import select_cell_group
+        entry={'key':'same-cell','label':'LTE · reported model Test','metrics':{'live_phone_lte_rsrp':-95},
+               'context':{'live_phone_lte_rsrp':{'sources':['android_usb']}}}
+        runs=[dict(run_id='first',label='Point A',locations=[fix()],metrics={},context={},cell_groups=[entry]),
+              dict(run_id='second',label='Point B',locations=[fix()],metrics={},context={},cell_groups=[entry])]
+        model=_build(runs)
+        self.assertEqual(len(model['cell_groups']),2)
+        group=next(k for k,v in model['cell_groups'].items() if 'Run first' in v['label'])
+        view=select_cell_group(model,group)
+        self.assertIn('first',view['run_metrics'])
+        self.assertNotIn('second',view['run_metrics'])
+
+    def test_duplicate_group_identity_within_run_is_excluded_and_warned(self):
+        from veilbreaker.map_sources import _build
+        entry={'key':'same-cell','label':'LTE','metrics':{'live_phone_lte_rsrp':-95},'context':{}}
+        model=_build([dict(run_id='ambiguous',locations=[],metrics={},context={},cell_groups=[entry,dict(entry)])])
+        self.assertEqual(model['cell_groups'],{})
+        self.assertTrue(any('duplicate cell groups' in warning for warning in model['warnings']))
+
+    def test_live_multicell_groups_are_available_without_changing_saved_metrics(self):
+        import copy
+        from veilbreaker.core import AppConfig
+        from test_android_capture import fixture
+        from veilbreaker.cellular_report import build_report
+        from veilbreaker.survey_metrics import select_cell_group, available_metrics
+        with tempfile.TemporaryDirectory() as d:
+            cfg=AppConfig(data_dir=d);artifact=Path(d)/'artifact';artifact.mkdir()
+            (artifact/'collection.json').write_text(json.dumps({'android':{'source_kind':'live_android_usb'}}),encoding='utf-8')
+            capture=fixture();capture['collection']['mode']='session'
+            first=capture['observations'][0]['cells'][0];first['identity']['tac']=42
+            extra=copy.deepcopy(first);extra['identity']['cell_id']='5678';extra['signal']['rsrp']['value']=-110
+            capture['observations'][0]['cells'].append(extra)
+            row=dict(report_json=json.dumps({'normalized_metrics':{'location_report':[fix()],
+                'android_cellular_report':build_report(capture)}}),metrics_json='{}',artifact_dir=str(artifact))
+            with patch('veilbreaker.map_sources.core.VeilbreakerStore') as store:
+                store.return_value.get_run.return_value=row
+                model=load_run_map_data(cfg,'live')
+            self.assertEqual(model['run_metrics'],{})
+            self.assertEqual(len(model['cell_groups']),2)
+            self.assertIn('live_phone_lte_rsrp',available_metrics(model))
+            selected=next(key for key,g in model['cell_groups'].items() if 'cell 5678' in g['label'])
+            view=select_cell_group(model,selected)
+            self.assertEqual(view['run_metrics']['live']['live_phone_lte_rsrp'],-110)
+            self.assertEqual(view['run_context']['live']['live_phone_lte_rsrp']['cell_identity']['cell_id'],'5678')
+            self.assertEqual(model['run_metrics'],{})
+            self.assertEqual(row['metrics_json'],'{}')
+
+    def test_multicell_incomplete_identity_explains_unavailable_selection(self):
+        import copy
+        from veilbreaker.core import AppConfig
+        from test_android_capture import fixture
+        from veilbreaker.cellular_report import build_report
+        with tempfile.TemporaryDirectory() as d:
+            cfg=AppConfig(data_dir=d);artifact=Path(d)/'artifact';artifact.mkdir()
+            (artifact/'collection.json').write_text(json.dumps({'android':{'source_kind':'live_android_usb'}}),encoding='utf-8')
+            capture=fixture();capture['collection']['mode']='session'
+            extra=copy.deepcopy(capture['observations'][0]['cells'][0]);extra['identity']['cell_id']='5678'
+            capture['observations'][0]['cells'].append(extra)
+            row=dict(report_json=json.dumps({'normalized_metrics':{'location_report':[fix()],
+                'android_cellular_report':build_report(capture)}}),metrics_json='{}',artifact_dir=str(artifact))
+            with patch('veilbreaker.map_sources.core.VeilbreakerStore') as store:
+                store.return_value.get_run.return_value=row;model=load_run_map_data(cfg,'live')
+            self.assertEqual(model['cell_groups'],{})
+            self.assertTrue(any('complete identity' in note for note in model['warnings']))
+
     def test_live_single_cell_report_adds_read_only_measured_metric(self):
         with tempfile.TemporaryDirectory() as d:
             from veilbreaker.core import AppConfig
@@ -119,6 +186,52 @@ class SourcesTests(unittest.TestCase):
 class MapUiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
+    def test_automatic_live_group_does_not_compare_two_runs(self):
+        model=build_map_data([dict(run_id='a',locations=[fix()]),dict(run_id='b',locations=[fix(longitude_deg=1)])])
+        model['run_metrics']={'a':{'live_phone_lte_rsrp':-95},'b':{'live_phone_lte_rsrp':-110}}
+        model['run_context']={}
+        model['cell_groups']={'first':{'label':'Run a · cell','runs':{'a':{'metrics':{'live_phone_lte_rsrp':-95},'context':{}}}}}
+        window=MapWindow(None,model,lambda _:None,enable_web=False,restore_pack=False)
+        try:
+            window.metric_selector.setCurrentIndex(window.metric_selector.findData('live_phone_lte_rsrp'))
+            self.assertIn('Automatic comparison is unavailable',window.metric_legend.text())
+            self.assertNotIn('live_phone_lte_rsrp',window.model['run_metrics']['a'])
+            window.cell_selector.setCurrentIndex(window.cell_selector.findData('first'))
+            self.assertEqual(window.model['run_metrics']['a']['live_phone_lte_rsrp'],-95)
+            self.assertNotIn('live_phone_lte_rsrp',window.model['run_metrics']['b'])
+        finally:window.close()
+
+    def test_multicell_metric_prompts_for_group_when_no_automatic_value(self):
+        model=build_map_data([dict(run_id='a',locations=[fix()])])
+        model['run_metrics']={};model['run_context']={}
+        model['cell_groups']={'first':{'label':'Run a · cell','runs':{'a':{'metrics':{'live_phone_lte_rsrp':-95},'context':{}}}}}
+        window=MapWindow(None,model,lambda _:None,enable_web=False,restore_pack=False)
+        try:
+            window.metric_selector.setCurrentIndex(window.metric_selector.findData('live_phone_lte_rsrp'))
+            self.assertIn('Select a reported cell group',window.metric_legend.text())
+        finally:window.close()
+    def test_explicit_cell_selection_displays_only_matching_group(self):
+        model=build_map_data([dict(run_id='a',locations=[fix()]),dict(run_id='b',locations=[fix(longitude_deg=1)])])
+        model['run_metrics']={'b':{'live_phone_lte_rsrp':-70}}
+        model['run_context']={'b':{'live_phone_lte_rsrp':{'sources':['android_usb']}}}
+        def group(label,value,cell):
+            return {'label':label,'runs':{'a':{'metrics':{'live_phone_lte_rsrp':value},
+                'context':{'live_phone_lte_rsrp':{'sources':['android_usb'],'statistic':'single fresh sample',
+                  'sample_count':1,'window_start_utc':'2026-10-28T10:00:00Z','window_end_utc':'2026-10-28T10:00:00Z',
+                  'cell_identity':{'cell_id':cell},'radio':'LTE'}}}}}
+        model['cell_groups']={'first':group('LTE cell 1234',-95,'1234'),'second':group('LTE cell 5678',-110,'5678')}
+        w=MapWindow(None,model,lambda _:None,enable_web=False,restore_pack=False)
+        try:
+            w.metric_selector.setCurrentIndex(w.metric_selector.findData('live_phone_lte_rsrp'))
+            # A selectable multi-cell session offers a clear next step when no value is available automatically.
+            w.cell_selector.setCurrentIndex(w.cell_selector.findData('second'))
+            self.assertEqual(w.model['run_metrics']['a']['live_phone_lte_rsrp'],-110)
+            self.assertNotIn('live_phone_lte_rsrp',w.model['run_metrics']['b'])
+            w.select_feature('p0')
+            self.assertIn('cell_id 5678',w.details.text())
+            self.assertIn('single fresh sample',w.details.text())
+            self.assertEqual(model['run_metrics']['b']['live_phone_lte_rsrp'],-70)
+        finally:w.close()
     def test_bundled_conus_map_is_default_when_no_saved_choice(self):
         from veilbreaker.map_smoke import synthetic_pack
         with tempfile.TemporaryDirectory() as folder:

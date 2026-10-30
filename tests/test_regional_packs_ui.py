@@ -101,7 +101,7 @@ class RegionalPacksUITests(unittest.TestCase):
             self.assertEqual(dialog.workspace_tabs.widget(1).horizontalScrollBar().maximum(),0)
             dialog.workspace_tabs.setCurrentIndex(2)
             self.app.processEvents()
-            for widget in (dialog.coverage_bounds,dialog.coverage_check,dialog.coverage_sample,dialog.coverage_table,dialog.coverage_details):
+            for widget in (dialog.coverage_bounds,dialog.coverage_check,dialog.coverage_save,dialog.coverage_sample,dialog.coverage_grid,dialog.coverage_table,dialog.coverage_details):
                 self.assertLessEqual(widget.mapTo(dialog,widget.rect().bottomRight()).x(),dialog.width())
                 self.assertLessEqual(widget.mapTo(dialog,widget.rect().bottomRight()).y(),dialog.height())
             dialog.close()
@@ -121,6 +121,41 @@ class RegionalPacksUITests(unittest.TestCase):
                 self.assertIn('not verified towers', dialog.coverage_details.toPlainText())
             finally:
                 dialog.close()
+
+    def test_area_preview_saves_readable_offline_report(self):
+        from unittest.mock import patch
+        from veilbreaker.area_coverage import area_preview
+        with tempfile.TemporaryDirectory() as folder:
+            dialog=RegionalPacksDialog(None,AppConfig(data_dir=folder)); target=Path(folder)/'preview.html'
+            try:
+                self.assertFalse(dialog.coverage_save.isEnabled())
+                preview=area_preview([0,0,1,1],[],[],Path(folder)/'refs')
+                dialog.job_ready({'coverage':preview})
+                self.assertTrue(dialog.coverage_save.isEnabled())
+                with patch('veilbreaker.regional_packs_ui.QFileDialog.getSaveFileName',return_value=(str(target),'HTML')):
+                    dialog.save_coverage_report()
+                html=target.read_text(encoding='utf-8')
+                self.assertIn('Area readiness preview',html)
+                self.assertIn('no active cell reference',html)
+                dialog.coverage_bounds.setText('1, 1, 2, 2')
+                self.assertFalse(dialog.coverage_save.isEnabled())
+                self.assertIsNone(dialog.coverage_result)
+            finally:dialog.close()
+
+    def test_installing_pack_invalidates_previous_preview(self):
+        from veilbreaker.area_coverage import area_preview
+        with tempfile.TemporaryDirectory() as folder:
+            cfg=AppConfig(data_dir=folder);dialog=RegionalPacksDialog(None,cfg)
+            source=Path(folder)/'source.geojson';structures(source)
+            try:
+                dialog.job_ready({'coverage':area_preview([-97,32,-96,34],[],[],Path(folder)/'refs')})
+                self.assertTrue(dialog.coverage_save.isEnabled())
+                row=dialog.store.install_local('structures',source,dict(name='Test',source='Fixture',license='Test',
+                    source_date='2026-10-30',bounds_wgs84=[-97.1,32.8,-96.8,33.1]),lambda:False)
+                dialog.job_ready({'installed':row})
+                self.assertIsNone(dialog.coverage_result)
+                self.assertFalse(dialog.coverage_save.isEnabled())
+            finally:dialog.close()
 
     def test_area_preview_worker_counts_local_reference_records(self):
         from veilbreaker.cell_reference import import_reference, activate_reference
@@ -156,13 +191,17 @@ class RegionalPacksUITests(unittest.TestCase):
             dialog=RegionalPacksDialog(None,config)
             try:
                 dialog.coverage_bounds.setText('-97, 32.99, -96.99, 33')
+                self.assertFalse(dialog.coverage_grid.isEnabled())
                 dialog.coverage_sample.setChecked(True)
+                self.assertTrue(dialog.coverage_grid.isEnabled())
+                dialog.coverage_grid.setCurrentIndex(dialog.coverage_grid.findData(41))
                 dialog.check_coverage()
-                deadline=time.monotonic()+5
+                deadline=time.monotonic()+10
                 while dialog.worker is not None and time.monotonic()<deadline:
                     self.app.processEvents();time.sleep(.01)
                 self.assertIsNone(dialog.worker)
                 self.assertIn('sampled missing',dialog.coverage_table.item(1,1).text())
+                self.assertEqual(dialog.coverage_result['terrain']['sample']['total'],1681)
                 dialog.coverage_table.selectRow(1)
                 self.assertIn('Sparse grid',dialog.coverage_details.toPlainText())
             finally:

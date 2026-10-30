@@ -3,13 +3,13 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap, QPen, QColor
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QPushButton, QLineEdit, QFormLayout, QGraphicsView, QGraphicsScene, QFileDialog,
-    QInputDialog, QMessageBox)
+    QInputDialog, QMessageBox, QWidget)
 from .survey import read_session
 from .survey_spatial import (load_spatial, import_floor, read_floor, save_placement,
                              clear_placement, calibrate_floor, remove_floor, unplaced_measurements)
 from .widgets import FlowLayout
 from .survey_metrics import (METRICS, UNATTRIBUTED, available_metrics, clean_metrics,
-    floor_measurements, provenance_label, source_options)
+    floor_measurements, provenance_label, source_options, cell_group_options, select_cell_group)
 from .display_labels import source_label
 
 
@@ -131,6 +131,16 @@ class SpatialDialog(QDialog):
             title, unit = METRICS[key]
             self.metric_selector.addItem(f'{title} ({unit})', key)
         layout.addWidget(self.metric_selector)
+        self.cell_row = QWidget()
+        cell_layout = QHBoxLayout(self.cell_row);cell_layout.setContentsMargins(0,0,0,0)
+        cell_layout.addWidget(QLabel('Reported cell group'))
+        self.cell_selector = QComboBox()
+        self.cell_selector.setAccessibleName('Filter floor-plan live cellular measurements by reported cell group')
+        self.cell_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cell_selector.setMinimumContentsLength(12)
+        self.cell_selector.addItem('Automatic · single group only',None)
+        cell_layout.addWidget(self.cell_selector,1)
+        layout.addWidget(self.cell_row);self.cell_row.hide()
         self.source_caption = QLabel('Metric source')
         layout.addWidget(self.source_caption)
         self.source_filter = QComboBox()
@@ -191,6 +201,7 @@ class SpatialDialog(QDialog):
         self.surface.currentIndexChanged.connect(self.change_surface)
         self.point.currentIndexChanged.connect(self.change_point)
         self.metric_selector.currentIndexChanged.connect(lambda _index: self.change_metric())
+        self.cell_selector.currentIndexChanged.connect(lambda _index: self.change_cell())
         self.source_filter.currentIndexChanged.connect(lambda _index: self.render_floor())
         self.refresh()
         self.change_point()
@@ -199,22 +210,22 @@ class SpatialDialog(QDialog):
         self.data = load_spatial(self.config, self.path)
         from .map_sources import load_survey_map_data
         model = load_survey_map_data(self.config, self.path)
+        self.base_map_model = model
         self.map_model = model
-        self.metric_steps = []
-        for step in self.session['steps']:
-            view_step = dict(step)
-            view_step['metrics'] = {**clean_metrics(step.get('metrics')),
-                **clean_metrics(model.get('run_metrics', {}).get(step['run_id']))}
-            self.metric_steps.append(view_step)
+        self.update_metric_steps()
         selected_metric = self.metric_selector.currentData()
         self.metric_selector.blockSignals(True)
         self.metric_selector.clear()
         self.metric_selector.addItem('Placement positions', None)
-        for key in available_metrics({'run_metrics': {s['run_id']: s['metrics'] for s in self.metric_steps}}):
+        available = dict(model,run_metrics={s['run_id']:s['metrics'] for s in self.metric_steps})
+        for key in available_metrics(available):
             title, unit = METRICS[key]
             self.metric_selector.addItem(f'{title} ({unit})', key)
         self.metric_selector.setCurrentIndex(max(0, self.metric_selector.findData(selected_metric)))
         self.metric_selector.blockSignals(False)
+        self.refresh_cell_options()
+        self.map_model=select_cell_group(self.base_map_model,self.cell_selector.currentData())
+        self.update_metric_steps()
         gps_runs = {row['run_id'] for row in model['rows'] if row['id'] in model['representatives'] and row.get('renderable')}
         unplaced = unplaced_measurements(self.session['steps'], self.data, gps_runs)
         self.placement_summary.setText(f'Unplaced measurements: {len(unplaced)} · Select a scan below to place it now or later.')
@@ -250,6 +261,7 @@ class SpatialDialog(QDialog):
         self.canvas.setVisible(not geographic)
         self.metric_panel.setVisible(not geographic)
         self.metric_selector.setVisible(not geographic)
+        self.cell_row.setVisible(not geographic and self.cell_selector.count()>1)
         self.source_caption.setVisible(not geographic)
         self.source_filter.setVisible(not geographic)
         self.metric_legend.setVisible(not geographic)
@@ -273,6 +285,36 @@ class SpatialDialog(QDialog):
             self.render_floor(fit=True)
 
     def change_metric(self):
+        self.refresh_cell_options()
+        self.map_model=select_cell_group(self.base_map_model,self.cell_selector.currentData())
+        self.update_metric_steps()
+        if self.surface.currentData() != 'geographic':
+            self.refresh_floor_sources()
+            self.render_floor()
+
+    def update_metric_steps(self):
+        self.metric_steps=[]
+        for step in self.session['steps']:
+            view_step=dict(step)
+            base=clean_metrics(step.get('metrics'))
+            if self.cell_selector.currentData() is not None or self.map_model.get('auto_live_suppressed'):
+                base={key:value for key,value in base.items() if not key.startswith('live_phone_')}
+            view_step['metrics']={**base,**clean_metrics(self.map_model.get('run_metrics',{}).get(step['run_id']))}
+            self.metric_steps.append(view_step)
+
+    def refresh_cell_options(self):
+        selected=self.cell_selector.currentData()
+        choices=cell_group_options(self.base_map_model,self.metric_selector.currentData())
+        self.cell_selector.blockSignals(True);self.cell_selector.clear()
+        self.cell_selector.addItem('Automatic · single group only',None)
+        for key,label in choices:self.cell_selector.addItem(label,key)
+        self.cell_selector.setCurrentIndex(max(0,self.cell_selector.findData(selected)))
+        self.cell_selector.blockSignals(False)
+        self.cell_row.setVisible(self.surface.currentData() != 'geographic' and bool(choices))
+
+    def change_cell(self):
+        self.map_model=select_cell_group(self.base_map_model,self.cell_selector.currentData())
+        self.update_metric_steps()
         if self.surface.currentData() != 'geographic':
             self.refresh_floor_sources()
             self.render_floor()
@@ -315,6 +357,11 @@ class SpatialDialog(QDialog):
                 spread = f'single value {low:g}' if low == high else f'{low:g} to {high:g}'
                 colors = 'Teal = the single observed value.' if low == high else 'Blue = lower observed value; amber = higher.'
                 self.metric_legend.setText(f"{metric_scale['label']} · {spread} {metric_scale['unit']} on this floor across {metric_scale['count']} placed scans. {colors} Colors are relative, not a quality verdict. Purple outlines = operator placement; gray fill = value unavailable. Saved run metrics are not exact per-position samples.")
+            elif key and key.startswith('live_phone_') and self.map_model.get('auto_live_suppressed'):
+                action = 'Select a reported cell group to view one run.' if self.cell_selector.count()>1 else 'No complete cell groups are selectable; review the Cellular report.'
+                self.metric_legend.setText(action+' Automatic comparison is unavailable because receiver identity is not verified across runs.')
+            elif key and key.startswith('live_phone_') and self.cell_selector.count()>1:
+                self.metric_legend.setText('Select a reported cell group to view one run. Each value summarizes fresh samples from that run, not an individual position.')
             elif key:
                 self.metric_legend.setText('No saved values for this metric on this floor. Gray points remain operator placements; no coverage is estimated.')
             else:

@@ -96,14 +96,16 @@ def provenance_label(context):
     source = ', '.join(source_label(item) for item in named) if named else 'Source unrecorded'
     if context.get('statistic') and context.get('window_start_utc'):
         identity = context.get('cell_identity') or {}
-        cell = ', '.join(f'{key} {identity[key]}' for key in ('mcc', 'mnc', 'cell_id', 'pci', 'earfcn', 'nrarfcn') if identity.get(key) is not None)
+        cell = ', '.join(f'{key} {identity[key]}' for key in ('mcc', 'mnc', 'tac', 'cell_id', 'pci', 'earfcn', 'nrarfcn') if identity.get(key) is not None)
         band = context.get('band_reported')
         carrier = context.get('carrier_reported')
         return (f"{source} · {context['statistic']} of {context.get('sample_count', 0)} fresh uncached modem samples"
                 f" · Receipt window {context['window_start_utc']} to {context.get('window_end_utc', '?')}"
                 f" · Reported {context.get('radio', 'cell')} {cell or 'identity unavailable'}"
                 + (f' · carrier {carrier}' if carrier else '') + (f' · band {band}' if band else '')
-                + ' · Reported cell identity does not locate a physical tower or DAS antenna')
+                + (f" · subscription {context['subscription']}" if context.get('subscription') else '')
+                + (f" · reported receiver model {context['receiver_reported']}" if context.get('receiver_reported') else '')
+                + ' · Reported model does not identify a physical device; confirm equipment comparability. Reported cell identity does not locate a physical tower or DAS antenna')
     if context.get('received_utc'):
         age = context.get('age_ms')
         return f"{source} · Phone observation received {context['received_utc']}" + (f" · sample age {age:g} ms" if age is not None else ' · sample age unrecorded')
@@ -115,7 +117,33 @@ def provenance_label(context):
 
 def available_metrics(model):
     return [key for key in METRICS
-            if any(key in clean_metrics(values) for values in model.get('run_metrics', {}).values())]
+            if any(key in clean_metrics(values) for values in model.get('run_metrics', {}).values()) or
+               any(key in clean_metrics(row.get('metrics')) for group in model.get('cell_groups', {}).values()
+                   for row in group.get('runs', {}).values())]
+
+
+def cell_group_options(model, metric_key):
+    if not isinstance(metric_key,str) or not metric_key.startswith('live_phone_'):
+        return []
+    return [(key, group['label']) for key,group in model.get('cell_groups',{}).items()
+            if any(metric_key in clean_metrics(row.get('metrics')) for row in group.get('runs',{}).values())]
+
+
+def select_cell_group(model, selection):
+    """Construct a transient view; never alter captured or persisted run metrics."""
+    live_runs=sum(any(key.startswith('live_phone_') for key in values) for values in model.get('run_metrics',{}).values())
+    suppress_automatic=selection is None and live_runs > 1
+    if selection is None and not suppress_automatic:
+        return model
+    metrics={run:{k:v for k,v in values.items() if not k.startswith('live_phone_')}
+             for run,values in model.get('run_metrics',{}).items()}
+    context={run:{k:v for k,v in values.items() if not k.startswith('live_phone_')}
+             for run,values in model.get('run_context',{}).items()}
+    group=model.get('cell_groups',{}).get(selection,{}) if selection is not None else {}
+    for run,row in group.get('runs',{}).items():
+        metrics.setdefault(run,{}).update(clean_metrics(row.get('metrics')))
+        context.setdefault(run,{}).update(row.get('context',{}))
+    return dict(model,run_metrics=metrics,run_context=context,auto_live_suppressed=suppress_automatic)
 
 
 def metric_scale(model, key):

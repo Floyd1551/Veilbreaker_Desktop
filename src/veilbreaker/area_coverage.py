@@ -4,6 +4,7 @@ from contextlib import closing
 from pathlib import Path
 
 from .cell_reference import active_reference, _folder
+from .core import utcnow_iso
 from .regional_packs import _bounds
 
 
@@ -55,6 +56,7 @@ def area_preview(bounds, regional_rows, map_rows, cell_root, cancelled=lambda: F
     map_full = any(not _gaps(area, [rectangle]) for _, rectangle in maps)
     result = {
         'bounds': area,
+        'checked_utc': utcnow_iso(),
         'map': {'status': 'bounds contain area' if map_full else 'bounds overlap area' if maps else 'no available map bounds',
                 'packs': [r for r, _ in maps],
                 'note': 'Bounds and zoom range do not prove every map tile or local detail is available.'},

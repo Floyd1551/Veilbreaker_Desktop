@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QDialog,QVBoxLayout,QHBoxLayout,QLabel,QPushButto
 from .map_data import map_bounds,export_geojson
 from .map_server import MapServer
 from .survey_metrics import (METRICS, UNATTRIBUTED, available_metrics, clean_metrics,
-    metric_scale, point_metric, provenance_label, source_options, source_matches)
+    metric_scale, point_metric, provenance_label, source_options, source_matches, cell_group_options, select_cell_group)
 from .display_labels import source_label
 
 class MapBridge(QObject):
@@ -41,7 +41,7 @@ class MapWindow(QDialog):
         self.setWindowTitle('Veilbreaker · Survey map');self.resize(1200,850)
         self.config=config;self.cell_overlay=None
         self.pick_callback=pick_callback
-        self.model=model;self.open_run_callback=open_run;self.selected=None;self.ready=False;self.web=None
+        self.base_model=model;self.model=model;self.open_run_callback=open_run;self.selected=None;self.ready=False;self.web=None
         self.bridge=MapBridge(self);self.settings=QSettings('Veilbreaker','Maps')
         from .map_catalog import PackCatalog
         self.catalog=PackCatalog(Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))/'map-catalog.json')
@@ -82,6 +82,13 @@ class MapWindow(QDialog):
             self.metric_selector.addItem(f'{title} ({unit})',key)
         metric_row.addWidget(self.metric_selector,1)
         outer.addLayout(metric_row)
+        self.cell_row=QWidget();cell_layout=QHBoxLayout(self.cell_row);cell_layout.setContentsMargins(0,0,0,0)
+        cell_layout.addWidget(QLabel('Reported cell group'))
+        self.cell_selector=QComboBox();self.cell_selector.setAccessibleName('Filter live cellular measurements by reported cell group')
+        self.cell_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.cell_selector.setMinimumContentsLength(12)
+        self.cell_selector.addItem('Automatic · single group only',None)
+        cell_layout.addWidget(self.cell_selector,1);outer.addWidget(self.cell_row);self.cell_row.hide()
         source_row=QHBoxLayout()
         source_row.addWidget(QLabel('Metric source'))
         self.source_filter=QComboBox();self.source_filter.setAccessibleName('Filter survey metrics by recorded source')
@@ -109,6 +116,7 @@ class MapWindow(QDialog):
         self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);outer.addWidget(self.open_button)
         self.run_filter.currentIndexChanged.connect(self.change_run);self.questionable.toggled.connect(self.update_view)
         self.metric_selector.currentIndexChanged.connect(self.change_metric)
+        self.cell_selector.currentIndexChanged.connect(self.change_cell)
         self.source_filter.currentIndexChanged.connect(self.update_view)
         self.table.itemSelectionChanged.connect(self.table_selected)
         self.update_view()
@@ -141,6 +149,17 @@ class MapWindow(QDialog):
                 (f['properties'].get('manual') or (f['properties']['quality']['qualified'] and (run is not None or f['id'] in self.model['representatives'])) or (questionable and not f['properties']['quality']['qualified']))]
     def change_metric(self):
         key=self.metric_selector.currentData()
+        selected_cell=self.cell_selector.currentData()
+        choices=cell_group_options(self.base_model,key)
+        self.cell_selector.blockSignals(True);self.cell_selector.clear()
+        self.cell_selector.addItem('Automatic · single group only',None)
+        for cell_key,label in choices:self.cell_selector.addItem(label,cell_key)
+        self.cell_selector.setCurrentIndex(max(0,self.cell_selector.findData(selected_cell)))
+        self.cell_selector.blockSignals(False);self.cell_row.setVisible(bool(choices))
+        self.change_cell()
+    def change_cell(self):
+        key=self.metric_selector.currentData()
+        self.model=select_cell_group(self.base_model,self.cell_selector.currentData())
         selected=self.source_filter.currentData()
         self.source_filter.blockSignals(True)
         self.source_filter.clear()
@@ -167,6 +186,11 @@ class MapWindow(QDialog):
                         f"{scale['minimum']:g} to {scale['maximum']:g} {scale['unit']}")
             count_text=f"{scale['count']} saved {'run' if scale['count']==1 else 'runs'}"
             self.metric_legend.setText(f"{scale['label']} · {range_text} across {count_text}. Colors show relative measured values, not a quality verdict. Run metrics are not per-fix readings. Purple outline = operator placement; teal = qualified GPS; amber = questionable GPS; gray fill = value unavailable.")
+        elif metric_key and metric_key.startswith('live_phone_') and self.model.get('auto_live_suppressed'):
+            action = 'Select a reported cell group to view one run.' if self.cell_selector.count()>1 else 'No complete cell groups are selectable; review the Cellular report.'
+            self.metric_legend.setText(action+' Automatic comparison is unavailable because receiver identity is not verified across runs.')
+        elif metric_key and metric_key.startswith('live_phone_') and self.cell_selector.count()>1:
+            self.metric_legend.setText('Select a reported cell group to view one run. Each value summarizes fresh samples from that run, not an individual position.')
         else:
             self.metric_legend.setText('Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
         coordinate_ids={f['id'] for f in self.model['features']['features']}

@@ -40,6 +40,17 @@ class TerrainAreaSampleTests(unittest.TestCase):
             self.assertEqual(result['status'],'no terrain packs')
             self.assertEqual(result['total'],0)
 
+    def test_denser_grid_is_bounded_and_reports_selected_resolution(self):
+        with tempfile.TemporaryDirectory() as folder:
+            store=self.prepare(folder,nodata=True)
+            result=sample_area(store,[-97,32.99,-96.99,33],lambda:False,grid_size=41)
+            self.assertEqual(result['total'],1681)
+            self.assertEqual(result['grid_size'],41)
+            self.assertGreater(result['nodata'],0)
+            self.assertIn('Sparse',result['note'])
+            for invalid in (True,1,42):
+                with self.assertRaises(ValueError):sample_area(store,[-97,32.99,-96.99,33],lambda:False,grid_size=invalid)
+
     def test_overlap_fills_missing_samples_but_mixed_datums_are_reported(self):
         with tempfile.TemporaryDirectory() as folder:
             store=self.prepare(folder,nodata=True)

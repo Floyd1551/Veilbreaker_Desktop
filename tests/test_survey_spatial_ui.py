@@ -191,3 +191,48 @@ class SpatialUITests(unittest.TestCase):
                 self.assertIn('cell_id 1234', dialog.measurement_detail.text())
             finally:
                 dialog.close()
+
+    def test_floor_explicit_cell_selection_keeps_series_separate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cfg=AppConfig(data_dir=folder);made=create_survey(cfg,'Indoor',[{'label':'Lobby'}]);path=made['survey_path']
+            image=QImage(100,100,QImage.Format.Format_RGB32);image.fill(QColor('white'))
+            source=Path(folder)/'floor.png';image.save(str(source))
+            floor=import_floor(cfg,path,source,'Floor 1');run=made['survey']['steps'][0]['run_id']
+            save_placement(cfg,path,run,{'kind':'floor','floor_id':floor,'x':.5,'y':.5})
+            def group(label,value,cell):
+                return {'label':label,'runs':{run:{'metrics':{'live_phone_lte_rsrp':value},
+                    'context':{'live_phone_lte_rsrp':{'sources':['android_usb'],'statistic':'single fresh sample',
+                        'sample_count':1,'window_start_utc':'2026-10-28T10:00:00Z','window_end_utc':'2026-10-28T10:00:00Z',
+                        'cell_identity':{'cell_id':cell},'radio':'LTE'}}}}}
+            model={'rows':[],'representatives':[],'run_metrics':{},'run_context':{},
+                   'cell_groups':{'first':group('LTE cell 1234',-95,'1234'),'second':group('LTE cell 5678',-110,'5678')}}
+            with patch('veilbreaker.map_sources.load_survey_map_data',return_value=model):dialog=SpatialDialog(None,cfg,path)
+            try:
+                dialog.surface.setCurrentIndex(dialog.surface.findData(floor))
+                dialog.metric_selector.setCurrentIndex(dialog.metric_selector.findData('live_phone_lte_rsrp'))
+                dialog.cell_selector.setCurrentIndex(dialog.cell_selector.findData('second'))
+                self.assertIn('single value -110 dBm',dialog.metric_legend.text())
+                self.assertIn('cell_id 5678',dialog.measurement_detail.text())
+                with patch('veilbreaker.map_sources.load_survey_map_data',return_value=model):
+                    dialog.refresh(floor)
+                self.assertEqual(dialog.cell_selector.currentData(),'second')
+                self.assertIn('single value -110 dBm',dialog.metric_legend.text())
+                self.assertEqual(model['run_metrics'],{})
+            finally:dialog.close()
+
+    def test_floor_automatic_live_values_do_not_compare_multiple_runs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            cfg=AppConfig(data_dir=folder);made=create_survey(cfg,'Indoor',[{'label':'Lobby'},{'label':'Hall'}]);path=made['survey_path']
+            image=QImage(100,100,QImage.Format.Format_RGB32);image.fill(QColor('white'))
+            source=Path(folder)/'floor.png';image.save(str(source))
+            floor=import_floor(cfg,path,source,'Floor 1');runs=[s['run_id'] for s in made['survey']['steps']]
+            for run in runs:save_placement(cfg,path,run,{'kind':'floor','floor_id':floor,'x':.5,'y':.5})
+            model={'rows':[],'representatives':[],'run_metrics':{runs[0]:{'live_phone_lte_rsrp':-95},runs[1]:{'live_phone_lte_rsrp':-110}},
+                   'run_context':{},'cell_groups':{}}
+            with patch('veilbreaker.map_sources.load_survey_map_data',return_value=model):dialog=SpatialDialog(None,cfg,path)
+            try:
+                dialog.surface.setCurrentIndex(dialog.surface.findData(floor))
+                dialog.metric_selector.setCurrentIndex(dialog.metric_selector.findData('live_phone_lte_rsrp'))
+                self.assertIn('Automatic comparison is unavailable',dialog.metric_legend.text())
+                self.assertTrue(all('live_phone_lte_rsrp' not in s['metrics'] for s in dialog.metric_steps))
+            finally:dialog.close()

@@ -35,6 +35,8 @@ def _slug(value):
 
 def _reference_category(title):
     value = title.casefold()
+    if any(term in value for term in ('fiber', 'poe', 'power over ethernet')):
+        return 'Fiber & Power'
     if any(term in value for term in ('rsrp', 'rsrq', 'sinr', 'cellular')) or value.startswith('wireless measurements'):
         return 'Cellular'
     if any(term in value for term in ('wi-fi', 'wifi', 'survey coverage', 'das')):
@@ -48,8 +50,8 @@ def _reference_category(title):
 
 def build_registry(extra=()):
     records = [ToolRecord('calculator:' + tool.key, tool.title,
-                          'Networking' if tool.key in ('mtu_mss', 'tcp_bdp') else
-                          'Fiber & Power' if tool.key in ('fiber_budget', 'poe_budget') else 'RF', 'calculator', tool.purpose,
+                          'Networking' if tool.key in ('mtu_mss', 'tcp_bdp', 'serialization_delay', 'tcp_window_rate', 'latency_budget') else
+                          'Fiber & Power' if tool.key in ('fiber_budget', 'poe_budget', 'battery_runtime') else 'RF', 'calculator', tool.purpose,
                           tuple(field.label for field in tool.fields) + (tool.method, tool.limitations), tool.key)
                for tool in TOOLS]
     records.append(ToolRecord('inspector:subnet', 'IPv4 / IPv6 subnet inspector', 'Networking', 'inspector',
@@ -67,7 +69,7 @@ def build_registry(extra=()):
     for title, body in REFERENCES:
         category = _reference_category(title)
         records.append(ToolRecord('reference:' + _slug(title), title, category, 'reference',
-                                  _plain_text(body)[:240], ('offline reference',), title))
+                                  _plain_text(body)[:240], ('offline reference', _plain_text(body)), title))
     records.extend(extra)
     seen = set()
     for record in records:

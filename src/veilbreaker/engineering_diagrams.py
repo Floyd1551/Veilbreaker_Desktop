@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QWidget
 
 
 def diagram_data(snapshot):
-    if not snapshot or snapshot['tool_id'] not in ('fiber_budget', 'poe_budget', 'return_loss', 'cascade_nf', 'vswr', 'aperture', 'polarization', 'receiver_sensitivity'):
+    if not snapshot or snapshot['tool_id'] not in ('fiber_budget', 'poe_budget', 'return_loss', 'cascade_nf', 'vswr', 'aperture', 'polarization', 'receiver_sensitivity', 'serialization_delay', 'tcp_window_rate', 'latency_budget', 'battery_runtime'):
         return None
     values, outputs = snapshot['inputs'], snapshot['outputs']
     if snapshot['tool_id'] == 'fiber_budget':
@@ -49,11 +49,35 @@ def diagram_data(snapshot):
         loss = outputs.get('Polarization mismatch loss (dB)')
         caption = 'Ideal orthogonal polarizations: infinite modeled loss' if loss is None else f'Ideal mismatch loss: {loss:.3g} dB'
         shortfall = False
-    else:
+    elif snapshot['tool_id'] == 'receiver_sensitivity':
         stages = (f"Input noise\n{outputs['Input-referred receiver noise (dBm)']:.3g} dBm",
                   f"Required SNR + margin\n{values['required_snr'] + values['implementation_loss']:g} dB",
                   f"Estimated threshold\n{outputs['Estimated receiver sensitivity (dBm)']:.3g} dBm")
         caption = 'Entered assumptions; not a measured receiver sensitivity.'
+        shortfall = False
+    elif snapshot['tool_id'] == 'serialization_delay':
+        stages = (f"Frame + overhead\n{outputs['Wire bytes (bytes)']:g} bytes",
+                  f"Link rate\n{values['link_rate']:g} Mbit/s",
+                  f"Wire occupancy\n{outputs['Wire occupancy per frame (µs)']:.3g} µs")
+        caption = 'Occupancy includes the entered gap; propagation and queueing are separate.'
+        shortfall = False
+    elif snapshot['tool_id'] == 'tcp_window_rate':
+        stages = (f"Effective window\n{values['window']:g} bytes",
+                  f"Round-trip time\n{values['rtt']:g} ms",
+                  f"Ideal upper bound\n{outputs['Combined upper bound (Mbit/s)']:.3g} Mbit/s")
+        caption = 'Ideal limit using entered window, RTT and path rate; not observed throughput.'
+        shortfall = False
+    elif snapshot['tool_id'] == 'latency_budget':
+        stages = (f"Propagation + serialization\n{values['propagation'] + values['serialization']:g} ms",
+                  f"Switching + queueing\n{values['switching'] + values['queueing']:g} ms",
+                  f"With other processing\n{outputs['One-way budget (ms)']:.3g} ms")
+        caption = 'One-way estimate using entered components; RTT may differ by direction.'
+        shortfall = False
+    else:
+        stages = (f"Nominal energy\n{values['energy']:g} Wh",
+                  f"Reserve {values['reserve']:g}%\nEfficiency {values['efficiency']:g}%",
+                  f"Estimated runtime\n{outputs['Estimated runtime (hours)']:.3g} h")
+        caption = f"Assumed constant output load {values['load']:g} W; not a measured runtime."
         shortfall = False
     return dict(kind=snapshot['tool_id'], stages=stages, caption=caption, shortfall=shortfall)
 

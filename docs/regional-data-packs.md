@@ -12,8 +12,8 @@ compatible datums; map bounds do not guarantee detail; and cell records are
 estimated locations, not a complete tower inventory. Pack availability is
 based on file presence and size, not a fresh checksum verification.
 
-For a quick check for missing elevations, enable **Also sample terrain at 121
-grid points**. The preview inspects an 11 × 11 grid of cell centers using
+For a check for missing elevations, enable **Also sample terrain** and select
+an 11 × 11, 21 × 21, or 41 × 41 grid. The preview inspects cell centers using
 available overlapping rasters and reports valid, outside-raster and no-data
 counts, examples of missing coordinates, and declared datums and units. It
 falls back to an overlapping raster where possible. This sparse check can miss
@@ -21,6 +21,10 @@ holes between points; it does not verify checksums, establish full coverage, or
 replace an actual path assessment. Incompatible datum or unit declarations are
 shown and cannot be combined for a terrain path. The check opens local files
 only and can be cancelled.
+
+After checking an area, choose **Save preview report** to save a standalone
+HTML snapshot with the displayed layer statuses, sources, sample counts and
+limitations. It is an area-preparation record, not a line-of-sight assessment.
 
 ## Huntsville preparation
 
