@@ -12,6 +12,8 @@ from .background_dialog import JobDialog
 from .regional_pack_download import download_and_install, download_terrain_batch, sanitized_source_url
 from .regional_packs import RegionalPackStore
 from .usgs_terrain_catalog import search_terrain_products, plan_terrain_products
+from .conus_terrain_areas import STATE_CENTERS, CONUS_BOUNDS, starter_bounds
+from .widgets import FlowLayout
 
 
 def _install_job(root, kind, path, metadata, cancelled, progress):
@@ -88,6 +90,11 @@ def _verify_job(root, pack_id, cancelled, progress):
     return {'verified': RegionalPackStore(root).verify(pack_id, cancelled), 'pack_id': pack_id}
 
 
+def _bundled_structures_job(config, cancelled, progress):
+    from .deployment_data import install_bundled_structures
+    return {'bundled_structures': install_bundled_structures(config, cancelled=cancelled, progress=progress)}
+
+
 def _search_usgs_job(bounds, cancelled, progress):
     result = search_terrain_products(bounds, cancelled, progress)
     result['plan'] = plan_terrain_products(bounds, result['products'])
@@ -115,6 +122,7 @@ def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress):
 class RegionalPacksDialog(JobDialog):
     def __init__(self, parent, config):
         super().__init__(parent)
+        self.config = config
         self.store = RegionalPackStore(config.root / 'regional-packs')
         self.rows = []
         self.setWindowTitle('Regional terrain and structure packs')
@@ -142,15 +150,17 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_bounds.setPlaceholderText('west, south, east, north · WGS84 degrees')
         self.coverage_bounds.setAccessibleName('Area preview bounds')
         coverage_layout.addWidget(self.coverage_bounds)
-        coverage_actions = QHBoxLayout()
+        coverage_actions = FlowLayout()
         self.coverage_preset = QPushButton('Huntsville, AL area')
         self.coverage_preset.clicked.connect(self.coverage_huntsville)
+        self.coverage_conus_button = QPushButton('CONUS overview')
+        self.coverage_conus_button.clicked.connect(self.coverage_conus)
         self.coverage_check = QPushButton('Check local data')
         self.coverage_check.clicked.connect(self.check_coverage)
         self.coverage_save = QPushButton('Save preview report…')
         self.coverage_save.setEnabled(False)
         self.coverage_save.clicked.connect(self.save_coverage_report)
-        coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_check);coverage_actions.addWidget(self.coverage_save)
+        coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_conus_button);coverage_actions.addWidget(self.coverage_check);coverage_actions.addWidget(self.coverage_save)
         coverage_layout.addLayout(coverage_actions)
         self.coverage_sample = QCheckBox('Also sample terrain')
         self.coverage_sample.setToolTip('Optional sparse no-data check; it does not verify every raster cell or the file checksum.')
@@ -233,6 +243,23 @@ class RegionalPacksDialog(JobDialog):
             form.addRow(label, widget)
         prepare_layout.addLayout(form)
         prepare_layout.addWidget(self.huntsville_button)
+        self.state_picker = QComboBox()
+        self.state_picker.setAccessibleName('Contiguous U.S. state starter area')
+        self.state_picker.addItem('Choose a state starter area')
+        self.state_picker.addItems(sorted(STATE_CENTERS))
+        self.state_picker.currentIndexChanged.connect(self.use_state_area)
+        prepare_layout.addWidget(self.state_picker)
+        state_note = QLabel('State choices start a small editable 2° × 2° search window, not a state boundary or complete state coverage. Move the window or enter survey-area bounds.')
+        state_note.setWordWrap(True);prepare_layout.addWidget(state_note)
+        self.move_west = QPushButton('← West');self.move_east = QPushButton('East →')
+        self.move_north = QPushButton('↑ North');self.move_south = QPushButton('South ↓')
+        self.move_west.clicked.connect(lambda: self.shift_search_area(-1,0))
+        self.move_east.clicked.connect(lambda: self.shift_search_area(1,0))
+        self.move_north.clicked.connect(lambda: self.shift_search_area(0,1))
+        self.move_south.clicked.connect(lambda: self.shift_search_area(0,-1))
+        move_row=FlowLayout()
+        for button in (self.move_west,self.move_east,self.move_north,self.move_south): move_row.addWidget(button)
+        prepare_layout.addLayout(move_row)
         catalog_row = QHBoxLayout()
         self.search_button = QPushButton('Find USGS terrain for area')
         self.search_button.clicked.connect(self.search_usgs)
@@ -241,6 +268,7 @@ class RegionalPacksDialog(JobDialog):
         self.catalog_view.addItem('All catalog results', 'all')
         self.catalog_view.currentIndexChanged.connect(self.show_catalog_products)
         self.catalog_result = None
+        self.bounds.textChanged.connect(self.invalidate_catalog)
         self.catalog_summary = QLabel('Search an area to review suggested tiles and estimated download size.')
         self.catalog_summary.setWordWrap(True)
         self.catalog_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -270,6 +298,9 @@ class RegionalPacksDialog(JobDialog):
         self.fcc_import_button = QPushButton('Import FCC structure archive…')
         self.fcc_import_button.clicked.connect(self.import_fcc_archive)
         prepare_layout.addWidget(self.fcc_import_button)
+        self.bundled_structures_button = QPushButton('Install included CONUS structures')
+        self.bundled_structures_button.clicked.connect(self.install_included_structures)
+        prepare_layout.addWidget(self.bundled_structures_button)
         self.close_button = QPushButton('Close')
         self.close_button.clicked.connect(self.reject)
         for button in (self.import_button, self.download_button, self.close_button):
@@ -289,9 +320,10 @@ class RegionalPacksDialog(JobDialog):
                          self.kind, self.name, self.source, self.license, self.date, self.datum,
                          self.units, self.bounds, self.url, self.checksum, self.import_button,
                          self.download_button, self.search_button, self.products, self.use_product_button, self.catalog_view,
-                         self.batch_button, self.fcc_import_button]
+                         self.batch_button, self.fcc_import_button, self.bundled_structures_button,
+                         self.state_picker, self.move_west, self.move_east, self.move_north, self.move_south]
         self.controls.append(self.huntsville_button)
-        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_table])
+        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
         self.refresh()
         self.update_kind()
@@ -333,8 +365,40 @@ class RegionalPacksDialog(JobDialog):
         self.status.setText('Huntsville, AL and surrounding area selected as a search area. Installed product coverage must be checked separately.')
 
     @Slot()
+    def use_state_area(self, *_args):
+        state = self.state_picker.currentText()
+        if state not in STATE_CENTERS:return
+        self.bounds.setText(', '.join(f'{value:g}' for value in starter_bounds(state)))
+        self.status.setText(f'{state} starter search area selected. This small window is not the state boundary or state-wide coverage; edit or move it to the survey area.')
+
+    def shift_search_area(self, east, north):
+        try:
+            from .regional_packs import _bounds
+            old = _bounds(self._entered_bounds())
+            dx, dy = (old[2]-old[0])*east, (old[3]-old[1])*north
+            moved = _bounds([old[0]+dx, old[1]+dy, old[2]+dx, old[3]+dy])
+        except ValueError as exc:
+            self.status.setText('Cannot move this search area: '+str(exc));return
+        self.bounds.setText(', '.join(f'{value:g}' for value in moved))
+        self.status.setText('Search window moved. Find USGS terrain again for the new area.')
+
+    @Slot()
+    def invalidate_catalog(self, *_args):
+        if self.catalog_result is None:return
+        self.catalog_result = None
+        self.products.clear()
+        self.catalog_summary.setText('Search the changed area to review current suggested tiles.')
+        self.use_product_button.setEnabled(False)
+        self.batch_button.setEnabled(False)
+
+    @Slot()
     def coverage_huntsville(self):
         self.coverage_bounds.setText('-87.2, 34.3, -86.2, 35.2')
+
+    @Slot()
+    def coverage_conus(self):
+        self.coverage_bounds.setText(', '.join(f'{value:g}' for value in CONUS_BOUNDS))
+        self.status.setText('CONUS bounding rectangle selected. Bounding boxes are not proof of actual data coverage.')
 
     def invalidate_coverage(self, *_args):
         if self.coverage_result is None:
@@ -467,6 +531,11 @@ class RegionalPacksDialog(JobDialog):
         FccAsrImportDialog(self, self.store.root).exec()
         self.invalidate_coverage()
         self.refresh()
+
+    @Slot()
+    def install_included_structures(self):
+        self.status.setText('Preparing included FCC structure references…')
+        self.start_job(partial(_bundled_structures_job, self.config))
 
     def product_installed(self, item):
         from .regional_pack_download import sanitized_source_url
@@ -610,7 +679,14 @@ class RegionalPacksDialog(JobDialog):
     def job_ready(self, result):
         if self.closing:
             return
-        if 'batch' in result:
+        if 'bundled_structures' in result:
+            summary = result['bundled_structures']
+            self.invalidate_coverage();self.refresh()
+            if summary is None:
+                self.status.setText('This build does not include a CONUS structure pack. Import an FCC archive to prepare reference data.')
+            else:
+                self.status.setText(f"Included structures: {summary['installed']} packs installed, {summary['skipped']} already present; {summary['records']:,} reference records. Bounding boxes do not prove completeness or serving-cell identity.")
+        elif 'batch' in result:
             rows = result['batch']
             self.invalidate_coverage()
             self.refresh()
@@ -658,7 +734,12 @@ class RegionalPacksDialog(JobDialog):
 
     @Slot(object)
     def job_progress(self, value):
-        if value.get('event'):
+        if not isinstance(value, dict):
+            self.status.setText(str(value));return
+        if all(key in value for key in ('completed','total','installed','skipped')):
+            self.status.setText(f"Included structures: {value['completed']} / {value['total']} packs checked · "
+                                f"{value['installed']} installed · {value['skipped']} already present.")
+        elif value.get('event'):
             label = f"Tile {value['index']}/{value['total']} · {value['title']}"
             if value['event'] == 'progress':
                 if value.get('phase') == 'verify':

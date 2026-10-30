@@ -17,7 +17,7 @@ def _hash(path):
     return digest.hexdigest()
 
 
-def prepare(map_file, map_sidecar, cell_file, destination, cell_metadata):
+def prepare(map_file, map_sidecar, cell_file, destination, cell_metadata, *, fcc_archive=None, fcc_date=None):
     map_file, map_sidecar, cell_file, destination = map(Path, (map_file, map_sidecar, cell_file, destination))
     if destination.exists():
         raise ValueError('Offline deployment destination already exists.')
@@ -56,6 +56,18 @@ def prepare(map_file, map_sidecar, cell_file, destination, cell_metadata):
             'limitations': ('Map bounds are not proof of detail at every zoom. OpenCellID positions are '
                             'community estimates, not verified physical towers or complete cell coverage.'),
         }
+        if fcc_archive is not None:
+            from veilbreaker.fcc_asr import install_conus_fcc_asr
+            from veilbreaker.regional_packs import RegionalPackStore
+            structures = install_conus_fcc_asr(RegionalPackStore(staging / 'regional-structures'),
+                                               fcc_archive, fcc_date, lambda: False)
+            manifest.update(structure_packs=[dict(pack_id=row['pack_id'],
+                manifest_sha256=_hash(staging / 'regional-structures' / row['pack_id'] / 'manifest.json'))
+                for row in structures['packs']],
+                structure_record_count=structures['record_count'], structure_source_date=fcc_date,
+                structure_archive_sha256=structures['archive_sha256'],
+                structure_bounds_wgs84=structures['bounds_wgs84'],
+                structure_coverage_note='Bounding rectangle; incomplete FCC reference, not serving-cell identity.')
         (staging / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
         staging.rename(destination)
         return manifest

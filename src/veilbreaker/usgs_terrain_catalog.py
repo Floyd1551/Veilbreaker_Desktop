@@ -58,7 +58,8 @@ def plan_terrain_products(bounds_wgs84, products):
 
 def search_terrain_products(bounds_wgs84, cancelled=lambda: False, progress=lambda _: None, opener=None):
     west, south, east, north = _bounds(bounds_wgs84)
-    if east - west > 2 or north - south > 2:
+    # Decimal WGS84 bounds can differ by a few floating-point ulps at 2°.
+    if east - west > 2 + 1e-9 or north - south > 2 + 1e-9:
         raise ValueError('Search an area no larger than 2° × 2° at a time.')
     if cancelled():
         raise ValueError('Terrain product search cancelled.')

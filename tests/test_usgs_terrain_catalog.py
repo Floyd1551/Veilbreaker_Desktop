@@ -14,6 +14,14 @@ class Response(io.BytesIO):
 
 
 class TerrainCatalogTests(unittest.TestCase):
+    def test_all_state_starters_fit_the_search_limit_despite_float_rounding(self):
+        from veilbreaker.conus_terrain_areas import STATE_CENTERS, starter_bounds
+        self.assertEqual(len(STATE_CENTERS),48)
+        for state in STATE_CENTERS:
+            with self.subTest(state=state):
+                result=search_terrain_products(starter_bounds(state),opener=lambda request,timeout:Response(b'{"items": [], "total": 0}'))
+                self.assertEqual(result['total'],0)
+
     def test_plan_finds_adjacent_tiles_and_suppresses_older_duplicates(self):
         def tile(name,date,bounds,size=100):
             return dict(title=name,source_date=date,reported_bounds_wgs84=bounds,bytes=size,url='https://example.com/'+name+'.tif')

@@ -18,6 +18,50 @@ class RegionalPacksUITests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_conus_search_presets_and_moving_window_clear_old_results(self):
+        with tempfile.TemporaryDirectory() as folder:
+            dialog = RegionalPacksDialog(None, AppConfig(data_dir=folder))
+            try:
+                self.assertEqual(dialog.state_picker.count(), 49)
+                dialog.state_picker.setCurrentIndex(dialog.state_picker.findText('California'))
+                dialog.use_state_area()
+                west, south, east, north = dialog._entered_bounds()
+                self.assertLessEqual(east-west,2)
+                self.assertLessEqual(north-south,2)
+                self.assertLess(west,-118)
+                self.assertIn('starter',dialog.status.text())
+                dialog.catalog_result = {'plan': {'products': [{'title': 'old'}]}}
+                dialog.shift_search_area(1, 0)
+                self.assertEqual(dialog.catalog_result,None)
+                shifted=dialog._entered_bounds()
+                self.assertAlmostEqual(shifted[0],west+2)
+                self.assertAlmostEqual(shifted[2],east+2)
+                dialog.coverage_conus()
+                self.assertEqual(dialog.coverage_bounds.text(),'-125, 24, -66, 50')
+                self.assertIn('not proof',dialog.status.text())
+            finally: dialog.close()
+
+    def test_included_conus_reference_runs_as_background_job_and_reports_limitations(self):
+        from unittest.mock import patch
+        from veilbreaker.regional_packs_ui import _bundled_structures_job
+        with tempfile.TemporaryDirectory() as folder:
+            cfg = AppConfig(data_dir=folder);dialog = RegionalPacksDialog(None, cfg)
+            try:
+                summary = {'installed': 3, 'skipped': 1, 'records': 2000}
+                with patch('veilbreaker.deployment_data.install_bundled_structures', return_value=summary) as install:
+                    self.assertEqual(_bundled_structures_job(cfg, lambda:False, lambda _:None), {'bundled_structures':summary})
+                    self.assertIs(install.call_args.args[0],cfg)
+                dialog.job_progress({'completed':7, 'total':51, 'installed':6, 'skipped':1})
+                self.assertIn('7 / 51',dialog.status.text())
+                self.assertIn('6 installed',dialog.status.text())
+                self.assertIn('1 already present',dialog.status.text())
+                dialog.job_ready({'bundled_structures':summary})
+                self.assertIn('2,000',dialog.status.text())
+                self.assertIn('do not prove completeness',dialog.status.text())
+                dialog.job_ready({'bundled_structures':None})
+                self.assertIn('does not include',dialog.status.text())
+            finally:dialog.close()
+
     def test_manager_shows_coverage_provenance_and_structure_separation(self):
         with tempfile.TemporaryDirectory() as folder:
             config = AppConfig(data_dir=folder)

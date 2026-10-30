@@ -5,11 +5,42 @@ import unittest
 from pathlib import Path
 
 from veilbreaker.cell_reference import active_reference, import_reference
-from veilbreaker.deployment_data import bundled_map, seed_reference
+from veilbreaker.deployment_data import bundled_map, seed_reference, install_bundled_structures
 from test_cell_reference import HEADER, ROW, META
 
 
 class DeploymentDataTests(unittest.TestCase):
+    def test_install_bundled_structure_packs_verified_and_idempotent(self):
+        from veilbreaker.core import AppConfig
+        from veilbreaker.regional_packs import RegionalPackStore
+        from tests.test_regional_packs import structures
+        with tempfile.TemporaryDirectory() as folder:
+            base=Path(folder); bundled=base/'offline-data'; source=base/'fixture.geojson'; structures(source)
+            source_store=RegionalPackStore(bundled/'regional-structures')
+            row=source_store.install_local('structures',source,dict(name='FCC fixture',source='FCC fixture',license='test',source_date='2026-10-25',bounds_wgs84=[-97.1,32.8,-96.8,33.1]),lambda:False)
+            manifest_path=source_store.root/row['pack_id']/'manifest.json'
+            (bundled/'manifest.json').write_text(json.dumps({'structure_packs':[{'pack_id':row['pack_id'],'manifest_sha256':hashlib.sha256(manifest_path.read_bytes()).hexdigest()}]}))
+            cfg=AppConfig(data_dir=base/'user')
+            result=install_bundled_structures(cfg,bundled)
+            self.assertEqual((result['installed'],result['records']), (1,1))
+            self.assertEqual(install_bundled_structures(cfg,bundled)['skipped'],1)
+            target=RegionalPackStore(cfg.root/'regional-packs')
+            self.assertTrue(target.verify(row['pack_id']))
+            # A later build can assign a different pack ID to identical, attributed data.
+            newer=base/'new-bundle'; newer_store=RegionalPackStore(newer/'regional-structures')
+            later=newer_store.install_local('structures',source,dict(name='FCC fixture',source='FCC fixture',license='test',source_date='2026-10-25',bounds_wgs84=[-97.1,32.8,-96.8,33.1]),lambda:False)
+            m=newer_store.root/later['pack_id']/'manifest.json'
+            (newer/'manifest.json').write_text(json.dumps({'structure_packs':[{'pack_id':later['pack_id'],'manifest_sha256':hashlib.sha256(m.read_bytes()).hexdigest()}]}))
+            self.assertEqual(install_bundled_structures(cfg,newer)['skipped'],1)
+            self.assertEqual(len(target.list_packs()),1)
+            (source_store.root/row['pack_id']/'structures.geojson').write_text('corrupt')
+            with self.assertRaisesRegex(ValueError,'checksum'):
+                install_bundled_structures(AppConfig(data_dir=base/'other'),bundled)
+
+    def test_missing_bundled_structures_returns_none(self):
+        from veilbreaker.core import AppConfig
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertIsNone(install_bundled_structures(AppConfig(data_dir=folder),Path(folder)/'absent'))
     def test_bundled_map_is_discovered_without_copying(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder)

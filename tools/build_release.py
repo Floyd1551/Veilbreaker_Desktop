@@ -98,11 +98,22 @@ def main():
     map_sidecar = ROOT / "map-packs/CONUS-overview-20261019.json"
     cell_file = ROOT / "offline-input/311.csv"
     cell_metadata = ROOT / "offline-input/311.json"
+    fcc_file = ROOT / "offline-input/fcc-r_tower-20261025.zip"
+    fcc_metadata = ROOT / "offline-input/fcc-r_tower-20261025.json"
     inputs = (map_file, map_sidecar, cell_file, cell_metadata)
     if all(path.is_file() for path in inputs):
         from prepare_offline_data import prepare
+        fcc_options = {}
+        if fcc_file.is_file() and fcc_metadata.is_file():
+            fcc_info = json.loads(fcc_metadata.read_text(encoding="utf-8-sig"))
+            from prepare_offline_data import _hash
+            if fcc_info.get('sha256') != _hash(fcc_file):
+                raise ValueError('FCC archive checksum does not match its sidecar.')
+            fcc_options = dict(fcc_archive=fcc_file, fcc_date=fcc_info.get('date'))
+        elif os.environ.get("VEILBREAKER_OFFLINE_DATA_REQUIRED") == "1":
+            raise RuntimeError('FCC archive and checksum/date sidecar must be staged for this build.')
         offline_manifest = prepare(map_file, map_sidecar, cell_file, bundle / "offline-data",
-                                   json.loads(cell_metadata.read_text(encoding="utf-8-sig")))
+                                   json.loads(cell_metadata.read_text(encoding="utf-8-sig")), **fcc_options)
         if not skip_tests:
             run(gui, "--map-smoke", ROOT / "test-artifacts/packaged-real-map",
                 bundle / "offline-data/maps/CONUS-overview.pmtiles", timeout=120)
