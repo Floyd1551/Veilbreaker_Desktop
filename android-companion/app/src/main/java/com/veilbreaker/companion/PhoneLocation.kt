@@ -35,17 +35,16 @@ class PhoneLocation(context: Context) {
     }
     fun stop() {
         generation++
-        listener?.let { manager.removeUpdates(it) }; listener=null; latest=null; state="disabled"
+        try { listener?.let { manager.removeUpdates(it) } } catch (_: SecurityException) { }
+        listener=null; latest=null; state="disabled"
     }
     fun atReceipt(elapsed: Long): JSONObject {
         val fix=latest ?: return LocationEvidence.unavailable(state)
         val result=LocationEvidence.fix(fix.latitude,fix.longitude,if(fix.hasAccuracy()) fix.accuracy.toDouble() else null,
             fix.time,fix.elapsedRealtimeNanos/1000000,elapsed,fix.provider ?: "gnss",fix.isFromMockProvider)
-        if (result.optString("status")=="available" && fix.hasAltitude())
-            result.put("altitude_m",fix.altitude).put("altitude_reference","ellipsoid")
-        if(fix.hasVerticalAccuracy()) result.put("vertical_accuracy_m",fix.verticalAccuracyMeters)
-        if(fix.hasSpeed()) result.put("speed_mps",fix.speed)
-        if(fix.hasBearing()) result.put("bearing_deg",fix.bearing)
-        return result
+        return LocationEvidence.addOptional(result, if(fix.hasAltitude()) fix.altitude else null,
+            if(fix.hasVerticalAccuracy()) fix.verticalAccuracyMeters.toDouble() else null,
+            if(fix.hasSpeed()) fix.speed.toDouble() else null,
+            if(fix.hasBearing()) fix.bearing.toDouble() else null)
     }
 }

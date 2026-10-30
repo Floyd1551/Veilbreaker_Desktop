@@ -1,17 +1,24 @@
-# Android companion and live USB input
+# Veilbreaker Mobile and live USB input
 
-Desktop 0.32.0rc1 and Companion 0.3.0-dev support foreground USB cellular sessions as an input to an ordinary diagnostic run. This is development functionality; physical Samsung qualification remains outstanding. Only public Android LTE/NR data is available, not the entire decoded modem feed.
+Veilbreaker Mobile combines the existing companion connection with standalone field tools. Desktop supports foreground USB cellular and optional phone-location sessions as inputs to a diagnostic or survey point. Only public Android LTE/NR data is available, not the entire decoded modem feed. This is a development build; individual devices and radio combinations still require qualification.
 
 ## Setup
-1. Install Desktop 0.32.0rc1 and transfer/install `Veilbreaker-Companion-0.3.0-dev.apk` on Android 10 or newer.
+1. Install a current Desktop build and the Veilbreaker Mobile debug APK on Android 10 or newer. The app retains the companion application ID; a debug APK signed with a different key may require uninstalling the existing app first, which removes its private data. Export captures before uninstalling.
 2. Install current official [Android platform-tools](https://developer.android.com/tools/releases/platform-tools) on the computer. Desktop accepts the full path to `adb.exe` on Windows or `adb` on Linux. Platform-tools and phone USB drivers are not bundled.
 3. Enable USB debugging in the phone's developer options, connect with a data-capable USB cable, and personally approve the computer's debugging authorization prompt on the phone.
-4. Open Companion, grant phone and precise-location permissions, enable Android location services, refresh SIMs, and choose the desired SIM. GPS coordinates are not collected.
+4. Open Veilbreaker Mobile, grant the required permissions, enable Android location services, refresh SIMs, and choose the desired SIM. Recording phone location is optional and must be selected explicitly; granting location permission alone does not record coordinates.
 5. Tap **Connect to Veilbreaker**. Keep the app visible. The session stops when the app leaves the foreground.
 6. In Desktop Diagnostics, choose **Live Android USB…**, enter the ADB executable path, refresh devices, explicitly select the authorized USB phone, and choose a duration of 5–300 seconds. Select **Connect and use as input**. Confirm that the six-digit code matches on Desktop and the phone, then approve on the phone. Nothing needs to be typed.
 7. Select other diagnostic collectors as needed and press **Run diagnostic**. The phone collector requests updates at least five seconds apart. The run saves the complete phone session, per-cell ranges/changes and sample-age information with the other evidence.
 
-Connect again for each new live test. A strong temporary credential is exchanged automatically after phone approval; it is not saved in settings or retry credentials. Confirmation expires after 60 seconds. The endpoint binds only to phone localhost and is reached through a temporary ADB forward; it does not listen on Wi-Fi. Turn off USB debugging when no longer needed.
+Connect again for each new live test or survey point. A strong temporary credential is exchanged automatically after phone approval; it is not saved in settings or retry credentials. Confirmation expires after 60 seconds. The endpoint binds only to phone localhost and is reached through a temporary ADB forward; it does not listen on Wi-Fi. Turn off USB debugging when no longer needed.
+
+## Standalone Wi-Fi inspection
+
+The Wi-Fi view reads currently connected-network information and cached nearby
+scan results when Android exposes them. Sample ages are shown when available;
+an observation is not necessarily a fresh scan. This view does not transmit
+Wi-Fi observations to Desktop or add them to the cellular JSON export.
 
 ## Cellular field report
 Open the **Cellular** tab after a diagnostic. Each registered cell has carrier/SIM labels, reported band and cell identifiers, plus signal tables showing latest, minimum, median, maximum and change. Multi-sample captures include separate signal trends per cell. Missing values remain labeled Not exposed; cell identifiers do not establish a physical tower location. The report is also saved as `cellular_report.html` and embedded in the main HTML report.
@@ -31,4 +38,4 @@ Capture a snapshot, export JSON using Android's document picker and copy it to t
 - Development APK update rejected: CI debug keys may differ between builds. Export any capture first; uninstalling the old companion removes its local data. Stable production signing is not implemented.
 
 ## Validation status
-Automated Desktop tests and Android CI cover the protocol, session boundaries, capture contract, evidence and UI paths. Actual USB transport, permissions and radio behavior on the user's phone still require an on-device check. No GPS, raw modem capture, background service or survey-queue phone attachment is included.
+Automated Desktop tests and Android CI cover the protocol, session boundaries, capture contract, evidence and UI paths. Permissions, Wi-Fi visibility and radio behavior vary by device and need an on-device check for this build. Phone GPS is optional; raw modem capture and background collection are not included.

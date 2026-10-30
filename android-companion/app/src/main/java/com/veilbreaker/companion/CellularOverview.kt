@@ -7,6 +7,50 @@ object CellularOverview {
     private fun value(obj: JSONObject, key: String): String =
         if (!obj.has(key) || obj.isNull(key)) "Not exposed" else obj.get(key).toString()
 
+    private fun metricLabel(name: String): String = when (name) {
+        "rssnr" -> "LTE RSSNR"
+        "ss_rsrp" -> "NR SS-RSRP"
+        "ss_rsrq" -> "NR SS-RSRQ"
+        "ss_sinr" -> "NR SS-SINR"
+        "csi_rsrp" -> "NR CSI-RSRP"
+        "csi_rsrq" -> "NR CSI-RSRQ"
+        "csi_sinr" -> "NR CSI-SINR"
+        "timing_advance" -> "Timing advance"
+        else -> name.uppercase().replace('_','-')
+    }
+
+    /** Same general field-guide cutoffs as desktop's cellular report, not a diagnosis. */
+    private fun guide(radio: String, name: String, value: Double, unit: String): String? {
+        if (!value.isFinite()) return null
+        val power = (radio == "LTE" && name == "rsrp") || (radio == "NR" && name in setOf("ss_rsrp", "csi_rsrp"))
+        val quality = (radio == "LTE" && name == "rsrq") || (radio == "NR" && name in setOf("ss_rsrq", "csi_rsrq"))
+        val sinr = (radio == "LTE" && name == "rssnr") || (radio == "NR" && name in setOf("ss_sinr", "csi_sinr"))
+        return when {
+            power && unit == "dBm" -> when { value >= -90 -> "Strong"; value >= -100 -> "Moderate"; value >= -110 -> "Weak"; else -> "Very weak" }
+            quality && unit == "dB" -> when { value >= -10 -> "Good"; value >= -15 -> "Moderate"; else -> "Poor" }
+            sinr && unit == "dB" -> when { value >= 13 -> "Good"; value >= 0 -> "Marginal"; else -> "Poor" }
+            else -> null
+        }
+    }
+
+    private fun measurements(cell: JSONObject, radio: String): String {
+        val signal = cell.getJSONObject("signal")
+        val essential = when (radio) { "LTE" -> listOf("rsrp", "rsrq", "rssnr"); "NR" -> listOf("ss_rsrp", "ss_rsrq", "ss_sinr"); else -> emptyList() }
+        val keys = signal.keys().asSequence().toMutableSet()
+        if (cell.optBoolean("registered", false)) keys.addAll(essential)
+        return keys.sorted().mapNotNull { key ->
+            val quantity = signal.optJSONObject(key)
+            val raw = quantity?.opt("value")
+            if (raw == null || raw == JSONObject.NULL) {
+                if (key in essential && cell.optBoolean("registered", false)) "${metricLabel(key)}: Not exposed" else null
+            } else {
+                val unit = quantity?.optString("unit") ?: ""
+                val interpretation = (raw as? Number)?.toDouble()?.let { guide(radio, key, it, unit) }
+                "${metricLabel(key)}: $raw $unit" + if (interpretation == null) "" else " ($interpretation)"
+            }
+        }.joinToString(" | ").ifEmpty { "Signal not exposed" }
+    }
+
     fun bandLabel(radio: String, identity: JSONObject, plan: JSONObject): String {
         val reported = identity.optJSONArray("bands")
         val numbers = sortedSetOf<Int>()
@@ -44,7 +88,8 @@ object CellularOverview {
             val obs = observations.getJSONObject(i); val sub = obs.getString("subscription_key")
             if (!latest.containsKey(sub) || obs.getLong("elapsed_realtime_ms") >= latest.getValue(sub).getLong("elapsed_realtime_ms")) latest[sub] = obs
         }
-        val lines = mutableListOf("Latest reported connection", "Captured state, not an exhaustive band scan.")
+        val lines = mutableListOf("Latest reported connection", "Captured state, not an exhaustive band scan.",
+            "Signal labels are general field guidance, not a service guarantee or diagnosis; compare readings over time and conditions.")
         var connected = 0
         fun describe(cell: JSONObject, obs: JSONObject): String {
             val identity = cell.getJSONObject("identity"); val radio = cell.getString("radio")
@@ -56,17 +101,13 @@ object CellularOverview {
                     if (sub.optString("key") == obs.getString("subscription_key")) carrier = value(sub,"network_operator")
                 }
             }
-            val signal = cell.getJSONObject("signal")
-            val measures = signal.keys().asSequence().sorted().mapNotNull { key ->
-                val q = signal.optJSONObject(key)
-                if (q == null || q.isNull("value") || !q.has("value")) null else "${key.uppercase().replace('_','-')}: ${q.get("value")} ${q.optString("unit")}" }
-            val age = if (cell.isNull("age_ms") || !cell.has("age_ms")) "unknown sample age" else
-                "${cell.getLong("age_ms")} ms old" + if (cell.getLong("age_ms") > 10000) " (old sample)" else ""
+            val age = if (cell.isNull("age_ms") || !cell.has("age_ms")) "sample age unknown at receipt" else
+                "${cell.getLong("age_ms")} ms old at receipt" + if (cell.getLong("age_ms") > 10000) " (old sample)" else ""
             val channel = value(identity, if (radio == "LTE") "earfcn" else "nrarfcn")
             return "${obs.getString("subscription_key")} / ${role(cell)} / $radio ${bandLabel(radio,identity,plan)}\n" +
                 "Carrier $carrier | MCC/MNC ${value(identity,"mcc")}/${value(identity,"mnc")}\n" +
                 "Cell ${value(identity,"cell_id")} | PCI ${value(identity,"pci")} | channel $channel\n" +
-                measures.joinToString(" | ").ifEmpty { "Signal not exposed" } + "\n${obs.getString("received_utc")} | $age"
+                measurements(cell,radio) + "\n${obs.getString("received_utc")} | $age"
         }
         for ((sub, obs) in latest) {
             lines.add("$sub latest observation: ${obs.getString("received_utc")}")

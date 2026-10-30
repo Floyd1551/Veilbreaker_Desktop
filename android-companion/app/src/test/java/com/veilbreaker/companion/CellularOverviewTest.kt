@@ -29,6 +29,16 @@ class CellularOverviewTest {
         assertTrue(text.contains("No connected cells reported in latest observation"))
         assertTrue(text.contains("earlier observation"))
     }
+    @Test fun sampleAgeIsAlwaysRelativeToCaptureReceipt() {
+        val data = capture()
+        val serving = data.getJSONArray("observations").getJSONObject(0).getJSONArray("cells").getJSONObject(0)
+        val text = CellularOverview.render(data, plan())
+        assertTrue(text.contains("5 ms old at receipt"))
+        serving.put("age_ms", 15000)
+        assertTrue(CellularOverview.render(data, plan()).contains("15000 ms old at receipt (old sample)"))
+        serving.put("age_ms", JSONObject.NULL)
+        assertTrue(CellularOverview.render(data, plan()).contains("sample age unknown at receipt"))
+    }
     @Test fun retainsOverlappingNrCandidates() {
         val label = CellularOverview.bandLabel("NR", JSONObject().put("nrarfcn",640000), plan())
         assertTrue(label.contains("n48")); assertTrue(label.contains("n77")); assertTrue(label.contains("n78"))
@@ -42,5 +52,28 @@ class CellularOverviewTest {
         cells.put(JSONObject(neighbor.toString()))
         val text = CellularOverview.render(data, plan())
         assertEquals(2, Regex("sim-1 / Neighbor /").findAll(text).count())
+    }
+    @Test fun explainsServingMeasurementsWithoutInventingMissingValues() {
+        val data = capture()
+        val cell = data.getJSONArray("observations").getJSONObject(0).getJSONArray("cells").getJSONObject(0)
+        cell.put("signal", JSONObject("""{"rsrp":{"value":-110,"unit":"dBm"},"rsrq":{"value":-16,"unit":"dB"},"rssnr":{"value":2,"unit":"dB"}}"""))
+        val original = data.toString()
+        val text = CellularOverview.render(data, plan())
+        assertEquals(original, data.toString())
+        assertTrue(text.contains("RSRP: -110 dBm (Weak)"))
+        assertTrue(text.contains("RSRQ: -16 dB (Poor)"))
+        assertTrue(text.contains("LTE RSSNR: 2 dB (Marginal)"))
+        assertTrue(text.contains("field guidance"))
+        assertTrue(text.contains("not a service guarantee"))
+    }
+    @Test fun showsNrMetricNamesAndDoesNotInterpretWrongUnitsOrNulls() {
+        val data = capture()
+        val cell = data.getJSONArray("observations").getJSONObject(0).getJSONArray("cells").getJSONObject(0)
+        cell.put("radio","NR").put("signal",JSONObject("""{"ss_rsrp":{"value":-101,"unit":"dBm"},"ss_rsrq":{"value":null,"unit":"dB"},"ss_sinr":{"value":15,"unit":"unknown"}}"""))
+        val text = CellularOverview.render(data, plan())
+        assertTrue(text.contains("NR SS-RSRP: -101 dBm (Weak)"))
+        assertTrue(text.contains("NR SS-RSRQ: Not exposed"))
+        assertTrue(text.contains("NR SS-SINR: 15 unknown"))
+        assertFalse(text.contains("NR SS-SINR: 15 unknown (Good)"))
     }
 }
