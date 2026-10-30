@@ -29,6 +29,24 @@ limitations. Observed bounds do not establish complete coverage. A map pack is
 not terrain, satellite imagery, or a tower inventory; terrain and physical-site
 datasets still need to be prepared separately.
 
+## Regional terrain and FCC structures
+
+Use the regional pack manager to review suggested USGS terrain tiles and select
+up to 20 for sequential download. Confirm the vertical datum and elevation
+units against the source before installing. Completed tiles remain available
+if a later download fails or the operation is cancelled; a retry skips matching
+available sources. Each pack retains its own source, date and checksum.
+
+The pack manager can also import the FCC's complete ASR registration archive
+as a local regional physical-structure reference. Download the official
+`r_tower.zip` from the link in the importer, enter the archive publication date
+and geographic bounds, and run the import. The archive itself is not included
+in the installer. The import retains its date and SHA-256; filed NAD83 positions
+are displayed as approximate WGS84 without a datum transformation. ASR is
+incomplete and may be stale: a listed structure is not proof of a serving cell,
+carrier, antenna position or current line of sight. Verify the original record
+and field conditions before relying on it.
+
 ## Rebuilding with local downloads
 
 Downloaded data is deliberately excluded from Git. Stage these four local files:

@@ -187,6 +187,12 @@ class RegionalPackStore:
                     raise ValueError('Invalid sanitized download origin.')
                 row['download_origin'] = origin
                 row['download_integrity'] = metadata.get('download_integrity', 'computed SHA-256 only')
+            if metadata.get('download_requested_origin'):
+                requested = metadata['download_requested_origin']
+                if (not isinstance(requested, str) or not requested.startswith('https://')
+                        or any(character in requested for character in ('?', '#', '@'))):
+                    raise ValueError('Invalid sanitized requested download origin.')
+                row['download_requested_origin'] = requested
             if kind == 'terrain':
                 details = inspect_dem(target, declared)
                 from rasterio.warp import transform_bounds

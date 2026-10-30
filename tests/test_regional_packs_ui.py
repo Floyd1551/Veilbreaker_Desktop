@@ -77,14 +77,14 @@ class RegionalPacksUITests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             dialog=RegionalPacksDialog(None,AppConfig(data_dir=folder))
             try:
-                with patch.object(dialog.store,'list_packs',return_value=[{'download_origin':item['url'],'status':'available'}]):
+                with patch.object(dialog.store,'list_packs',return_value=[{'kind':'terrain','download_origin':item['url'],'status':'available'}]):
                     from veilbreaker.usgs_terrain_catalog import plan_terrain_products
                     plan=plan_terrain_products([0,0,1,1],[item])
                     dialog.job_ready({'catalog':dict(products=[item],total=1,plan=plan)})
                     self.assertIn('Installed',dialog.products.itemText(0))
                     self.assertIn('1 installed',dialog.catalog_summary.text())
                     dialog.use_product()
-                    self.assertIn('already installed',dialog.status.text())
+                    self.assertIn('verify its checksum',dialog.status.text())
             finally: dialog.close()
 
     def test_manager_tabs_fit_field_window(self):

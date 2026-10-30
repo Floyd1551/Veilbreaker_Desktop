@@ -416,7 +416,9 @@ def export_session(config, path, destination=None):
                 encoded=assessment.get('profile_png')
                 if encoded:(folder/f'terrain-profile-{index:03}.png').write_bytes(base64.b64decode(encoded,validate=True))
         imagery = report_context(config, path)
-        (folder / "survey_report.html").write_text(report_html(session, imagery, cell_html), encoding="utf-8")
+        from .survey_observation_photos import photo_context
+        photos = photo_context(config, path, session, strict=True, export_dir=folder)
+        (folder / "survey_report.html").write_text(report_html(session, imagery, cell_html, photos), encoding="utf-8")
         if imagery and imagery.get('image'):
             for source, destination_name in (('source.image','survey-map-source.image'),
                                               ('overlay.png','survey-map.png'),

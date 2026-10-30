@@ -23,5 +23,14 @@ Removed observations are hidden from the active report
 but their removal time remains in the journal. Reopen a completed survey before
 changing observations.
 
-This initial workflow does not attach photos, dimensions, a separate map marker,
-or a propagation model. Existing diagnostic evidence is not rewritten.
+Select an observation and choose **Attach photo** to copy a JPEG or PNG into
+survey-owned storage. The report displays an operator-photo preview and the
+evidence ZIP includes the original bytes and integrity manifest. Originals may
+contain EXIF location or other personal metadata, which is preserved in the
+export; Veilbreaker does not turn that metadata into GPS evidence. Replace or
+remove an attachment from the observation when it is no longer needed.
+Photos are limited to 20 per survey and 20 MiB each. Reopen a completed survey
+to change them. A missing or altered photo prevents export until resolved.
+
+Dimensions, a separate map marker and a propagation model are not created.
+Existing diagnostic evidence is not rewritten.

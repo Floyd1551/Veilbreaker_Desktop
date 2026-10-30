@@ -44,7 +44,7 @@ def imagery_html(imagery):
     return '\n'.join(parts)
 
 
-def observations_html(session):
+def observations_html(session, photos=None):
     raw=session.get('observations',[])
     if not isinstance(raw,list):
         return '<h2>Operator observations</h2><p>Observation data is unavailable.</p>'
@@ -52,11 +52,21 @@ def observations_html(session):
     if not rows:
         return ''
     labels={step.get('run_id'):step.get('label','Unnamed point') for step in session.get('steps',[])}
-    return ('<h2>Operator observations</h2><p>These are operator observations, not measured signal loss or proven propagation effects.</p>'+
+    result = ('<h2>Operator observations</h2><p>These are operator observations, not measured signal loss or proven propagation effects.</p>'+
         table(['Observation ID','Recorded UTC','Last edited UTC','Point','Type / material','Description','Operator'],
               [[row.get('id'),row.get('recorded_utc'),row.get('updated_utc') or 'Not edited',labels.get(row.get('run_id'),'Survey-wide' if not row.get('run_id') else 'Point unavailable'),
                 str(row.get('category','Unknown'))+' / '+str(row.get('material','Unknown')),
                 row.get('description'),row.get('author') or 'Not supplied'] for row in rows]))
+    if photos is not None:
+        for row in rows:
+            if not row.get('photo'): continue
+            image = photos.get(row.get('id'))
+            result += '<h3>Operator photo · observation '+text(row.get('id'))+'</h3>'
+            if image:
+                result += '<p><img width="640" src="data:image/png;base64,'+base64.b64encode(image).decode('ascii')+'" alt="Operator photo"></p>'
+            else:
+                result += '<p>Photo unavailable or failed integrity validation.</p>'
+    return result
 
 
 def calculations_html(session):
@@ -85,7 +95,7 @@ def calculations_html(session):
     return '\n'.join(parts)
 
 
-def report_html(session, imagery=None, cell_context=""):
+def report_html(session, imagery=None, cell_context="", photos=None):
     steps = session.get('steps', [])
     states = Counter(s.get('status', 'unknown') for s in steps)
     parts = ['<!doctype html><html><head><meta charset="utf-8"><title>Site survey report</title>',
@@ -95,7 +105,7 @@ def report_html(session, imagery=None, cell_context=""):
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
              '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
-             imagery_html(imagery), cell_context, observations_html(session), calculations_html(session),
+             imagery_html(imagery), cell_context, observations_html(session, photos), calculations_html(session),
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

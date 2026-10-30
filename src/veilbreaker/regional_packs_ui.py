@@ -1,14 +1,15 @@
 """In-app management of regional terrain and structure reference packs."""
 from functools import partial
+import threading
 
 from PySide6.QtCore import Qt, Slot, QStandardPaths
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QFormLayout, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QScrollArea,
-                               QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
+                               QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QTabWidget, QVBoxLayout, QWidget)
 from pathlib import Path
 
 from .background_dialog import JobDialog
-from .regional_pack_download import download_and_install
+from .regional_pack_download import download_and_install, download_terrain_batch, sanitized_source_url
 from .regional_packs import RegionalPackStore
 from .usgs_terrain_catalog import search_terrain_products, plan_terrain_products
 
@@ -20,6 +21,67 @@ def _install_job(root, kind, path, metadata, cancelled, progress):
 def _download_job(root, kind, url, metadata, checksum, cancelled, progress):
     return {'installed': download_and_install(RegionalPackStore(root), kind, url, metadata, cancelled,
                                               progress, expected_sha256=checksum or None)}
+
+
+def _batch_job(root, products, datum, units, stop, cancelled, progress):
+    return {'batch': download_terrain_batch(RegionalPackStore(root), products, datum, units,
+                                           lambda: stop.is_set() or cancelled(), progress)}
+
+
+class TerrainBatchReview(QDialog):
+    """Review catalog products and their shared, operator-confirmed elevation metadata."""
+    def __init__(self, parent, products, installed):
+        super().__init__(parent)
+        self.setWindowTitle('Review USGS terrain tiles')
+        self.resize(750, 520)
+        layout = QVBoxLayout(self)
+        hint = QLabel('Select up to 20 tiles. Source dates and sizes are catalog estimates; raster extent and no-data are validated separately. Matching terrain packs are checksum-verified before they are skipped; conflicting datum or units stop the batch. Damaged packs are retained and a new copy is installed. Older redirected downloads may not record the original URL. Confirm datum and units from the source metadata for every selected tile.')
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        self.items = QListWidget()
+        self.items.setAccessibleName('Terrain tiles to download')
+        for product in products:
+            origin = sanitized_source_url(product['url'])
+            available = origin in installed
+            item = QListWidgetItem(f"{product['title']} · {product.get('bytes', 0)/1024/1024:.0f} MiB · {product['source_date']}" + (' · Present; verify on download' if available else ''))
+            item.setData(Qt.ItemDataRole.UserRole, product)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked)
+            item.setToolTip(f"{product['source']} · {product['license']}\n{origin}\nReported bounds: {product.get('reported_bounds_wgs84', 'unknown')}")
+            self.items.addItem(item)
+        layout.addWidget(self.items, 1)
+        self.summary = QLabel()
+        layout.addWidget(self.summary)
+        form = QFormLayout()
+        self.datum = QLineEdit()
+        self.datum.setPlaceholderText('Confirm from source metadata, e.g. NAVD88')
+        self.units = QComboBox()
+        self.units.addItems(['Select elevation units', 'm', 'ft', 'us-ft'])
+        form.addRow('Vertical datum', self.datum)
+        form.addRow('Elevation units', self.units)
+        layout.addLayout(form)
+        controls = QHBoxLayout()
+        cancel = QPushButton('Cancel')
+        cancel.clicked.connect(self.reject)
+        self.download_button = QPushButton('Download selected tiles')
+        self.download_button.clicked.connect(self.accept)
+        controls.addWidget(cancel)
+        controls.addWidget(self.download_button)
+        layout.addLayout(controls)
+        self.items.itemChanged.connect(self.update_review)
+        self.datum.textChanged.connect(self.update_review)
+        self.units.currentIndexChanged.connect(self.update_review)
+        self.update_review()
+
+    def selected_products(self):
+        return [self.items.item(i).data(Qt.ItemDataRole.UserRole) for i in range(self.items.count())
+                if self.items.item(i).checkState() == Qt.CheckState.Checked]
+
+    def update_review(self, *_args):
+        products = self.selected_products()
+        total = sum(p.get('bytes', 0) for p in products)
+        self.summary.setText(f'{len(products)} selected · estimated {total / 1024 / 1024:.0f} MiB · maximum 20 tiles per batch')
+        self.download_button.setEnabled(1 <= len(products) <= 20 and bool(self.datum.text().strip()) and self.units.currentIndex() > 0)
 
 
 def _verify_job(root, pack_id, cancelled, progress):
@@ -188,12 +250,15 @@ class RegionalPacksDialog(JobDialog):
         self.products.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.use_product_button = QPushButton('Use selected product')
         self.use_product_button.clicked.connect(self.use_product)
+        self.batch_button = QPushButton('Review suggested tiles…')
+        self.batch_button.clicked.connect(self.review_suggested_tiles)
         prepare_layout.addWidget(self.search_button)
         prepare_layout.addWidget(self.catalog_view)
         prepare_layout.addWidget(self.catalog_summary)
         catalog_row.addWidget(self.products, 1)
         catalog_row.addWidget(self.use_product_button)
         prepare_layout.addLayout(catalog_row)
+        prepare_layout.addWidget(self.batch_button)
         hint = QLabel('Structure bounds are declared by the dataset provider and do not prove completeness. Terrain bounds are read from the raster; no-data gaps may remain. Downloads contact only the URL you choose.')
         hint.setWordWrap(True)
         prepare_layout.addWidget(hint)
@@ -202,6 +267,9 @@ class RegionalPacksDialog(JobDialog):
         self.import_button.clicked.connect(self.import_local)
         self.download_button = QPushButton('Download and install URL')
         self.download_button.clicked.connect(self.download)
+        self.fcc_import_button = QPushButton('Import FCC structure archive…')
+        self.fcc_import_button.clicked.connect(self.import_fcc_archive)
+        prepare_layout.addWidget(self.fcc_import_button)
         self.close_button = QPushButton('Close')
         self.close_button.clicked.connect(self.reject)
         for button in (self.import_button, self.download_button, self.close_button):
@@ -212,10 +280,16 @@ class RegionalPacksDialog(JobDialog):
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.batch_stop = threading.Event()
+        self.batch_cancel = QPushButton('Cancel tile downloads')
+        self.batch_cancel.clicked.connect(self.cancel_batch)
+        self.batch_cancel.hide()
+        layout.addWidget(self.batch_cancel)
         self.controls = [self.table, self.verify_button, self.remove_button, self.records_button,
                          self.kind, self.name, self.source, self.license, self.date, self.datum,
                          self.units, self.bounds, self.url, self.checksum, self.import_button,
-                         self.download_button, self.search_button, self.products, self.use_product_button, self.catalog_view]
+                         self.download_button, self.search_button, self.products, self.use_product_button, self.catalog_view,
+                         self.batch_button, self.fcc_import_button]
         self.controls.append(self.huntsville_button)
         self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
@@ -229,6 +303,7 @@ class RegionalPacksDialog(JobDialog):
         self.search_button.setEnabled(terrain)
         self.products.setEnabled(terrain)
         self.use_product_button.setEnabled(terrain and self.products.count() > 0)
+        self.batch_button.setEnabled(terrain and bool(self.catalog_result and self.catalog_result.get('plan', {}).get('products')))
 
     def set_busy(self, busy):
         super().set_busy(busy)
@@ -359,8 +434,39 @@ class RegionalPacksDialog(JobDialog):
         self.checksum.clear()
         self.datum.clear()
         self.units.setCurrentIndex(0)
-        prefix = 'This exact source URL is already installed. ' if self.product_installed(item) else ''
+        prefix = 'A pack from this source is present (size check only; verify its checksum). ' if self.product_installed(item) else ''
         self.status.setText(prefix+'USGS product selected. Confirm its vertical datum and elevation units from the product metadata before downloading. Product date is not the download date.')
+
+    @Slot()
+    def review_suggested_tiles(self):
+        products = (self.catalog_result or {}).get('plan', {}).get('products', [])
+        if not products:
+            return
+        installed = {origin for row in self.store.list_packs()
+                     if row.get('status') == 'available' and row.get('kind') == 'terrain'
+                     for origin in (row.get('download_origin'), row.get('download_requested_origin')) if origin}
+        review = TerrainBatchReview(self, products, installed)
+        if review.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.batch_stop.clear()
+        self.batch_cancel.show()
+        self.batch_cancel.setEnabled(True)
+        self.status.setText('Preparing selected terrain downloads…')
+        self.start_job(partial(_batch_job, self.store.root, review.selected_products(),
+                               review.datum.text().strip(), review.units.currentText(), self.batch_stop))
+
+    @Slot()
+    def cancel_batch(self):
+        self.batch_stop.set()
+        self.batch_cancel.setEnabled(False)
+        self.status.setText('Cancelling the current tile; completed tiles remain installed…')
+
+    @Slot()
+    def import_fcc_archive(self):
+        from .fcc_asr_ui import FccAsrImportDialog
+        FccAsrImportDialog(self, self.store.root).exec()
+        self.invalidate_coverage()
+        self.refresh()
 
     def product_installed(self, item):
         from .regional_pack_download import sanitized_source_url
@@ -368,7 +474,9 @@ class RegionalPacksDialog(JobDialog):
             origin = sanitized_source_url(item['url'])
         except (ValueError, KeyError):
             return False
-        return any(row.get('status') == 'available' and row.get('download_origin') == origin for row in self.store.list_packs())
+        return any(row.get('status') == 'available' and row.get('kind') == 'terrain' and
+                   origin in (row.get('download_origin'), row.get('download_requested_origin'))
+                   for row in self.store.list_packs())
 
     @Slot()
     def show_catalog_products(self):
@@ -381,7 +489,7 @@ class RegionalPacksDialog(JobDialog):
         for item in items:
             text = f"{item['title']} · {item['bytes'] / 1024 / 1024:.0f} MiB · {item['source_date']}"
             if self.product_installed(item):
-                text += ' · Installed'
+                text += ' · Installed (size check only)'
             self.products.addItem(text, item)
             self.products.setItemData(self.products.count()-1, f"Reported bounds: {item['reported_bounds_wgs84']}", Qt.ItemDataRole.ToolTipRole)
         self.update_kind()
@@ -502,7 +610,18 @@ class RegionalPacksDialog(JobDialog):
     def job_ready(self, result):
         if self.closing:
             return
-        if coverage := result.get('coverage'):
+        if 'batch' in result:
+            rows = result['batch']
+            self.invalidate_coverage()
+            self.refresh()
+            if self.catalog_result:
+                self.job_ready({'catalog': self.catalog_result})
+            counts = {status: sum(row['status'] == status for row in rows)
+                      for status in ('installed', 'skipped', 'failed', 'cancelled', 'not attempted')}
+            message = 'Terrain batch: ' + ' · '.join(f'{count} {name}' for name, count in counts.items() if count)
+            error = next((row.get('error') for row in rows if row['status'] == 'failed'), None)
+            self.status.setText(message + (f'. {error}' if error else '') + '. Completed tiles remain installed.')
+        elif coverage := result.get('coverage'):
             self.coverage_result = coverage
             self.coverage_save.setEnabled(self.worker is None)
             self.coverage_table.setRowCount(4)
@@ -530,7 +649,7 @@ class RegionalPacksDialog(JobDialog):
             if plan:
                 installed = [p for p in plan['products'] if self.product_installed(p)]
                 remaining = plan['bytes'] - sum(p['bytes'] for p in installed)
-                self.catalog_summary.setText(f"{len(plan['products'])} suggested · {len(installed)} installed · {remaining/1024/1024:.0f} MiB remaining · {plan['gap_count']} extent gaps · {plan['duplicate_count']} older duplicate extents. Reported bounds only; no-data and datum remain unverified." + (' Catalog results are truncated.' if catalog.get('truncated') else ''))
+                self.catalog_summary.setText(f"{len(plan['products'])} suggested · {len(installed)} installed (size check only) · {remaining/1024/1024:.0f} MiB remaining if installed checksums match · {plan['gap_count']} extent gaps · {plan['duplicate_count']} older duplicate extents. Reported bounds only; no-data and datum remain unverified." + (' Catalog results are truncated.' if catalog.get('truncated') else ''))
             self.show_catalog_products()
             self.status.setText(f"USGS returned {catalog['total']} products. Select a suggested tile or view all results, then confirm datum and units. Historical products may appear.")
         elif 'verified' in result:
@@ -539,4 +658,21 @@ class RegionalPacksDialog(JobDialog):
 
     @Slot(object)
     def job_progress(self, value):
-        self.status.setText(f"Transferred {value.get('bytes', 0) / 1024 / 1024:.1f} MiB…")
+        if value.get('event'):
+            label = f"Tile {value['index']}/{value['total']} · {value['title']}"
+            if value['event'] == 'progress':
+                if value.get('phase') == 'verify':
+                    label += ' · Verifying installed checksum'
+                else:
+                    phase = 'Downloading' if value.get('phase') == 'download' else 'Installing'
+                    label += f" · {phase} {value.get('bytes', 0) / 1024 / 1024:.1f} MiB"
+            elif value['event'] == 'result':
+                label += f" · {value['status']}"
+            self.status.setText(label)
+        else:
+            self.status.setText(f"{value.get('phase', 'Transferred').capitalize()} {value.get('bytes', 0) / 1024 / 1024:.1f} MiB…")
+
+    @Slot()
+    def job_finished(self):
+        self.batch_cancel.hide()
+        super().job_finished()

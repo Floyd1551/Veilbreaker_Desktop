@@ -1,11 +1,13 @@
 """Manage operator observations without changing collected run evidence."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QComboBox, QDialog, QFormLayout, QHeaderView,
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (QComboBox, QDialog, QFileDialog, QFormLayout, QHeaderView,
     QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
     QTableWidgetItem, QVBoxLayout)
 
 from .survey import read_session
 from .survey_observations import CATEGORIES, MATERIALS, add_observation, remove_observation, update_observation
+from .survey_observation_photos import attach_photo, remove_photo, photo_context
 from .widgets import FlowLayout
 
 
@@ -46,6 +48,9 @@ class ObservationsDialog(QDialog):
         self.add_button=QPushButton('Add observation');self.add_button.clicked.connect(self.add);actions.addWidget(self.add_button)
         self.edit_button=QPushButton('Edit selected');self.edit_button.clicked.connect(self.start_edit);actions.addWidget(self.edit_button)
         self.history_button=QPushButton('View edit history');self.history_button.clicked.connect(self.view_history);actions.addWidget(self.history_button)
+        self.photo_button=QPushButton('Attach photo…');self.photo_button.clicked.connect(self.attach_photo);actions.addWidget(self.photo_button)
+        self.view_photo_button=QPushButton('View photo');self.view_photo_button.clicked.connect(self.view_photo);actions.addWidget(self.view_photo_button)
+        self.remove_photo_button=QPushButton('Remove photo…');self.remove_photo_button.clicked.connect(self.remove_photo);actions.addWidget(self.remove_photo_button)
         self.cancel_button=QPushButton('Cancel edit');self.cancel_button.clicked.connect(self.cancel_edit);self.cancel_button.hide();actions.addWidget(self.cancel_button)
         self.remove_button=QPushButton('Remove selected…');self.remove_button.clicked.connect(self.remove);actions.addWidget(self.remove_button)
         close=QPushButton('Close');close.clicked.connect(self.accept);actions.addWidget(close)
@@ -70,7 +75,7 @@ class ObservationsDialog(QDialog):
                 item=QTableWidgetItem(str(value))
                 if j==0:item.setData(Qt.ItemDataRole.UserRole,row.get('id'))
                 self.table.setItem(i,j,item)
-        self.status.setText('Observations are included in survey reports and exports.' if self.editable else
+        self.status.setText('Observations and photos are included in survey reports and exports. Original photos may contain location or other metadata.' if self.editable else
                             'Reopen the survey or wait for collection to finish before changing observations.')
         self.selection_changed()
 
@@ -79,6 +84,47 @@ class ObservationsDialog(QDialog):
         self.remove_button.setEnabled(enabled)
         self.edit_button.setEnabled(enabled)
         self.history_button.setEnabled(self.editing_id is None and self.table.currentRow()>=0)
+        row=self.selected_row()
+        self.photo_button.setEnabled(enabled)
+        self.view_photo_button.setEnabled(self.editing_id is None and bool(row and row.get('photo')))
+        self.remove_photo_button.setEnabled(enabled and bool(row and row.get('photo')))
+
+    def selected_row(self):
+        index=self.table.currentRow()
+        item=self.table.item(index,0) if index>=0 else None
+        return self.rows_by_id.get(item.data(Qt.ItemDataRole.UserRole)) if item else None
+
+    def attach_photo(self):
+        row=self.selected_row()
+        if not row:return
+        path,_=QFileDialog.getOpenFileName(self,'Attach operator photo','','Images (*.jpg *.jpeg *.png)')
+        if not path:return
+        try:
+            attach_photo(self.config,self.path,row['id'],path,expected_revision=row.get('revision',0))
+            self.refresh();self.status.setText('Operator photo attached. Original image metadata is retained in survey exports.')
+        except (OSError,ValueError,KeyError) as exc:self.refresh();self.status.setText(str(exc))
+
+    def view_photo(self):
+        row=self.selected_row()
+        if not row:return
+        try:
+            data=photo_context(self.config,self.path,read_session(self.config,self.path)).get(row['id'])
+            if not data:raise ValueError('Photo unavailable or failed integrity validation.')
+            pixmap=QPixmap();pixmap.loadFromData(data,'PNG')
+            viewer=QDialog(self);viewer.setWindowTitle('Operator photo');viewer.resize(700,600)
+            layout=QVBoxLayout(viewer);label=QLabel();label.setPixmap(pixmap.scaled(660,520,Qt.AspectRatioMode.KeepAspectRatio,Qt.TransformationMode.SmoothTransformation));layout.addWidget(label)
+            note=QLabel('Operator context; this photo is not a measurement. The original image may contain metadata.');note.setWordWrap(True);layout.addWidget(note)
+            close=QPushButton('Close');close.clicked.connect(viewer.accept);layout.addWidget(close);viewer.exec()
+        except (OSError,ValueError,KeyError) as exc:self.status.setText(str(exc))
+
+    def remove_photo(self):
+        row=self.selected_row()
+        if not row:return
+        if QMessageBox.question(self,'Remove photo','Remove this photo from the observation and future reports?') != QMessageBox.StandardButton.Yes:return
+        try:
+            remove_photo(self.config,self.path,row['id'],expected_revision=row.get('revision',0))
+            self.refresh();self.status.setText('Photo removed from the active observation.')
+        except (OSError,ValueError,KeyError) as exc:self.refresh();self.status.setText(str(exc))
 
     def view_history(self):
         index=self.table.currentRow()

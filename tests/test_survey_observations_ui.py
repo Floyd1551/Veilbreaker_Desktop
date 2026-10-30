@@ -2,8 +2,10 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
+from PySide6.QtGui import QImage, QColor
 from PySide6.QtWidgets import QApplication, QMessageBox
 from veilbreaker.core import AppConfig
 from veilbreaker.survey import create_survey, read_session, set_lifecycle
@@ -13,6 +15,30 @@ from veilbreaker.survey_observations_ui import ObservationsDialog
 class ObservationsUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
+
+    def test_photo_actions_follow_selection_and_completion(self):
+        from veilbreaker.survey_observations import add_observation
+        with tempfile.TemporaryDirectory() as folder:
+            cfg=AppConfig(data_dir=folder);path=create_survey(cfg,'Test',[{}])['survey_path']
+            add_observation(cfg,path,dict(run_id=None,category='Other',material='Unknown',description='Fixture',author=''))
+            image=QImage(5,5,QImage.Format.Format_RGB32);image.fill(QColor('blue'))
+            image_path=Path(folder)/'photo.png';image.save(str(image_path))
+            dialog=ObservationsDialog(None,cfg,path)
+            try:
+                self.assertFalse(dialog.photo_button.isEnabled())
+                dialog.table.selectRow(0)
+                with patch('veilbreaker.survey_observations_ui.QFileDialog.getOpenFileName',return_value=(str(image_path),'')):
+                    dialog.attach_photo()
+                dialog.table.selectRow(0)
+                self.assertTrue(dialog.view_photo_button.isEnabled())
+                self.assertTrue(dialog.remove_photo_button.isEnabled())
+                dialog.resize(760,650);dialog.show();self.app.processEvents()
+                self.assertLessEqual(dialog.width(),760)
+                set_lifecycle(cfg,path,True);dialog.refresh();dialog.table.selectRow(0)
+                self.assertTrue(dialog.view_photo_button.isEnabled())
+                self.assertFalse(dialog.photo_button.isEnabled())
+                self.assertFalse(dialog.remove_photo_button.isEnabled())
+            finally:dialog.close()
 
     def test_add_and_remove_observation_for_selected_point(self):
         with tempfile.TemporaryDirectory() as folder:
