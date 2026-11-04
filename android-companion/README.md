@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.6 development build
+# Veilbreaker Mobile 0.7 development build
 
 Android 10/API 29 or newer. Public LTE/NR snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed.
 
@@ -9,6 +9,17 @@ details and cached nearby observations when Android exposes them; it does not
 start a scan, export Wi-Fi data, or send Wi-Fi observations to Desktop. Stop a
 USB session before opening it. See [the consolidation plan](../docs/android-mobile-unification.md)
 for remaining diagnostics, surveys, migration and reporting work.
+
+The cellular view shows gauges for captured serving-cell measurements and a
+trend only when there are multiple distinct modem-receipt timestamps for the same
+identified cell; timestamps do not guarantee fresh physical measurements. Wi-Fi cards show current connection information and nearby cached results,
+including sample age when available. The GPS view can show an explicitly started
+foreground fix and locations from the last saved capture. It can overlay points on
+a user-supplied, north-up Plate Carrée image with operator-entered WGS84 bounds;
+it does not download a basemap, validate the image or support Web Mercator. Images
+with rotated or mirrored EXIF orientation are rejected. The
+image and display do not modify recorded evidence. USB sessions must be stopped
+before opening the GPS or Wi-Fi views.
 
 [Setup and USB workflow](../docs/android-companion-install.md).
 

@@ -19,6 +19,9 @@ class MainActivity : Activity() {
     private val handler=Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var preview: TextView
+    private lateinit var cellularVisuals: CellularVisuals
+    private lateinit var detailsButton: Button
+    private lateinit var rawButton: Button
     private lateinit var usbStatus: TextView
     private lateinit var subscriptions: Spinner
     private lateinit var cellularChoice: CheckBox
@@ -26,6 +29,7 @@ class MainActivity : Activity() {
     private lateinit var captureButton: Button
     private lateinit var exportButton: Button
     private lateinit var wifiButton: Button
+    private lateinit var gpsButton: Button
     private lateinit var location: PhoneLocation
     private var choices: List<SubscriptionInfo> = emptyList()
     private var generation=0
@@ -34,7 +38,8 @@ class MainActivity : Activity() {
     private var endpoint: LoopbackEndpoint?=null
     private var capture: JSONObject?=null
     private var exportText: String?=null
-    private var raw=false
+    private var previewMode="summary"
+    private val channelPlan by lazy { JSONObject(assets.open("channel-bands.json").bufferedReader().use { it.readText() }) }
     private val permissions=arrayOf(Manifest.permission.READ_PHONE_STATE,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION)
     private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
     private fun background(color:String)=GradientDrawable().apply { setColor(Color.parseColor(color)); cornerRadius=dp(12).toFloat() }
@@ -63,7 +68,7 @@ class MainActivity : Activity() {
             setTextColor(Color.parseColor(if(primary) "#0c2026" else "#e5edf5"));setOnClickListener { action() };parent.addView(this)
         }
         text(root,"VEILBREAKER",27f).apply { setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) }
-        text(root,"MOBILE  /  0.6.0 DEV",12f).setTextColor(Color.parseColor("#63dec8"))
+        text(root,"MOBILE  /  0.7.0 DEV",12f).setTextColor(Color.parseColor("#63dec8"))
         text(root,"Your phone is a field sensor. Choose what to share, connect to Desktop, and keep this app visible during your survey.")
         val inputs=card("1  Choose inputs")
         cellularChoice=CheckBox(this).apply { text="Cellular measurements";isChecked=true;inputs.addView(this) }
@@ -75,11 +80,17 @@ class MainActivity : Activity() {
         button(connect,"Connect to Veilbreaker",true) { armUsb() }
         usbStatus=text(connect,"Disconnected · USB cable and debugging approval required. No code needs to be typed.")
         button(connect,"Stop and disconnect") { stopUsb();cancelPending() }
+        val explore=card("Explore")
+        text(explore,"Stop a Desktop session or capture before opening these views.")
+        wifiButton=button(explore,"Wi-Fi environment") { if(connection==null && !pending) startActivity(Intent(this,WifiSnapshotActivity::class.java)) }
+        gpsButton=button(explore,"GPS & offline map") { if(connection==null && !pending) startActivity(Intent(this,GpsMapActivity::class.java)) }
         val local=card("3  Capture and review")
         captureButton=button(local,"Capture on phone") { takeSnapshot(null) }
         status=text(local,"Choose inputs and grant permissions to begin.")
+        cellularVisuals=CellularVisuals(this);local.addView(cellularVisuals)
         preview=text(local,"No saved capture.")
-        button(local,"Show / hide technical details") { raw=!raw;showCapture() }
+        detailsButton=button(local,"Show cellular details") { previewMode=if(previewMode=="details") "summary" else "details";showCapture() }
+        rawButton=button(local,"Show raw JSON") { previewMode=if(previewMode=="raw") "summary" else "raw";showCapture() }
         exportButton=button(local,"Export capture") {
             capture?.let {
                 exportText=it.toString(2)
@@ -88,9 +99,6 @@ class MainActivity : Activity() {
                 },2)
             }
         }
-        val wifi=card("Wi-Fi environment")
-        text(wifi,"View the connected Wi-Fi and cached nearby results. Stop a Desktop session or capture before opening Wi-Fi; leaving this screen ends the USB connection.")
-        wifiButton=button(wifi,"Inspect Wi-Fi") { if(connection==null && !pending) startActivity(Intent(this,WifiSnapshotActivity::class.java)) }
         cellularChoice.setOnCheckedChangeListener { _,_->refresh() }
         locationChoice.setOnCheckedChangeListener { _,_->refresh() }
         capture=try { JSONObject(filesDir.resolve("last-capture.json").readText()) } catch(_:Exception) { null }
@@ -107,6 +115,7 @@ class MainActivity : Activity() {
         subscriptions.isEnabled=cellularChoice.isChecked
         captureButton.isEnabled=allowed() && (cellularChoice.isChecked || locationChoice.isChecked) && !pending
         wifiButton.isEnabled=connection==null && !pending
+        gpsButton.isEnabled=connection==null && !pending
     }
     override fun onRequestPermissionsResult(code:Int,p:Array<out String>,results:IntArray) { super.onRequestPermissionsResult(code,p,results);if(code==1) refresh() }
     private fun takeSnapshot(target:UsbSession?) {
@@ -129,7 +138,7 @@ class MainActivity : Activity() {
                 val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
                 val source=if(stillPresent) cells.orEmpty() else emptyList()
                 val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.6.0-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.7.0-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error, if(source.size>256) "Cell list truncated to 256 entries; additional modem entries omitted." else null),started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
@@ -172,18 +181,27 @@ class MainActivity : Activity() {
     private fun save(value:JSONObject) { capture=value;filesDir.resolve("last-capture.json").writeText(value.toString());showCapture() }
     private fun showCapture() {
         val value=capture
-        preview.text=if(value==null) "No saved capture." else if(raw) value.toString(2).take(20000) else {
+        cellularVisuals.showCapture(value,if(value==null) null else channelPlan)
+        preview.text=if(value==null) "No saved capture." else if(previewMode=="raw") {
+            val rawText=value.toString(2)
+            rawText.take(20000)+if(rawText.length>20000) "\n[Preview truncated; export retains the complete capture.]" else ""
+        } else {
             val observations=value.getJSONArray("observations")
             val last=if(observations.length()>0) observations.getJSONObject(observations.length()-1) else null
             val lines=mutableListOf("${observations.length()} observations · ${value.getJSONObject("collection").optString("outcome")}")
             last?.optJSONObject("location")?.let { lines.add(LocationEvidence.describeCaptured(it));if(it.optString("status")=="available") lines.add("${it.optDouble("latitude_deg")}, ${it.optDouble("longitude_deg")}") }
-            val plan=JSONObject(assets.open("channel-bands.json").bufferedReader().use { it.readText() })
-            lines.add(CellularOverview.render(value,plan))
+            if(previewMode=="details") {
+                val details=CellularOverview.render(value,channelPlan)
+                lines.add(details.take(40000)+if(details.length>40000) "\n[Preview truncated; export retains the complete capture.]" else "")
+            }
             lines.joinToString("\n")
         }
+        detailsButton.text=if(previewMode=="details") "Hide cellular details" else "Show cellular details"
+        rawButton.text=if(previewMode=="raw") "Hide raw JSON" else "Show raw JSON"
+        detailsButton.isEnabled=value!=null;rawButton.isEnabled=value!=null
         exportButton.isEnabled=value!=null && !pending && connection==null
     }
-    private fun lockInputs(locked:Boolean) { cellularChoice.isEnabled=!locked;locationChoice.isEnabled=!locked;subscriptions.isEnabled=!locked && cellularChoice.isChecked;captureButton.isEnabled=!locked && allowed();wifiButton.isEnabled=!locked && connection==null && !pending }
+    private fun lockInputs(locked:Boolean) { cellularChoice.isEnabled=!locked;locationChoice.isEnabled=!locked;subscriptions.isEnabled=!locked && cellularChoice.isChecked;captureButton.isEnabled=!locked && allowed();wifiButton.isEnabled=!locked && connection==null && !pending;gpsButton.isEnabled=!locked && connection==null && !pending }
     private fun cancelPending() { generation++;pending=false;location.stop();lockInputs(connection!=null);showCapture() }
     private fun armUsb() {
         if(pending || connection!=null || !allowed() || (!cellularChoice.isChecked && !locationChoice.isChecked) || (cellularChoice.isChecked && subscriptions.selectedItemPosition<1)) { status.text="Choose inputs, grant permissions, and select a SIM if using cellular.";return }

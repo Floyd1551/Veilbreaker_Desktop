@@ -20,6 +20,25 @@ scan results when Android exposes them. Sample ages are shown when available;
 an observation is not necessarily a fresh scan. This view does not transmit
 Wi-Fi observations to Desktop or add them to the cellular JSON export.
 
+## Cellular and GPS visuals
+
+The cellular dashboard shows the most recent saved capture, with measured values,
+receipt times and modem sample ages. Signal ranges are display scales rather
+than service-quality guarantees. A trend requires multiple distinct modem-receipt
+timestamps associated with the same identified cell; those timestamps do not
+guarantee fresh physical measurements. Lines between points are for readability
+and are not continuous measurements.
+
+Open **GPS & offline map** after stopping the Desktop session or pending capture.
+Start live GPS explicitly, or inspect locations from the last saved phone capture.
+Without an image the display is a coordinate plot, not a basemap. For an actual
+offline image background, choose a local north-up Plate Carrée/equirectangular
+JPEG or PNG and supply its full WGS84 bounds and source. The app does not verify
+the image or bounds; other projections, including Web Mercator, are unsupported.
+Images with rotated or mirrored EXIF orientation are rejected.
+Images and live display-only fixes are not added to evidence or retained by this
+screen, and GPS stops when the screen leaves the foreground.
+
 ## Cellular field report
 Open the **Cellular** tab after a diagnostic. Each registered cell has carrier/SIM labels, reported band and cell identifiers, plus signal tables showing latest, minimum, median, maximum and change. Multi-sample captures include separate signal trends per cell. Missing values remain labeled Not exposed; cell identifiers do not establish a physical tower location. The report is also saved as `cellular_report.html` and embedded in the main HTML report.
 
