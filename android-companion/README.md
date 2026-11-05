@@ -1,14 +1,23 @@
-# Veilbreaker Mobile 0.7 development build
+# Veilbreaker Mobile 0.8 development build
 
 Android 10/API 29 or newer. Public LTE/NR snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed.
 
-This first unified build retains the companion's application ID and USB capture
-contract, and adds a standalone read-only Wi-Fi view based on capabilities in
+The unified app retains the companion's application ID and USB capture
+contract, and includes a standalone read-only Wi-Fi view based on capabilities in
 the recovered Veilbreaker Mobile project. The Wi-Fi view reads connected-network
 details and cached nearby observations when Android exposes them; it does not
 start a scan, export Wi-Fi data, or send Wi-Fi observations to Desktop. Stop a
 USB session before opening it. See [the consolidation plan](../docs/android-mobile-unification.md)
-for remaining diagnostics, surveys, migration and reporting work.
+for remaining migration and reporting work.
+
+Live, Diagnose, Survey and Reports pages remain inside the same foreground
+workspace. The optional network test sends one bounded HTTPS request to the
+operator's chosen URL over an explicitly selected Android network; a short
+download is an estimate, not a sustained capacity test. Upload, jitter and
+packet loss are not measured. The app can group up to 20 explicitly added
+captures into a phone-only survey and export that survey as JSON; Desktop
+survey import and migration from the older Mobile application are not yet
+supported. Reports can export the most recent phone capture as PDF or JSON.
 
 The cellular view shows gauges for captured serving-cell measurements and a
 trend only when there are multiple distinct modem-receipt timestamps for the same

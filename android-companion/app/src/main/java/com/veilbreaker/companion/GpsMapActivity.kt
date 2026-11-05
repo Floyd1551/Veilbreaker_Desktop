@@ -40,6 +40,7 @@ class GpsMapActivity : Activity() {
     private lateinit var plot: GpsPlotView
     private lateinit var status: TextView
     private lateinit var mapInfo: TextView
+    private lateinit var savedInfo: TextView
     private lateinit var liveButton: Button
     private lateinit var fields: List<EditText>
     private lateinit var source: EditText
@@ -51,6 +52,7 @@ class GpsMapActivity : Activity() {
     private var saved: List<GpsSpatialModel.Fix> = emptyList()
     private var live: GpsSpatialModel.Fix? = null
     private var imageSource = ""
+    private data class SavedLocations(val fixes: List<GpsSpatialModel.Fix>, val labels: List<String>?, val description: String)
     private class MapLoad(val uri: Uri, val bounds: GpsSpatialModel.Bounds, val source: String) {
         @Volatile var cancelled = false
         @Volatile var stream: InputStream? = null
@@ -78,6 +80,7 @@ class GpsMapActivity : Activity() {
         val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport = true }
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(22), dp(20), dp(24)) }
         scroll.addView(root); setContentView(scroll)
+        SystemBarInsets.apply(scroll)
         fun text(value: String, size: Float = 14f) = TextView(this).apply {
             this.text = value; textSize = size; setTextColor(Color.parseColor("#d4e2ed")); setPadding(0, dp(5), 0, dp(5)); root.addView(this)
         }
@@ -85,20 +88,18 @@ class GpsMapActivity : Activity() {
             this.text = value; isAllCaps = false; minHeight = dp(48); setOnClickListener { click() }; root.addView(this)
         }
         text("GPS & OFFLINE MAP", 22f).apply { setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#63dec8")) }
-        text("Saved points come from the last phone capture. Live GPS starts only when you choose it and stops when this screen leaves the foreground. No location is saved by this screen.")
+        val surveyId = intent.getStringExtra("mobile_survey_id")
+        text((if (surveyId == null) "Saved points come from the last phone capture. " else "Saved points come from the selected phone survey; each marker is its capture's last valid reported fix. ") +
+            "Live GPS starts only when you choose it and stops when this screen leaves the foreground. No location is saved by this screen.")
         liveButton = button("Start live GPS") { if (started) stopLive() else beginLive() }
         status = text("Live GPS off. Saved points may be old; check their capture timestamps.")
-        saved = readSavedFixes()
         text("Cyan: live fix · Purple: saved capture fixes. Accuracy circles are approximate horizontal uncertainty, not coverage.")
         plot = GpsPlotView(this)
         root.addView(plot, LinearLayout.LayoutParams(-1, dp(270)))
         plot.setFixes(saved, null)
         mapInfo = text("Coordinate plot only; no geographic basemap.")
-        val savedText = if (saved.isEmpty()) "No valid saved GPS fixes in the last capture." else {
-            val last = saved.last()
-            "${saved.size} saved fix(es) · last receipt ${last.receivedUtc ?: "unknown"} · " + fixDescription(last, false)
-        }
-        text(savedText)
+        savedInfo = text("Loading saved locations…")
+        loadSavedFixes(surveyId)
         text("OFFLINE IMAGE MAP", 17f).setTextColor(Color.parseColor("#63dec8"))
         text("Optional: choose a local north-up Plate Carrée / equirectangular image and enter its full WGS84 bounds. Bounds, source and north-up orientation are operator supplied and unverified. Images with rotated or mirrored EXIF orientation are rejected. Web Mercator images are not supported. No buildings or terrain are measured. The image is kept for this screen only.")
         val labels = listOf("West longitude", "South latitude", "East longitude", "North latitude")
@@ -120,10 +121,32 @@ class GpsMapActivity : Activity() {
         button("Back to field workspace") { finish() }
     }
 
-    private fun readSavedFixes(): List<GpsSpatialModel.Fix> = try {
-        val file = filesDir.resolve("last-capture.json")
-        if (!file.isFile || file.length() > 16L * 1024 * 1024) emptyList() else GpsSpatialModel.savedFixes(JSONObject(file.readText()))
-    } catch (_: Exception) { emptyList() }
+    private fun loadSavedFixes(surveyId: String?) {
+        Thread {
+            val loaded = runCatching {
+                if (surveyId != null) {
+                    val survey = MobileSurveyStore(this).load(surveyId)
+                    val locations = GpsSpatialModel.surveyLocations(survey)
+                    val count = survey.getJSONArray("points").length()
+                    val details = locations.map { "P${it.pointNumber} · Capture ${it.captureId} · receipt ${it.fix.receivedUtc ?: "unknown"} · ${fixDescription(it.fix, false)}" }
+                    SavedLocations(locations.map { it.fix }, locations.map { "P${it.pointNumber}" },
+                        (listOf("${locations.size} of $count captures have a valid reported fix. Last valid fix per capture; age, accuracy and mock status are shown below.") + details).joinToString("\n"))
+                } else {
+                    val file = filesDir.resolve("last-capture.json")
+                    val fixes = if (!file.isFile || file.length() > 16L * 1024 * 1024) emptyList() else GpsSpatialModel.savedFixes(JSONObject(file.readText()))
+                    val details = fixes.mapIndexed { index, fix -> "${index + 1}. Receipt ${fix.receivedUtc ?: "unknown"} · ${fixDescription(fix, false)}" }
+                    SavedLocations(fixes, null, (listOf("${fixes.size} valid fix(es) from the last phone capture.") + details).joinToString("\n"))
+                }
+            }
+            handler.post {
+                if (isFinishing || isDestroyed) return@post
+                loaded.fold(onSuccess = { data ->
+                    saved = data.fixes; plot.setSavedLabels(data.labels); plot.setFixes(saved, live)
+                    savedInfo.text = data.description
+                }, onFailure = { savedInfo.text = "Saved locations are unavailable. The original capture or survey remains unchanged." })
+            }
+        }.apply { name = "Veilbreaker saved location reader"; start() }
+    }
 
     private fun beginLive() {
         if (!visible) return
@@ -145,7 +168,7 @@ class GpsMapActivity : Activity() {
     private fun stopLive() {
         started = false; handler.removeCallbacks(tick); location.stop(); live = null
         plot.setFixes(saved, null); liveButton.text = "Start live GPS"
-        status.text = "Live GPS stopped. Saved points remain from the last capture."
+        status.text = "Live GPS stopped. Saved locations remain available."
     }
 
     override fun onStart() { super.onStart(); visible = true }
@@ -234,10 +257,12 @@ class GpsPlotView(context: Context) : View(context) {
     private var image: Bitmap? = null
     private var extent: GpsSpatialModel.Bounds? = null
     private var saved: List<GpsSpatialModel.Fix> = emptyList()
+    private var savedLabels: List<String>? = null
     private var live: GpsSpatialModel.Fix? = null
     init { contentDescription = "GPS map or coordinate plot; saved and live positions are also described in text." }
 
     fun setImage(value: Bitmap?, bounds: GpsSpatialModel.Bounds?) { image = value; extent = bounds; invalidate() }
+    fun setSavedLabels(labels: List<String>?) { savedLabels = labels; invalidate() }
     fun setFixes(values: List<GpsSpatialModel.Fix>, current: GpsSpatialModel.Fix?) { saved = values; live = current; invalidate() }
 
     override fun onDraw(canvas: Canvas) {
@@ -264,7 +289,7 @@ class GpsPlotView(context: Context) : View(context) {
         }
         if (bounds != null) {
             canvas.save(); canvas.clipRect(box)
-            for (fix in all) {
+            for ((index, fix) in all.withIndex()) {
                 val point = GpsSpatialModel.mapPoint(bounds, fix.latitude, fix.longitude) ?: continue
                 val x = box.left + (point.first * box.width()).toFloat(); val y = box.top + (point.second * box.height()).toFloat()
                 val color = if (fix === live) Color.rgb(89, 220, 201) else Color.rgb(190, 139, 244)
@@ -277,6 +302,11 @@ class GpsPlotView(context: Context) : View(context) {
                     canvas.drawOval(x-rx,y-ry,x+rx,y+ry,paint); paint.style = Paint.Style.FILL; paint.alpha = 255
                 }
                 paint.color = color; canvas.drawCircle(x, y, 6f * resources.displayMetrics.density, paint)
+                val label = if (index < saved.size) savedLabels?.getOrNull(index) else null
+                if (label != null) {
+                    paint.color = Color.WHITE; paint.textSize = 12f * resources.displayMetrics.scaledDensity
+                    canvas.drawText(label, x + 8f * resources.displayMetrics.density, y - 8f * resources.displayMetrics.density, paint)
+                }
             }
             canvas.restore()
         }

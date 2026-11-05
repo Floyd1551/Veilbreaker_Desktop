@@ -33,14 +33,18 @@ reporting. Bring those capabilities forward in independently verified slices.
    working cellular/location USB transport, and add a standalone, read-only
    view of connected Wi-Fi and cached nearby observations. This view is not yet
    a Desktop collector or part of the cellular export schema.
-2. **Standalone diagnostics.** Evaluate the recovered transport-bound network
-   tests against the current Desktop evidence model, explicit endpoints,
-   cancellation, permission and data-quality behavior before porting.
-3. **Mobile surveys and migration.** Design versioned, user-controlled
-   interchange for prior Mobile survey data and Desktop surveys. Preserve GPS
+2. **Standalone diagnostics.** An operator can run a bounded HTTPS download
+   on a selected cellular or Wi-Fi network. It does not measure upload, jitter,
+   packet loss, or sustained capacity. Further diagnostic work must retain
+   explicit endpoints, cancellation and data-quality limits.
+3. **Mobile surveys and migration.** Phone-only surveys can group up to 20
+   explicitly selected captures; their JSON is not a Desktop survey import.
+   Design versioned, user-controlled interchange for prior Mobile survey data
+   and Desktop surveys. Preserve GPS
    quality, source and capture timestamps; never convert manual positions into
    GPS evidence. Separate measured points from interpolated surfaces.
-4. **Reports and tools.** Bring over useful on-device reports and calculators
+4. **Reports and tools.** The latest phone capture can be exported as a PDF
+   field summary or as original JSON. Bring over further reports and calculators
    after verifying their calculations, evidence labels and offline behavior.
    Reassess the old position score, heatmap and automatic recommendations
    before reuse; they are not validated Desktop conclusions.

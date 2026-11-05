@@ -8,6 +8,7 @@ object GpsSpatialModel {
                    val ageAtReceiptMs: Long?, val provider: String?, val mock: Boolean,
                    val receivedUtc: String? = null)
     data class Bounds(val west: Double, val south: Double, val east: Double, val north: Double)
+    data class SurveyLocation(val pointNumber: Int, val captureId: String, val fix: Fix)
 
     fun bounds(west: Double, south: Double, east: Double, north: Double): Bounds? {
         if (!listOf(west, south, east, north).all { it.isFinite() } || west !in -180.0..180.0 ||
@@ -41,6 +42,23 @@ object GpsSpatialModel {
         for (index in 0 until minOf(observations.length(), 4096)) {
             val observation = observations.optJSONObject(index) ?: continue
             fix(observation.optJSONObject("location"), observation.optString("received_utc").ifBlank { null })?.let(result::add)
+        }
+        return result
+    }
+
+    /** One last reported valid fix per capture; unavailable positions remain absent. */
+    fun surveyLocations(survey: JSONObject): List<SurveyLocation> {
+        MobileSurvey.validate(survey)
+        val result = mutableListOf<SurveyLocation>()
+        val points = survey.getJSONArray("points")
+        for (index in 0 until points.length()) {
+            val capture = points.getJSONObject(index).getJSONObject("capture")
+            val observations = capture.optJSONArray("observations") ?: continue
+            for (i in (minOf(observations.length(), 4096) - 1) downTo 0) {
+                val observation = observations.optJSONObject(i) ?: continue
+                val valid = fix(observation.optJSONObject("location"), observation.optString("received_utc").ifBlank { null })
+                if (valid != null) { result.add(SurveyLocation(index + 1, capture.getString("capture_id"), valid)); break }
+            }
         }
         return result
     }

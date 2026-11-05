@@ -82,6 +82,7 @@ class WifiSnapshotActivity : Activity() {
         val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport = true }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(24), dp(20), dp(24)) }
         scroll.addView(content); setContentView(scroll)
+        SystemBarInsets.apply(scroll)
         fun button(value: String, action: () -> Unit) = Button(this).apply {
             this.text = value; isAllCaps = false; minHeight = dp(48)
             backgroundTintList = ColorStateList.valueOf(color("#243b50")); setTextColor(color("#e9f5f9"))
