@@ -32,6 +32,7 @@ class MainActivity : Activity() {
     private lateinit var usbStatus: TextView
     private lateinit var subscriptions: Spinner
     private lateinit var cellConnectionWorkspace: CellConnectionWorkspace
+    private lateinit var liveCellWorkspace: LiveCellWorkspace
     private lateinit var cellularChoice: CheckBox
     private lateinit var locationChoice: CheckBox
     private lateinit var captureButton: Button
@@ -69,6 +70,7 @@ class MainActivity : Activity() {
 
     private fun showPage(page: WorkspacePage) {
         if(currentPage==WorkspacePage.DIAGNOSE && page!=WorkspacePage.DIAGNOSE && ::networkTestWorkspace.isInitialized) networkTestWorkspace.cancel()
+        if(currentPage==WorkspacePage.DIAGNOSE && page!=WorkspacePage.DIAGNOSE && ::liveCellWorkspace.isInitialized) liveCellWorkspace.stop()
         currentPage=page
         pages.forEachIndexed { index, view -> view.visibility=if(index==page.ordinal) View.VISIBLE else View.GONE }
         navItems.forEachIndexed { index, item ->
@@ -84,6 +86,7 @@ class MainActivity : Activity() {
     private fun showDiagnoseSection(index: Int) {
         if (index !in diagnoseSections.indices) return
         if (diagnoseSection==2 && index!=2 && ::networkTestWorkspace.isInitialized) networkTestWorkspace.cancel()
+        if (diagnoseSection==0 && index!=0 && ::liveCellWorkspace.isInitialized) liveCellWorkspace.stop()
         diagnoseSection=index
         diagnoseSections.forEachIndexed { i, view -> view.visibility=if(i==index) View.VISIBLE else View.GONE }
         diagnoseTabs.forEachIndexed { i, tab ->
@@ -101,6 +104,7 @@ class MainActivity : Activity() {
     private fun syncExternalActions() {
         val enabled=externalActionsEnabled()
         wifiButton.isEnabled=enabled;gpsButton.isEnabled=enabled
+        if(::liveCellWorkspace.isInitialized) liveCellWorkspace.setCollectionBlocked(!enabled || !cellularChoice.isChecked)
         liveDashboard.setNavigationEnabled(enabled);surveyWorkspace.setExternalActionsEnabled(enabled)
         exportButton.isEnabled=enabled && capture!=null && !pdfExporting;pdfButton.isEnabled=enabled && capture!=null && !pdfExporting
     }
@@ -127,7 +131,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.4 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.5 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -185,6 +189,9 @@ class MainActivity : Activity() {
         subscriptions=Spinner(this);inputs.addView(subscriptions)
         cellConnectionWorkspace=CellConnectionWorkspace(this) { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId }
         cellularSection.addView(cellConnectionWorkspace)
+        liveCellWorkspace=LiveCellWorkspace(this, { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId },
+            { externalActionsEnabled() && cellularChoice.isChecked }, { channelPlan })
+        cellularSection.addView(liveCellWorkspace)
         val wifiSection=section()
         val wifi=card(wifiSection,"Wi-Fi environment")
         text(wifi,"Inspect connected and cached nearby networks. Stop a Desktop session before opening.")
@@ -274,8 +281,8 @@ class MainActivity : Activity() {
         cellularChoice.setOnCheckedChangeListener { _,_->refresh() }
         locationChoice.setOnCheckedChangeListener { _,_->refresh() }
         subscriptions.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent:android.widget.AdapterView<*>?, view:View?, position:Int, id:Long) { cellConnectionWorkspace.selectionChanged();updateCaptureReadiness() }
-            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) { cellConnectionWorkspace.selectionChanged();updateCaptureReadiness() }
+            override fun onItemSelected(parent:android.widget.AdapterView<*>?, view:View?, position:Int, id:Long) { cellConnectionWorkspace.selectionChanged();liveCellWorkspace.selectionChanged();updateCaptureReadiness() }
+            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) { cellConnectionWorkspace.selectionChanged();liveCellWorkspace.selectionChanged();updateCaptureReadiness() }
         }
         capture=try { JSONObject(AtomicFile(filesDir.resolve("last-capture.json")).openRead().bufferedReader().use { it.readText() }) } catch(_:Exception) { null }
         showCapture();refresh()
@@ -335,12 +342,14 @@ class MainActivity : Activity() {
             try {
                 val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
                 val source=if(stillPresent) cells.orEmpty() else emptyList()
-                val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.4-dev",
-                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error, if(source.size>256) "Cell list truncated to 256 entries; additional modem entries omitted." else null),started)
+                val locationValue=if(useLocation) location.atReceipt(elapsed) else null
+                val assessment=CaptureAssessment.assess(useCell,source.size,stillPresent,error,useLocation,locationValue?.optString("status"))
+                val outcome=assessment.outcome
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.5-dev",
+                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,assessment.notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
-                if(useLocation) observation.put("location",location.atReceipt(elapsed))
+                if(locationValue!=null) observation.put("location",locationValue)
                 if(useCell) {
                     val manager=getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected!!.subscriptionId)
                     snapshot.getJSONArray("subscriptions").getJSONObject(0).put("network_operator",manager.networkOperatorName).put("sim_carrier",selected.carrierName?.toString() ?: "")
@@ -351,7 +360,8 @@ class MainActivity : Activity() {
                 if(target!=null) { target.accept(snapshot);if(!stillPresent || !allowed()) target.finish("partial") }
                 else { save(snapshot);result=Result.success(snapshot) }
                 val loc=observation.optJSONObject("location")
-                status.text=if(loc==null) "Capture saved · location off" else "Capture saved · " + LocationEvidence.describeCaptured(loc)
+                val prefix=if(outcome=="partial") "Partial capture saved" else "Capture saved"
+                status.text=if(loc==null) "$prefix · location off" else "$prefix · " + LocationEvidence.describeCaptured(loc)
             } catch(_:Exception) { target?.finish("partial");status.text="Capture unavailable. Previous evidence is retained.";result=Result.failure(IllegalStateException("Capture unavailable. Previous evidence is retained.")) }
             if(target==null) location.stop()
             lockInputs(connection!=null);showCapture()
@@ -458,7 +468,7 @@ class MainActivity : Activity() {
         } catch(_:Exception) { stopUsb();usbStatus.text="USB endpoint unavailable. Stop another companion and retry." }
     }
     private fun stopUsb() { endpoint?.close();endpoint=null;connection?.revoke();connection=null;location.stop();usbStatus.text="Disconnected · reconnect for another survey.";window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    override fun onStop() { networkTestWorkspace.cancel();stopUsb();cancelPending();super.onStop() }
+    override fun onStop() { liveCellWorkspace.stop();networkTestWorkspace.cancel();stopUsb();cancelPending();super.onStop() }
     @Deprecated("Platform result keeps companion dependency-light")
     override fun onActivityResult(request:Int,result:Int,data:Intent?) {
         super.onActivityResult(request,result,data)

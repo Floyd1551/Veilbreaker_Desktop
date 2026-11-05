@@ -31,6 +31,7 @@ class SurveyWorkspace(
     private val store = MobileSurveyStore(context)
     private val handler = Handler(Looper.getMainLooper())
     private val content = LinearLayout(context)
+    private val scroll = ScrollView(context)
     private var listing = MobileSurveyStore.Listing(emptyList(), 0)
     private var current: JSONObject? = null
     private var busy = false
@@ -38,6 +39,7 @@ class SurveyWorkspace(
     private var captureGeneration = 0
     private var externalEnabled = true
     private var pendingExport: ByteArray? = null
+    private var comparison: List<SurveyComparisonModel.Point>? = null
     private var message = "Loading local surveys…"
     private var requestedName = ""
     private var creating = false
@@ -45,7 +47,7 @@ class SurveyWorkspace(
 
     init {
         orientation = VERTICAL
-        val scroll = ScrollView(context).apply { isFillViewport = true }
+        scroll.isFillViewport = true
         content.orientation = VERTICAL
         content.setPadding(0, dp(4), 0, dp(16))
         scroll.addView(content); addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -121,6 +123,27 @@ class SurveyWorkspace(
             return
         }
         val state = survey.getString("lifecycle"); val points = survey.getJSONArray("points")
+        val reviewed = comparison
+        if (reviewed != null) {
+            val heading = card("Point review · ${survey.getString("name")}")
+            text(heading, "${reviewed.size} captured points. Values are reported at capture receipt, not live. Compare the same technology, subscription, carrier, band and cell where exposed; different sources may not be directly comparable.", 12f)
+            button(heading, "Back to survey") { comparison = null; render(); scroll.post { scroll.scrollTo(0, 0) } }
+            for (point in reviewed) {
+                val item = card("Point ${point.number} · ${point.outcome.uppercase()}")
+                text(item, "Captured ${point.createdUtc}\nCapture ${point.captureId}", 12f)
+                text(item, point.location, 12f, true)
+                if (point.servingCells.isEmpty()) text(item, "No registered serving cell reported in the latest observations.", 12f)
+                for (cell in point.servingCells) {
+                    text(item, "${cell.radio} · ${cell.role} · ${cell.subscription}\n${cell.carrier} · ${cell.band}", 13f, true)
+                    text(item, "${cell.age} · received ${cell.received}", 12f)
+                    text(item, cell.identity.joinToString(" · "), 12f)
+                    text(item, cell.metrics.joinToString(" · "), 12f)
+                }
+                if (point.omittedServing > 0) text(item, "${point.omittedServing} additional serving cell(s) not displayed.", 12f)
+                if (point.inventoryIncomplete) text(item, "Additional cell records are outside the review limit; inspect the original capture for full details.", 12f)
+            }
+            return
+        }
         val summary = card(survey.getString("name"))
         text(summary, "${state.uppercase()} · ${points.length()}/20 captures · Created ${survey.getString("created_utc")}")
         if (capturing) {
@@ -144,16 +167,15 @@ class SurveyWorkspace(
             val selected = captureProvider()
             if (selected == null) { message = "Capture on the phone first, then return here to add it."; render() }
             else runJob({
-                val updated = MobileSurvey.addCapture(survey, selected, Instant.now().toString())
-                store.save(updated); updated
+                store.update(survey.getString("survey_id")) { latest -> MobileSurvey.addCapture(latest, selected, Instant.now().toString()) }
             }) { updated -> current = updated; message = "Capture added as a separate survey point." }
         }
         if (state == "open") button(summary, "Complete survey") {
-            runJob({ val updated = MobileSurvey.complete(survey, Instant.now().toString()); store.save(updated); updated }) {
+            runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
                 current = it; message = "Survey completed. Reopen it to add captures."
             }
         } else button(summary, "Reopen survey") {
-            runJob({ val updated = MobileSurvey.reopen(survey); store.save(updated); updated }) { current = it; message = "Survey reopened." }
+            runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.reopen(latest) } }) { current = it; message = "Survey reopened." }
         }
         button(summary, "Export mobile survey JSON…", externalEnabled) { prepareExport(survey) }
         button(summary, "View survey locations", externalEnabled) {
@@ -161,6 +183,12 @@ class SurveyWorkspace(
             try {
                 activity.startActivity(Intent(context, GpsMapActivity::class.java).putExtra("mobile_survey_id", survey.getString("survey_id")))
             } catch (_: Exception) { message = "Unable to open the GPS view."; render() }
+        }
+        button(summary, "Review point measurements", points.length() > 0) {
+            runJob({
+                val plan = try { JSONObject(context.assets.open("channel-bands.json").bufferedReader().use { it.readText() }) } catch (_: Exception) { null }
+                SurveyComparisonModel.build(survey, plan)
+            }) { comparison = it; message = ""; scroll.post { scroll.scrollTo(0, 0) } }
         }
         text(summary, "Export contains original phone captures and may include identifiers and location. Desktop survey import is not yet supported.", 12f)
         button(summary, "Delete survey…") {
@@ -213,9 +241,7 @@ class SurveyWorkspace(
                 val outcome = capture.optJSONObject("collection")?.optString("outcome")
                 runJob({
                     try {
-                        val latest = store.load(surveyId)
-                        val updated = MobileSurvey.addNewCapture(latest, capture, Instant.now().toString())
-                        store.save(updated); updated
+                        store.update(surveyId) { latest -> MobileSurvey.addNewCapture(latest, capture, Instant.now().toString()) }
                     } catch (error: Exception) {
                         throw IllegalArgumentException("Survey unchanged; the phone capture remains saved. ${error.message ?: "Could not add point."}")
                     }

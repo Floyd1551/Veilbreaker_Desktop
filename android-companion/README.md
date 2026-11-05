@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.4 development build
+# Veilbreaker Mobile 0.8.5 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -59,3 +59,10 @@ Reports can browse the latest captured serving and neighboring cells, filtered b
 role or search, with timestamps, modem-reported and derived bands distinguished.
 Wi-Fi inspection filters and sorts previously cached results without starting a
 new scan; the frequency chart is not affected by the list filters.
+
+Diagnose → Cellular includes an explicitly started, foreground-only live monitor.
+Android may return cached samples; each response shows its modem age at receipt.
+The view stops after five minutes, when leaving the screen, on SIM changes, or
+when other collection begins. It never saves evidence. Survey point review shows
+recorded metrics and location provenance individually without averaging them.
+A capture requested with location but without a usable fix is marked partial.

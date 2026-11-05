@@ -1,0 +1,40 @@
+package com.veilbreaker.companion
+
+import org.json.JSONObject
+
+/** Read-only, per-point presentation; no aggregation, inferred identity or signal estimate. */
+object SurveyComparisonModel {
+    data class Point(
+        val number: Int, val captureId: String, val createdUtc: String, val outcome: String,
+        val location: String, val servingCells: List<CellInventoryModel.Cell>,
+        val omittedServing: Int, val inventoryIncomplete: Boolean
+    )
+
+    fun build(survey: JSONObject, plan: JSONObject?): List<Point> {
+        MobileSurvey.validate(survey)
+        val points = survey.getJSONArray("points")
+        return (0 until points.length()).map { index ->
+            val capture = points.getJSONObject(index).getJSONObject("capture")
+            val inventory = CellInventoryModel.build(capture, plan)
+            val serving = inventory.cells.filter { it.group == CellInventoryModel.Group.SERVING }
+            Point(index + 1, capture.getString("capture_id"),
+                capture.optString("created_utc").ifBlank { "Capture time not exposed" },
+                capture.getJSONObject("collection").optString("outcome", "unknown"),
+                location(capture), serving.take(4), (serving.size - 4).coerceAtLeast(0), inventory.omitted > 0)
+        }
+    }
+
+    private fun location(capture: JSONObject): String {
+        val observations = capture.optJSONArray("observations") ?: return "No valid reported location"
+        for (i in (minOf(observations.length(), 4096) - 1) downTo 0) {
+            val observation = observations.optJSONObject(i) ?: continue
+            val location = observation.optJSONObject("location") ?: continue
+            val fix = GpsSpatialModel.fix(location) ?: continue
+            val source = location.optString("source").takeIf { it in setOf("phone", "external_receiver", "imported") } ?: "source not exposed"
+            val provider = fix.provider?.take(120) ?: "provider not exposed"
+            val age = fix.ageAtReceiptMs?.let { "$it ms old at receipt" } ?: "age not exposed"
+            return "Last valid reported location · $source · $provider · ±${fix.accuracy} m · $age" + if (fix.mock) " · mock location" else ""
+        }
+        return "No valid reported location"
+    }
+}

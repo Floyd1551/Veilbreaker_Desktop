@@ -19,7 +19,7 @@ class MobileSurveyStore(context: Context) {
         return File(directory, "$id.json")
     }
 
-    @Synchronized fun load(id: String): JSONObject {
+    fun load(id: String): JSONObject = MobileSurveyTransactions.locked {
         val target = file(id)
         if (!target.exists() && !File(target.path + ".bak").exists()) throw IllegalArgumentException("Survey is unavailable.")
         val bytes = AtomicFile(target).openRead().use { input ->
@@ -33,10 +33,10 @@ class MobileSurveyStore(context: Context) {
         }
         val survey = try { JSONObject(String(bytes, Charsets.UTF_8)) } catch (_: Exception) { throw IllegalArgumentException("Survey data is invalid.") }
         require(survey.optString("survey_id") == id) { "Survey identity mismatch." }
-        return MobileSurvey.validate(survey)
+        MobileSurvey.validate(survey)
     }
 
-    @Synchronized fun save(survey: JSONObject) {
+    fun save(survey: JSONObject) = MobileSurveyTransactions.locked {
         MobileSurvey.validate(survey)
         val id = survey.getString("survey_id"); val target = file(id)
         require(directory.isDirectory || directory.mkdirs()) { "Cannot create mobile survey storage." }
@@ -48,12 +48,23 @@ class MobileSurveyStore(context: Context) {
         try { output.write(data); atomic.finishWrite(output) } catch (e: Exception) { atomic.failWrite(output); throw e }
     }
 
-    @Synchronized fun delete(id: String) {
+    /** Reload and mutate the current on-disk record without racing another store instance. */
+    fun update(id: String, transform: (JSONObject) -> JSONObject): JSONObject = MobileSurveyTransactions.update(
+        read = { load(id) },
+        transform = { current ->
+            val updated = transform(current)
+            require(updated.optString("survey_id") == id) { "Survey identity mismatch." }
+            updated
+        },
+        write = { updated -> save(updated) }
+    )
+
+    fun delete(id: String) = MobileSurveyTransactions.locked {
         MobileSurveyFiles.delete(directory, id)
     }
 
-    @Synchronized fun list(): Listing {
-        if (!directory.exists()) return Listing(emptyList(), 0)
+    fun list(): Listing = MobileSurveyTransactions.locked {
+        if (!directory.exists()) return@locked Listing(emptyList(), 0)
         val files = directory.listFiles()?.filter {
             val base = it.name.removeSuffix(".bak")
             base.endsWith(".json") && idPattern.matches(base.removeSuffix(".json"))
@@ -69,6 +80,6 @@ class MobileSurveyStore(context: Context) {
                     row.getString("created_utc"), row.getJSONArray("points").length()))
             } catch (_: Exception) { unavailable++ }
         }
-        return Listing(summaries.sortedByDescending { it.created }, unavailable)
+        Listing(summaries.sortedByDescending { it.created }, unavailable)
     }
 }
