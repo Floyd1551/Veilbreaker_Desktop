@@ -67,30 +67,40 @@ class SurveyWorkspace(
     }
 
     private fun text(parent: LinearLayout, value: String, size: Float = 14f, bright: Boolean = false): TextView = TextView(context).apply {
-        text = value; textSize = size; setTextColor(Color.parseColor(if (bright) "#e8f5fa" else "#aabfce"))
+        text = value; textSize = size; setTextColor(Color.parseColor(if (bright) "#e8f3fa" else "#b1c5d3"))
         if (bright) setTypeface(null, Typeface.BOLD)
-        setPadding(0, dp(4), 0, dp(5)); parent.addView(this)
+        setLineSpacing(dp(2).toFloat(), 1f)
+        setPadding(0, dp(3), 0, dp(4)); parent.addView(this)
     }
 
     private fun card(title: String): LinearLayout = LinearLayout(context).apply {
-        orientation = VERTICAL; setPadding(dp(14), dp(11), dp(14), dp(13))
-        background = GradientDrawable().apply { setColor(Color.parseColor("#112335")); cornerRadius = dp(12).toFloat(); setStroke(dp(1), Color.parseColor("#294052")) }
+        orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(14))
+        background = GradientDrawable().apply { setColor(Color.parseColor("#0d1e2c")); cornerRadius = dp(10).toFloat(); setStroke(dp(1), Color.parseColor("#263e50")) }
         content.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
         text(this, title, 16f, true)
     }
 
-    private fun button(parent: LinearLayout, title: String, enabled: Boolean = true, action: () -> Unit): Button = Button(context).apply {
+    private fun button(parent: LinearLayout, title: String, enabled: Boolean = true, primary: Boolean = false, action: () -> Unit): Button = Button(context).apply {
         text = title; isAllCaps = false; minHeight = dp(48); isEnabled = enabled && !busy && !capturing
+        textSize = 14f
+        setTypeface(null, Typeface.BOLD)
+        background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(Color.WHITE) }
         val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
-        backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1a2c3a"), Color.parseColor("#213e56")))
-        setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#8597a2"), Color.parseColor("#e5f5fa"))))
-        setOnClickListener { action() }; parent.addView(this)
+        backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1a2c3a"), Color.parseColor(if (primary) "#58d5eb" else "#1c374b")))
+        setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#93a8b6"), Color.parseColor(if (primary) "#08202b" else "#e5f5fa"))))
+        setOnClickListener { action() }
+        parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(5) })
     }
 
     private fun render() {
         content.removeAllViews()
-        text(content, "PHONE SURVEYS", 12f, true).setTextColor(Color.parseColor("#63d6ee"))
-        if (message.isNotBlank()) text(content, message, 12f)
+        text(content, "PHONE SURVEYS", 12f, true).apply {
+            setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.08f
+        }
+        if (message.isNotBlank()) text(content, message, 12f).apply {
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = GradientDrawable().apply { setColor(Color.parseColor("#102a3a")); cornerRadius = dp(7).toFloat(); setStroke(dp(1), Color.parseColor("#284657")) }
+        }
         val survey = current
         if (survey == null) {
             if (creating) {
@@ -108,7 +118,7 @@ class SurveyWorkspace(
                     })
                 }
                 create.addView(name)
-                button(create, "Create survey") {
+                button(create, "Create survey", primary = true) {
                     val nameToCreate = name.text.toString()
                     requestedName = nameToCreate
                     runJob({
@@ -124,7 +134,7 @@ class SurveyWorkspace(
                     runJob({ store.load(row.id) }) { loaded -> current = loaded; showMoreActions = false; showAllPoints = false; message = "Opened phone-only survey." }
                 }
                 if (listing.unavailable > 0) text(list, "${listing.unavailable} survey file(s) could not be read; they were preserved.")
-                button(list, "New survey") { creating = true; message = ""; render() }
+                button(list, "New survey", primary = true) { creating = true; message = ""; render() }
             }
             return
         }
@@ -169,7 +179,7 @@ class SurveyWorkspace(
                 }
             })
         } else if (!externalEnabled) text(summary, "Stop the active Desktop session or capture before adding or exporting.")
-        button(summary, "Capture and add point", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
+        button(summary, "Capture and add point", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS, primary = true) {
             startCaptureAndAdd(survey.getString("survey_id"))
         }
         button(summary, "Add last phone capture", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
@@ -224,18 +234,24 @@ class SurveyWorkspace(
         if (points.length() > 4) button(pointCard, if (showAllPoints) "Show first 4 points" else "Show all ${points.length()} points") { showAllPoints = !showAllPoints; render() }
         for (i in 0 until (if (showAllPoints) points.length() else minOf(points.length(), 4))) {
             val point = points.getJSONObject(i); val capture = point.getJSONObject("capture")
+            val pointPanel = LinearLayout(context).apply {
+                orientation = VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(10))
+                background = GradientDrawable().apply { setColor(Color.parseColor("#102635")); cornerRadius = dp(8).toFloat(); setStroke(dp(1), Color.parseColor("#264253")) }
+                pointCard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(9) })
+            }
             val fixes = GpsSpatialModel.savedFixes(capture); val lastFix = fixes.lastOrNull()
             val location = if (lastFix == null) "No usable GPS fix" else {
                 val age = lastFix.ageAtReceiptMs?.let { "${it / 1000}s old at receipt" } ?: "age unavailable"
                 "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±${lastFix.accuracy} m · $age" + if (lastFix.mock) " · mock" else ""
             }
-            text(pointCard, "${i + 1}. ${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)
-            text(pointCard, MobileSurvey.signalSummary(capture), 12f)
-            text(pointCard, "Capture ${capture.getString("capture_id")} · ${capture.getJSONObject("collection").optString("outcome")} · added ${point.getString("attached_utc")}", 12f)
+            text(pointPanel, "POINT ${i + 1}", 12f, true).apply { setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.06f }
+            text(pointPanel, "${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)
+            text(pointPanel, MobileSurvey.signalSummary(capture), 12f)
+            text(pointPanel, "Capture ${capture.getString("capture_id")} · ${capture.getJSONObject("collection").optString("outcome")} · added ${point.getString("attached_utc")}", 12f)
             val operatorNote = (point.opt("operator_note") as? String)?.takeIf { it.length <= 500 && it.none { ch -> ch.isISOControl() && ch != '\n' } }
-            if (!operatorNote.isNullOrBlank()) text(pointCard, "Operator observation · not a measured value\n$operatorNote", 12f)
-            else if (point.has("operator_note") && !point.isNull("operator_note") && operatorNote == null) text(pointCard, "Operator observation unavailable or invalid; the saved survey is unchanged.", 12f)
-            if (state == "open") button(pointCard, if (operatorNote.isNullOrBlank()) "Add note to point ${i+1}…" else "Edit note for point ${i+1}…") {
+            if (!operatorNote.isNullOrBlank()) text(pointPanel, "Operator observation · not a measured value\n$operatorNote", 12f)
+            else if (point.has("operator_note") && !point.isNull("operator_note") && operatorNote == null) text(pointPanel, "Operator observation unavailable or invalid; the saved survey is unchanged.", 12f)
+            if (state == "open") button(pointPanel, if (operatorNote.isNullOrBlank()) "Add note to point ${i+1}…" else "Edit note for point ${i+1}…") {
                 editPointNote(survey.getString("survey_id"), capture.getString("capture_id"), operatorNote.orEmpty())
             }
         }

@@ -13,6 +13,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Bundle
@@ -84,11 +85,16 @@ class GpsMapActivity : Activity() {
     }
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
+    private fun surface(fill: String, border: String): GradientDrawable = GradientDrawable().apply {
+        setColor(Color.parseColor(fill))
+        setStroke(dp(1), Color.parseColor(border))
+        cornerRadius = dp(12).toFloat()
+    }
     private fun styleButton(button: Button, primary: Boolean = false) {
         val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
         button.backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1b2935"), Color.parseColor(if (primary) "#2089ee" else "#233b50")))
         button.setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#8ca0ae"), Color.WHITE)))
-        button.isAllCaps = false; button.minHeight = dp(48)
+        button.isAllCaps = false; button.minHeight = dp(48); button.textSize = 13f
     }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -97,25 +103,44 @@ class GpsMapActivity : Activity() {
         window.navigationBarColor = Color.parseColor("#0d1520")
         val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport = true }
         mapScroll = scroll
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(22), dp(20), dp(24)) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(20), dp(16), dp(24)) }
         scroll.addView(root); setContentView(scroll)
         SystemBarInsets.apply(scroll)
-        fun text(value: String, size: Float = 14f) = TextView(this).apply {
-            this.text = value; textSize = size; setTextColor(Color.parseColor("#d4e2ed")); setPadding(0, dp(5), 0, dp(5)); root.addView(this)
+        fun text(value: String, size: Float = 14f, parent: LinearLayout = root) = TextView(this).apply {
+            this.text = value; textSize = size; setTextColor(Color.parseColor("#d4e2ed")); setPadding(0, dp(5), 0, dp(5)); parent.addView(this)
         }
-        fun button(value: String, primary: Boolean = false, click: () -> Unit) = Button(this).apply {
-            this.text = value; styleButton(this, primary); setOnClickListener { click() }; root.addView(this)
+        fun button(value: String, primary: Boolean = false, parent: LinearLayout = root, click: () -> Unit) = Button(this).apply {
+            this.text = value; styleButton(this, primary); setOnClickListener { click() }; parent.addView(this)
         }
-        text("GPS & MAP", 22f).apply { setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#63dec8")) }
+        text("FIELD POSITION", 11f).apply { setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#63dec8")); letterSpacing = 0.12f }
+        text("GPS & map", 23f).apply { setTypeface(null, Typeface.BOLD); setTextColor(Color.WHITE) }
         val surveyId = intent.getStringExtra("mobile_survey_id")
         text((if (surveyId == null) "Saved points come from the last phone capture. " else "Saved points come from the selected phone survey; each marker is its capture's last valid reported fix. ") +
             "Live GPS stops when you leave this screen. Displayed live fixes are not saved.", 13f)
         liveButton = button("Start live GPS") { if (started) stopLive() else beginLive() }
-        status = text("Live GPS off. Saved points may be old; check their capture timestamps.")
-        text("Cyan: live · Purple: saved. Circles indicate approximate location uncertainty, not coverage.", 12f)
-        text("ONLINE STREET MAP", 15f).setTextColor(Color.parseColor("#63dec8"))
-        text("Optional: the map provider receives your IP address and approximate viewed area. Internet required; this is not an offline map pack. Tile requests stop when you leave.", 12f)
-        enableMapButton = button("Enable online street map", true) {
+        status = text("Live GPS off. Saved points may be old; check their capture timestamps.", 13f).apply {
+            background = surface("#102331", "#294455")
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        text("POSITION KEY", 11f).apply {
+            setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#86d7d3")); setPadding(0, dp(12), 0, dp(2))
+        }
+        text("Cyan: live · Purple: saved. Circles indicate approximate location uncertainty, not coverage.", 12f).apply {
+            setTextColor(Color.parseColor("#a8bdcb")); setPadding(0, 0, 0, dp(10))
+        }
+        val onlinePanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = surface("#111f2d", "#2a4050")
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            root.addView(this, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(12) })
+        }
+        text("ONLINE STREET MAP", 12f, onlinePanel).apply {
+            setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#63dec8")); letterSpacing = 0.06f
+        }
+        text("Optional: the map provider receives your IP address and approximate viewed area. Internet required; this is not an offline map pack. Tile requests stop when you leave.", 12f, onlinePanel).apply {
+            setTextColor(Color.parseColor("#bdced9"))
+        }
+        enableMapButton = button("Enable online street map", true, onlinePanel) {
             cancelMapLoad()
             basemapEnabled = true
             plot.visibility = View.GONE
@@ -138,7 +163,9 @@ class GpsMapActivity : Activity() {
         plot.setFixes(saved, null)
         basemap = BasemapView(this).apply { visibility = View.GONE }
         root.addView(basemap, LinearLayout.LayoutParams(-1, dp(350)))
-        mapInfo = text("Coordinate plot only; no geographic basemap.")
+        mapInfo = text("Coordinate plot only; no geographic basemap.", 12f).apply {
+            setTextColor(Color.parseColor("#a8bdcb")); setPadding(0, dp(8), 0, dp(8))
+        }
         onlineControls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; root.addView(this) }
         val mapControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; onlineControls.addView(this) }
         fun mapButton(label: String, accessibility: String, action: () -> Unit) = Button(this).apply {
@@ -150,7 +177,14 @@ class GpsMapActivity : Activity() {
         mapButton("+", "Zoom in") { basemap.zoomIn() }
         onlineControls.addView(Button(this).apply { text = "Retry street map tiles"; styleButton(this); setOnClickListener { if (basemapEnabled) { basemap.setActive(false); basemap.setActive(true) } } })
         onlineControls.addView(Button(this).apply { text = "Disable street map"; styleButton(this); setOnClickListener { showCoordinatePlot() } })
-        savedInfo = text("Loading saved locations…")
+        text("SAVED LOCATIONS", 11f).apply {
+            setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#63dec8")); letterSpacing = 0.06f
+            setPadding(0, dp(14), 0, dp(6))
+        }
+        savedInfo = text("Loading saved locations…", 13f).apply {
+            background = surface("#111f2d", "#2a4050")
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
         loadSavedFixes(surveyId)
         val imageOptions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         lateinit var imageToggle: Button

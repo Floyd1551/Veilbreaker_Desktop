@@ -81,9 +81,9 @@ class MainActivity : Activity() {
         pages.forEachIndexed { index, view -> view.visibility=if(index==page.ordinal) View.VISIBLE else View.GONE }
         navItems.forEachIndexed { index, item ->
             val selected=index==page.ordinal
-            item.background=background(if(selected) "#123a60" else "#0a1724")
-            navLabels[index].setTextColor(Color.parseColor(if(selected) "#63d7ff" else "#a6bdcc"))
-            navIcons[index].setColorFilter(Color.parseColor(if(selected) "#63d7ff" else "#a6bdcc"))
+            item.background=background(if(selected) "#153c4a" else "#0a1b29")
+            navLabels[index].setTextColor(Color.parseColor(if(selected) "#62e2ed" else "#a6bdcc"))
+            navIcons[index].setColorFilter(Color.parseColor(if(selected) "#62e2ed" else "#a6bdcc"))
             item.isSelected=selected
         }
         if(page==WorkspacePage.SURVEY) surveyWorkspace.refresh()
@@ -133,11 +133,11 @@ class MainActivity : Activity() {
         val shell=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setBackgroundColor(Color.parseColor("#07131f")) }
         setContentView(shell)
         SystemBarInsets.apply(shell)
-        val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(10),dp(2),dp(10),dp(2));setBackgroundColor(Color.parseColor("#0c1d2c")) }
+        val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(10),dp(4),dp(10),dp(4));setBackgroundColor(Color.parseColor("#0c1d2c")) }
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.7 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.8 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -149,19 +149,20 @@ class MainActivity : Activity() {
             val screen: View = if(scrollable) ScrollView(this).apply { isFillViewport=true;addView(body) } else body
             content.addView(screen);pages.add(screen)
             text(body,title,19f).apply { setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) }
-            text(body,description,12f)
+            text(body,description,13f)
             return body
         }
         fun card(parent:LinearLayout,title:String):LinearLayout {
-            val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(10),dp(12),dp(12));background=background("#142536") }
+            val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(10),dp(12),dp(12));background=GradientDrawable().apply { setColor(Color.parseColor("#102638"));setStroke(dp(1),Color.parseColor("#29495a"));cornerRadius=dp(10).toFloat() } }
             parent.addView(box,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(10) })
             text(box,title,16f).apply { setTextColor(Color.parseColor("#63d6ee"));setTypeface(null,Typeface.BOLD) }
             return box
         }
         fun button(parent:LinearLayout,title:String,primary:Boolean=false,action:()->Unit)=Button(this).apply {
             text=title;isAllCaps=false;minHeight=dp(48);textSize=13f
-            backgroundTintList=buttonColors(if(primary) "#2089ee" else "#233b50", "#1b2935")
-            setTextColor(buttonColors("#ffffff", "#8ca0ae"));setOnClickListener { action() };parent.addView(this)
+            background=GradientDrawable().apply { setColor(Color.WHITE);cornerRadius=dp(9).toFloat() }
+            backgroundTintList=buttonColors(if(primary) "#43d7e3" else "#233e51", "#1b2935")
+            setTextColor(buttonColors(if(primary) "#06232a" else "#ffffff", "#8ca0ae"));elevation=0f;setOnClickListener { action() };parent.addView(this)
         }
         val live=page("Live", "Captured measurements and field equipment at a glance.")
         captureButton=button(live,"Capture on phone",true) { takeSnapshot(null) }
@@ -274,9 +275,9 @@ class MainActivity : Activity() {
             calculatorTab.isSelected=!references;referenceTab.isSelected=references
         }
         calculatorTab.setOnClickListener { showTools(false) };referenceTab.setOnClickListener { showTools(true) };showTools(false)
-        val bar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(dp(4),dp(3),dp(4),dp(3));setBackgroundColor(Color.parseColor("#0a1724")) }
+        val bar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(dp(4),dp(4),dp(4),dp(4));setBackgroundColor(Color.parseColor("#0a1b29")) }
         val labels=listOf("Live","Diagnose","Survey","Reports","Tools")
-        val icons=listOf(android.R.drawable.ic_menu_view,android.R.drawable.ic_menu_manage,android.R.drawable.ic_menu_mylocation,android.R.drawable.ic_menu_save,android.R.drawable.ic_menu_compass)
+        val icons=listOf(R.drawable.ic_nav_live,R.drawable.ic_nav_diagnose,R.drawable.ic_nav_survey,R.drawable.ic_nav_reports,R.drawable.ic_nav_tools)
         WorkspacePage.entries.forEachIndexed { index, page ->
             val item=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;isClickable=true;isFocusable=true;contentDescription=labels[index];minimumHeight=dp(54);setOnClickListener { showPage(page) } }
             val icon=ImageView(this).apply { setImageResource(icons[index]);contentDescription=null }
@@ -360,7 +361,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.7-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.8-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }
