@@ -209,13 +209,17 @@ class WifiSnapshotActivity : Activity() {
         val scans = try { wifi.scanResults } catch (_: SecurityException) { null } catch (_: IllegalStateException) { null }
         if (scans == null) {
             label(nearby, "Android did not expose cached scans. Check Wi-Fi permissions and location services.")
-        } else if (scans.isEmpty()) {
-            label(nearby, "No cached scan entries were exposed. This does not prove that no networks are present.")
         } else {
             val now = SystemClock.elapsedRealtime()
-            label(nearby, "${scans.size} cached entries · showing up to 80 · strongest first", 12f)
+            val strongest = scans.sortedByDescending { it.level }
+            if (scans.isEmpty()) label(nearby, "No cached scan entries were exposed. This does not prove that no networks are present.")
+            label(nearby, "${scans.size} cached entries · chart uses up to 500 · list shows up to 80 · strongest first", 12f)
             label(nearby, "Each bar is one reported network, not a history graph. Ages use Android monotonic timestamps.", 12f, "#9eb4c4")
-            for (scan in scans.sortedByDescending { it.level }.take(80)) {
+            val chart = strongest.take(500).map { scan ->
+                WifiChannelPlotModel.Sample(scan.frequency, scan.level, WifiSnapshotFormat.ageSeconds(now, scan.timestamp))
+            }
+            results.addView(WifiChannelChartWorkspace(this, chart), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+            for (scan in strongest.take(80)) {
                 val name = WifiSnapshotFormat.ssid(scan.SSID) ?: "SSID not exposed / hidden"
                 val bssid = WifiSnapshotFormat.bssid(scan.BSSID) ?: "BSSID not exposed / redacted"
                 val frequency = scan.frequency.takeIf { it > 0 }

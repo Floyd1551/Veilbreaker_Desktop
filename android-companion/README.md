@@ -1,6 +1,6 @@
-# Veilbreaker Mobile 0.8.2 development build
+# Veilbreaker Mobile 0.8.3 development build
 
-Android 10/API 29 or newer. Public LTE/NR snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed.
+Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
 The unified app retains the companion's application ID and USB capture
 contract, and includes a standalone read-only Wi-Fi view based on capabilities in
@@ -25,7 +25,9 @@ supported. Reports can export the most recent phone capture as PDF or JSON.
 The cellular view shows gauges for captured serving-cell measurements and a
 trend only when there are multiple distinct modem-receipt timestamps for the same
 identified cell; timestamps do not guarantee fresh physical measurements. Wi-Fi cards show current connection information and nearby cached results,
-including sample age when available. The GPS view can show an explicitly started
+including sample age when available. A per-band chart groups up to 500 cached
+observations by their reported primary frequency; it does not trigger a scan or
+infer channel width or utilization. The GPS view can show an explicitly started
 foreground fix and locations from the last saved capture. It can overlay points on
 a user-supplied, north-up Plate Carrée image with operator-entered WGS84 bounds;
 an explicitly enabled OpenStreetMap street basemap is also available when online.
@@ -44,3 +46,9 @@ Build using JDK 17, Android SDK 35 and Gradle 8.9: `gradle testDebugUnitTest ass
 Physical Samsung qualification for this build, detailed legacy-radio fields and production signing remain future work. A passing build does not establish device compatibility. A different Android signing key can prevent an in-place upgrade; export saved captures before uninstalling an older app.
 
 Readable previews now include connected/registered cells, neighbors and all observed band labels, with channel-derived candidates kept separate. See [cellular visibility release notes](../docs/release-0.39.0rc1.md).
+
+Diagnose provides a selected-SIM public connection snapshot and a read-only network
+interface inventory. A USB peripheral view lists Android-reported descriptors and
+identifies a possible HackRF by USB ID; detection does not mean SDR capture is
+supported. No USB peripheral is opened or controlled. Ethernet is visible only
+when Android supports the adapter and exposes a network.

@@ -29,6 +29,7 @@ class MainActivity : Activity() {
     private lateinit var rawButton: Button
     private lateinit var usbStatus: TextView
     private lateinit var subscriptions: Spinner
+    private lateinit var cellConnectionWorkspace: CellConnectionWorkspace
     private lateinit var cellularChoice: CheckBox
     private lateinit var locationChoice: CheckBox
     private lateinit var captureButton: Button
@@ -123,7 +124,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.2 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.3 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -158,7 +159,7 @@ class MainActivity : Activity() {
 
         val diagnose=page("Diagnose", "Choose an area to configure or test.",false)
         val segments=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(3),0,dp(3)) }
-        val segmentNames=listOf("Cellular","Wi-Fi","Network","Desktop")
+        val segmentNames=listOf("Cellular","Wi-Fi","Network","Desktop","USB")
         segmentNames.forEachIndexed { index, name ->
             val tab=TextView(this).apply {
                 text=name;textSize=11f;gravity=Gravity.CENTER;isClickable=true;isFocusable=true
@@ -179,17 +180,22 @@ class MainActivity : Activity() {
         text(inputs,"Location is optional. Coordinates are recorded only when enabled. No SIM is needed for location-only capture.")
         button(inputs,"Permissions and refresh SIMs") { if(allowed()) refresh() else requestPermissions(permissions,1) }
         subscriptions=Spinner(this);inputs.addView(subscriptions)
+        cellConnectionWorkspace=CellConnectionWorkspace(this) { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId }
+        cellularSection.addView(cellConnectionWorkspace)
         val wifiSection=section()
         val wifi=card(wifiSection,"Wi-Fi environment")
         text(wifi,"Inspect connected and cached nearby networks. Stop a Desktop session before opening.")
         wifiButton=button(wifi,"Inspect Wi-Fi") { openWifi() }
         val networkSection=section()
         networkTestWorkspace=NetworkTestWorkspace(this);networkSection.addView(networkTestWorkspace)
+        networkSection.addView(NetworkInventoryWorkspace(this))
         val desktopSection=section()
         val connect=card(desktopSection,"Desktop connection")
         button(connect,"Connect to Veilbreaker",true) { armUsb() }
         usbStatus=text(connect,"Disconnected · USB cable and debugging approval required. No code needs to be typed.")
         button(connect,"Stop and disconnect") { stopUsb();cancelPending() }
+        val hardwareSection=section()
+        hardwareSection.addView(UsbHardwareWorkspace(this))
 
         val survey=page("Survey", "Organize field captures and inspect GPS positions.",false)
         val map=card(survey,"GPS & map")
@@ -256,8 +262,8 @@ class MainActivity : Activity() {
         cellularChoice.setOnCheckedChangeListener { _,_->refresh() }
         locationChoice.setOnCheckedChangeListener { _,_->refresh() }
         subscriptions.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent:android.widget.AdapterView<*>?, view:View?, position:Int, id:Long) { updateCaptureReadiness() }
-            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) { updateCaptureReadiness() }
+            override fun onItemSelected(parent:android.widget.AdapterView<*>?, view:View?, position:Int, id:Long) { cellConnectionWorkspace.selectionChanged();updateCaptureReadiness() }
+            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) { cellConnectionWorkspace.selectionChanged();updateCaptureReadiness() }
         }
         capture=try { JSONObject(filesDir.resolve("last-capture.json").readText()) } catch(_:Exception) { null }
         showCapture();refresh()
@@ -265,7 +271,7 @@ class MainActivity : Activity() {
             subscriptions.setSelection(SimSelection.spinnerPosition(choices.map { it.subscriptionId },state.getInt("selected_subscription_id")))
             updateCaptureReadiness()
         }
-        showDiagnoseSection((state?.getInt("diagnose_section",0) ?: 0).coerceIn(0,3));showPage(WorkspaceNavigation.restore(state?.getInt("workspace_page",0) ?: 0))
+        showDiagnoseSection((state?.getInt("diagnose_section",0) ?: 0).coerceIn(0,4));showPage(WorkspaceNavigation.restore(state?.getInt("workspace_page",0) ?: 0))
     }
     private fun allowed() = (!cellularChoice.isChecked || (checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)) &&
         (!locationChoice.isChecked || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
@@ -314,7 +320,7 @@ class MainActivity : Activity() {
                 val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
                 val source=if(stillPresent) cells.orEmpty() else emptyList()
                 val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.2-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.3-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error, if(source.size>256) "Cell list truncated to 256 entries; additional modem entries omitted." else null),started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))

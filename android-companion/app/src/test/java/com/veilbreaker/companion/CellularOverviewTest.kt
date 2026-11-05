@@ -76,4 +76,16 @@ class CellularOverviewTest {
         assertTrue(text.contains("NR SS-SINR: 15 unknown"))
         assertFalse(text.contains("NR SS-SINR: 15 unknown (Good)"))
     }
+    @Test fun showsLegacyRadioIdentifiersAndSignalsWithoutCallingThemLte() {
+        val data = capture()
+        val cell = data.getJSONArray("observations").getJSONObject(0).getJSONArray("cells").getJSONObject(0)
+        cell.put("radio", "WCDMA").put("unsupported_radio", true)
+            .put("identity", JSONObject("""{"mcc":"310","mnc":"260","cell_id":"123","lac":42,"psc":17,"uarfcn":10564}"""))
+            .put("signal", JSONObject("""{"rscp":{"value":-96,"unit":"dBm"},"ecno":{"value":-12,"unit":"dB"}}"""))
+        val text = CellularOverview.render(data, plan())
+        assertTrue(text.contains("WCDMA")); assertTrue(text.contains("UARFCN 10564"))
+        assertTrue(text.contains("LAC 42")); assertTrue(text.contains("PSC 17"))
+        assertTrue(text.contains("RSCP: -96 dBm")); assertTrue(text.contains("ECNO: -12 dB"))
+        assertTrue(text.contains("reference only"))
+    }
 }

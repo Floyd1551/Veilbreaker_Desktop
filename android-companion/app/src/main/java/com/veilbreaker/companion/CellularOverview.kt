@@ -15,6 +15,11 @@ object CellularOverview {
         "csi_rsrp" -> "NR CSI-RSRP"
         "csi_rsrq" -> "NR CSI-RSRQ"
         "csi_sinr" -> "NR CSI-SINR"
+        "ecno" -> "ECNO"
+        "lte_cqi_table_index" -> "LTE CQI table"
+        "nr_csi_cqi_table_index" -> "NR CSI CQI table"
+        "cdma_ecio_tenths_db" -> "CDMA Ec/Io (tenths of dB)"
+        "evdo_ecio_tenths_db" -> "EVDO Ec/Io (tenths of dB)"
         "timing_advance" -> "Timing advance"
         else -> name.uppercase().replace('_','-')
     }
@@ -103,11 +108,22 @@ object CellularOverview {
             }
             val age = if (cell.isNull("age_ms") || !cell.has("age_ms")) "sample age unknown at receipt" else
                 "${cell.getLong("age_ms")} ms old at receipt" + if (cell.getLong("age_ms") > 10000) " (old sample)" else ""
-            val channel = value(identity, if (radio == "LTE") "earfcn" else "nrarfcn")
-            return "${obs.getString("subscription_key")} / ${role(cell)} / $radio ${bandLabel(radio,identity,plan)}\n" +
+            val channelKey = when (radio) { "LTE" -> "earfcn"; "NR" -> "nrarfcn"; "GSM" -> "arfcn"; "WCDMA", "TDSCDMA" -> "uarfcn"; else -> null }
+            val identifiers = when (radio) {
+                "LTE", "NR" -> "PCI ${value(identity,"pci")} | channel ${value(identity,channelKey!!)}"
+                "GSM" -> "LAC ${value(identity,"lac")} | BSIC ${value(identity,"bsic")} | ARFCN ${value(identity,"arfcn")}"
+                "WCDMA" -> "LAC ${value(identity,"lac")} | PSC ${value(identity,"psc")} | UARFCN ${value(identity,"uarfcn")}"
+                "TDSCDMA" -> "LAC ${value(identity,"lac")} | CPID ${value(identity,"cpid")} | UARFCN ${value(identity,"uarfcn")}"
+                "CDMA" -> "System ${value(identity,"system_id")} | Network ${value(identity,"network_id")} | Base station ${value(identity,"base_station_id")}"
+                else -> "Identity details not exposed"
+            }
+            val legacyNote = if (radio !in listOf("LTE","NR")) " · reference only; desktop analysis supports LTE/NR" else ""
+            val cqi = cell.optJSONObject("radio_details")?.optJSONArray("nr_csi_cqi_report")
+            val cqiText = if (cqi == null) "" else "\nNR CSI CQI report (wideband or ordered subbands): $cqi" + if (cell.optJSONObject("radio_details")?.optBoolean("nr_csi_cqi_truncated") == true) " (truncated)" else ""
+            return "${obs.getString("subscription_key")} / ${role(cell)} / $radio ${bandLabel(radio,identity,plan)}$legacyNote\n" +
                 "Carrier $carrier | MCC/MNC ${value(identity,"mcc")}/${value(identity,"mnc")}\n" +
-                "Cell ${value(identity,"cell_id")} | PCI ${value(identity,"pci")} | channel $channel\n" +
-                measurements(cell,radio) + "\n${obs.getString("received_utc")} | $age"
+                "Cell ${value(identity,"cell_id")} | $identifiers\n" +
+                measurements(cell,radio) + cqiText + "\n${obs.getString("received_utc")} | $age"
         }
         for ((sub, obs) in latest) {
             lines.add("$sub latest observation: ${obs.getString("received_utc")}")

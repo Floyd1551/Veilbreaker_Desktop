@@ -11,6 +11,24 @@ def fixture():
 
 
 class CaptureTests(unittest.TestCase):
+    def test_legacy_and_advanced_phone_fields_remain_compatible_reference_evidence(self):
+        value = fixture()
+        lte = value['observations'][0]['cells'][0]
+        lte['signal']['lte_cqi_table_index'] = {'value': 2, 'unit': 'index'}
+        nr = copy.deepcopy(lte)
+        nr.update(radio='NR', signal={'ss_rsrp': {'value': -98, 'unit': 'dBm'}},
+                  radio_details={'nr_csi_cqi_report': [1, None, 7]})
+        value['observations'][0]['cells'].append(nr)
+        legacy = copy.deepcopy(lte)
+        legacy.update(radio='WCDMA', registered=True, unsupported_radio=True,
+                      identity={'mcc': '310', 'mnc': '260', 'cell_id': '100', 'uarfcn': 10562},
+                      signal={'rscp': {'value': -96, 'unit': 'dBm'}, 'ecno': {'value': -10, 'unit': 'dB'}})
+        value['observations'][0]['cells'].append(legacy)
+        validate_capture(value)
+        self.assertEqual(normalize_selection(value, 'snapshot-1', 0)['metrics']['rsrp'], -95)
+        with self.assertRaises(ValueError):
+            normalize_selection(value, 'snapshot-1', len(value['observations'][0]['cells']) - 1)
+
     def test_source_and_serving_mapping(self):
         capture = load_capture(Path('examples/android-cellular-v1.json'))
         result = normalize_selection(capture['envelope'], 'snapshot-1', 0)
