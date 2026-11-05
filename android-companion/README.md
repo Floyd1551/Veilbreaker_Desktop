@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.1 development build
+# Veilbreaker Mobile 0.8.2 development build
 
 Android 10/API 29 or newer. Public LTE/NR snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed.
 
@@ -10,8 +10,11 @@ start a scan, export Wi-Fi data, or send Wi-Fi observations to Desktop. Stop a
 USB session before opening it. See [the consolidation plan](../docs/android-mobile-unification.md)
 for remaining migration and reporting work.
 
-Live, Diagnose, Survey and Reports pages remain inside the same foreground
-workspace. The optional network test sends one bounded HTTPS request to the
+Live, Diagnose, Survey, Reports and Tools pages remain inside the same foreground
+workspace. Tools offers offline Wi-Fi channel/frequency and dBm/mW calculators
+and a searchable wireless reference library. Entered and calculated values are
+not saved as measurement evidence. Live offers a direct input-configuration
+shortcut; SIM selection follows the subscription identity when the list changes. The optional network test sends one bounded HTTPS request to the
 operator's chosen URL over an explicitly selected Android network; a short
 download is an estimate, not a sustained capacity test. Upload, jitter and
 packet loss are not measured. The app can group up to 20 explicitly added

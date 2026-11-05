@@ -1,7 +1,7 @@
 package com.veilbreaker.companion
 
 /** Navigation within the Activity never changes its USB foreground lifecycle. */
-enum class WorkspacePage { LIVE, DIAGNOSE, SURVEY, REPORTS }
+enum class WorkspacePage { LIVE, DIAGNOSE, SURVEY, REPORTS, TOOLS }
 
 object WorkspaceNavigation {
     fun restore(index: Int): WorkspacePage = WorkspacePage.entries.getOrElse(index) { WorkspacePage.LIVE }

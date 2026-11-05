@@ -19,6 +19,7 @@ import java.time.Instant
 class MainActivity : Activity() {
     private val handler=Handler(Looper.getMainLooper())
     private lateinit var status: TextView
+    private lateinit var inputReadiness: TextView
     private lateinit var preview: TextView
     private lateinit var cellularVisuals: CellularVisuals
     private lateinit var liveDashboard: LiveDashboard
@@ -103,6 +104,9 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("workspace_page",currentPage.ordinal)
         outState.putInt("diagnose_section",diagnoseSection)
+        outState.putBoolean("cellular_input",cellularChoice.isChecked)
+        outState.putBoolean("location_input",locationChoice.isChecked)
+        choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId?.let { outState.putInt("selected_subscription_id",it) }
         super.onSaveInstanceState(outState)
     }
 
@@ -119,7 +123,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.1 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.2 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -148,6 +152,8 @@ class MainActivity : Activity() {
         val live=page("Live", "Captured measurements and field equipment at a glance.")
         captureButton=button(live,"Capture on phone",true) { takeSnapshot(null) }
         status=text(live,"Choose inputs and grant permissions to begin.")
+        inputReadiness=text(live,"Checking phone inputs…",12f)
+        button(live,"Configure cellular & GPS") { showPage(WorkspacePage.DIAGNOSE);showDiagnoseSection(0) }
         liveDashboard=LiveDashboard(this,::openWifi,::openGps);live.addView(liveDashboard)
 
         val diagnose=page("Diagnose", "Choose an area to configure or test.",false)
@@ -215,9 +221,26 @@ class MainActivity : Activity() {
         reportStatus=text(local,"The last saved capture is kept on this phone.")
         preview=text(local,"No saved capture.")
         cellularVisuals=CellularVisuals(this);local.addView(cellularVisuals)
+        val tools=page("Tools", "Offline calculators and field references.")
+        val toolsTabs=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(4),0,dp(4)) }
+        val calculatorTab=TextView(this).apply { text="Calculators";gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true }
+        val referenceTab=TextView(this).apply { text="References";gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true }
+        toolsTabs.addView(calculatorTab,LinearLayout.LayoutParams(0,-2,1f));toolsTabs.addView(referenceTab,LinearLayout.LayoutParams(0,-2,1f))
+        tools.addView(toolsTabs)
+        val calculatorWorkspace=WirelessToolsWorkspace(this);tools.addView(calculatorWorkspace)
+        val referenceWorkspace=WirelessReferenceWorkspace(this);tools.addView(referenceWorkspace)
+        fun showTools(references:Boolean) {
+            calculatorWorkspace.visibility=if(references) View.GONE else View.VISIBLE
+            referenceWorkspace.visibility=if(references) View.VISIBLE else View.GONE
+            calculatorTab.background=background(if(references) "#1b3042" else "#2179ce")
+            referenceTab.background=background(if(references) "#2179ce" else "#1b3042")
+            calculatorTab.setTextColor(Color.WHITE);referenceTab.setTextColor(Color.WHITE)
+            calculatorTab.isSelected=!references;referenceTab.isSelected=references
+        }
+        calculatorTab.setOnClickListener { showTools(false) };referenceTab.setOnClickListener { showTools(true) };showTools(false)
         val bar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(dp(4),dp(3),dp(4),dp(3));setBackgroundColor(Color.parseColor("#0a1724")) }
-        val labels=listOf("Live","Diagnose","Survey","Reports")
-        val icons=listOf(android.R.drawable.ic_menu_view,android.R.drawable.ic_menu_manage,android.R.drawable.ic_menu_mylocation,android.R.drawable.ic_menu_save)
+        val labels=listOf("Live","Diagnose","Survey","Reports","Tools")
+        val icons=listOf(android.R.drawable.ic_menu_view,android.R.drawable.ic_menu_manage,android.R.drawable.ic_menu_mylocation,android.R.drawable.ic_menu_save,android.R.drawable.ic_menu_compass)
         WorkspacePage.entries.forEachIndexed { index, page ->
             val item=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;isClickable=true;isFocusable=true;contentDescription=labels[index];minimumHeight=dp(54);setOnClickListener { showPage(page) } }
             val icon=ImageView(this).apply { setImageResource(icons[index]);contentDescription=null }
@@ -226,22 +249,49 @@ class MainActivity : Activity() {
             bar.addView(item,LinearLayout.LayoutParams(0,-2,1f));navItems.add(item);navLabels.add(caption);navIcons.add(icon)
         }
         shell.addView(bar)
+        if(state!=null) {
+            cellularChoice.isChecked=state.getBoolean("cellular_input",true)
+            locationChoice.isChecked=state.getBoolean("location_input",false)
+        }
         cellularChoice.setOnCheckedChangeListener { _,_->refresh() }
         locationChoice.setOnCheckedChangeListener { _,_->refresh() }
+        subscriptions.onItemSelectedListener=object:android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent:android.widget.AdapterView<*>?, view:View?, position:Int, id:Long) { updateCaptureReadiness() }
+            override fun onNothingSelected(parent:android.widget.AdapterView<*>?) { updateCaptureReadiness() }
+        }
         capture=try { JSONObject(filesDir.resolve("last-capture.json").readText()) } catch(_:Exception) { null }
-        showCapture();refresh();showDiagnoseSection((state?.getInt("diagnose_section",0) ?: 0).coerceIn(0,3));showPage(WorkspaceNavigation.restore(state?.getInt("workspace_page",0) ?: 0))
+        showCapture();refresh()
+        if(state?.containsKey("selected_subscription_id")==true) {
+            subscriptions.setSelection(SimSelection.spinnerPosition(choices.map { it.subscriptionId },state.getInt("selected_subscription_id")))
+            updateCaptureReadiness()
+        }
+        showDiagnoseSection((state?.getInt("diagnose_section",0) ?: 0).coerceIn(0,3));showPage(WorkspaceNavigation.restore(state?.getInt("workspace_page",0) ?: 0))
     }
     private fun allowed() = (!cellularChoice.isChecked || (checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)) &&
         (!locationChoice.isChecked || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
     private fun refresh() {
         if(connection!=null) return
+        val selectedId=choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId
         choices=try { if(checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED) getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList ?: emptyList() else emptyList() } catch(_:SecurityException) { emptyList() }
-        val selected=subscriptions.selectedItemPosition
         subscriptions.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("Choose a SIM")+choices.map { "SIM ${it.simSlotIndex+1} · ${it.displayName}" })
-        if(selected in 1..choices.size) subscriptions.setSelection(selected)
+        subscriptions.setSelection(SimSelection.spinnerPosition(choices.map { it.subscriptionId },selectedId))
         subscriptions.isEnabled=cellularChoice.isChecked
-        captureButton.isEnabled=allowed() && (cellularChoice.isChecked || locationChoice.isChecked) && !pending
+        updateCaptureReadiness()
         syncExternalActions()
+    }
+    private fun updateCaptureReadiness() {
+        if (!::inputReadiness.isInitialized || !::subscriptions.isInitialized) return
+        val noInput=!cellularChoice.isChecked && !locationChoice.isChecked
+        val missingSim=cellularChoice.isChecked && choices.getOrNull(subscriptions.selectedItemPosition-1)==null
+        inputReadiness.text=when {
+            connection!=null -> "Desktop session active."
+            pending -> "Capture in progress."
+            noInput -> "Choose cellular or GPS in Configure inputs."
+            !allowed() -> "Grant the required phone permissions in Configure inputs."
+            missingSim -> "Choose a SIM in Configure inputs before capturing cellular data."
+            else -> "Inputs ready for capture."
+        }
+        captureButton.isEnabled=connection==null && !pending && !noInput && allowed() && !missingSim
     }
     override fun onRequestPermissionsResult(code:Int,p:Array<out String>,results:IntArray) { super.onRequestPermissionsResult(code,p,results);if(code==1) { refresh();liveDashboard.refreshWifi() } }
     private fun takeSnapshot(target:UsbSession?) {
@@ -264,7 +314,7 @@ class MainActivity : Activity() {
                 val stillPresent=!useCell || getSystemService(SubscriptionManager::class.java).activeSubscriptionInfoList?.any { it.subscriptionId==selected!!.subscriptionId }==true
                 val source=if(stillPresent) cells.orEmpty() else emptyList()
                 val outcome=if(error!=null || !stillPresent || (useCell && source.isEmpty()) || source.size>256) "partial" else "complete"
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.1-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.2-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,listOfNotNull(error, if(source.size>256) "Cell list truncated to 256 entries; additional modem entries omitted." else null),started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
@@ -337,7 +387,7 @@ class MainActivity : Activity() {
         detailsButton.isEnabled=value!=null;rawButton.isEnabled=value!=null
         syncExternalActions()
     }
-    private fun lockInputs(locked:Boolean) { cellularChoice.isEnabled=!locked;locationChoice.isEnabled=!locked;subscriptions.isEnabled=!locked && cellularChoice.isChecked;captureButton.isEnabled=!locked && allowed() && (cellularChoice.isChecked || locationChoice.isChecked);syncExternalActions() }
+    private fun lockInputs(locked:Boolean) { cellularChoice.isEnabled=!locked;locationChoice.isEnabled=!locked;subscriptions.isEnabled=!locked && cellularChoice.isChecked;updateCaptureReadiness();syncExternalActions() }
     private fun cancelPending() { generation++;pending=false;location.stop();lockInputs(connection!=null);showCapture() }
     private fun armUsb() {
         if(pending || connection!=null || !allowed() || (!cellularChoice.isChecked && !locationChoice.isChecked) || (cellularChoice.isChecked && subscriptions.selectedItemPosition<1)) { usbStatus.text="Choose inputs, grant permissions, and select a SIM if using cellular.";return }

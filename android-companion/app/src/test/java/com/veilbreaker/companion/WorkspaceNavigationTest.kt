@@ -8,6 +8,8 @@ class WorkspaceNavigationTest {
         assertEquals(WorkspacePage.LIVE, WorkspaceNavigation.restore(-1))
         assertEquals(WorkspacePage.LIVE, WorkspaceNavigation.restore(99))
         assertEquals(WorkspacePage.SURVEY, WorkspaceNavigation.restore(2))
+        assertEquals(WorkspacePage.REPORTS, WorkspaceNavigation.restore(3))
+        assertEquals(WorkspacePage.TOOLS, WorkspaceNavigation.restore(4))
     }
 
     @Test fun externalActivitiesAreBlockedWhileCapturingOrConnected() {
