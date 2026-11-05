@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.util.TypedValue
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -22,7 +23,9 @@ class LiveCellTrendView(context: Context) : LinearLayout(context) {
         orientation = VERTICAL
         title.textSize = 14f; title.setTextColor(Color.parseColor("#63d6ee")); title.setPadding(0, dp(8), 0, dp(3))
         description.textSize = 12f; description.setTextColor(Color.parseColor("#b8cbd9")); description.setPadding(0, dp(3), 0, dp(5))
-        addView(title); addView(graph, LayoutParams(LayoutParams.MATCH_PARENT, dp(150))); addView(description)
+        val labelPixels = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10f, resources.displayMetrics)
+        val chartHeight = max(dp(150), dp(100) + ceil(labelPixels * 5).toInt())
+        addView(title); addView(graph, LayoutParams(LayoutParams.MATCH_PARENT, chartHeight)); addView(description)
     }
     fun show(history: LiveCellTrend) {
         val values = history.points
@@ -45,13 +48,19 @@ class LiveCellTrendView(context: Context) : LinearLayout(context) {
             super.onDraw(canvas)
             canvas.drawColor(Color.rgb(10, 24, 36))
             val density = resources.displayMetrics.density
-            val scaled = resources.displayMetrics.scaledDensity
-            paint.style = Paint.Style.FILL; paint.textSize = 10f * scaled; paint.color = Color.rgb(170, 191, 206)
-            if (points.isEmpty()) { paint.textAlign = Paint.Align.LEFT; canvas.drawText("No eligible samples", 12f*density, 24f*density, paint); return }
+            paint.style = Paint.Style.FILL
+            paint.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10f, resources.displayMetrics)
+            paint.color = Color.rgb(170, 191, 206)
+            val font = paint.fontMetrics
+            val textHeight = font.descent - font.ascent
+            if (points.isEmpty()) { paint.textAlign = Paint.Align.LEFT; canvas.drawText("No eligible samples", 12f*density, -font.ascent + 8f*density, paint); return }
             val low = max(-160.0, floor((points.minOf { it.value } - 5.0) / 5.0) * 5.0)
             val high = min(-20.0, ceil((points.maxOf { it.value } + 5.0) / 5.0) * 5.0)
             val left = max(43f*density, paint.measureText(low.toInt().toString()) + 10f*density)
-            val right = width - 12f*density; val top = 20f*density; val bottom = height - 26f*density
+            val unitBaseline = -font.ascent + 2f*density
+            val right = width - 12f*density
+            val top = max(20f*density, unitBaseline + font.descent - font.ascent + 4f*density)
+            val bottom = height - max(26f*density, font.descent + textHeight + 8f*density)
             if (right <= left || bottom <= top || high <= low) return
             paint.textAlign = Paint.Align.RIGHT
             canvas.drawText(high.toInt().toString(), left-5f*density, top+4f*density, paint)
@@ -69,8 +78,8 @@ class LiveCellTrendView(context: Context) : LinearLayout(context) {
                 canvas.drawCircle(x,y,3f*density,paint); previousX=x; previousY=y
             }
             paint.color=Color.rgb(170,191,206); paint.textAlign=Paint.Align.LEFT
-            canvas.drawText("dBm",left,12f*density,paint)
-            paint.textAlign=Paint.Align.RIGHT; canvas.drawText("${if(points.size == 1) 0 else span/1000}s",right,height-7f*density,paint)
+            canvas.drawText("dBm",left,unitBaseline,paint)
+            paint.textAlign=Paint.Align.RIGHT; canvas.drawText("${if(points.size == 1) 0 else span/1000}s",right,height-font.descent-4f*density,paint)
         }
     }
 }

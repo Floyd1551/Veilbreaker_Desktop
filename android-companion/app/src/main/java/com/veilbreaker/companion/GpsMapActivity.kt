@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -19,6 +20,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -39,6 +41,10 @@ class GpsMapActivity : Activity() {
     private lateinit var location: PhoneLocation
     private lateinit var plot: GpsPlotView
     private lateinit var basemap: BasemapView
+    private lateinit var enableMapButton: Button
+    private lateinit var onlineControls: LinearLayout
+    private lateinit var mapScroll: ScrollView
+    private lateinit var imageInfo: TextView
     private var basemapEnabled = false
     private lateinit var status: TextView
     private lateinit var mapInfo: TextView
@@ -61,6 +67,7 @@ class GpsMapActivity : Activity() {
         var thread: Thread? = null
     }
     private var imageLoad: MapLoad? = null
+    private var deferredImageLoad: MapLoad? = null
     private val tick = object : Runnable {
         override fun run() {
             if (!started) return
@@ -77,37 +84,38 @@ class GpsMapActivity : Activity() {
     }
 
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
+    private fun styleButton(button: Button, primary: Boolean = false) {
+        val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
+        button.backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1b2935"), Color.parseColor(if (primary) "#2089ee" else "#233b50")))
+        button.setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#8ca0ae"), Color.WHITE)))
+        button.isAllCaps = false; button.minHeight = dp(48)
+    }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         location = PhoneLocation(this)
         window.statusBarColor = Color.parseColor("#0d1520")
         window.navigationBarColor = Color.parseColor("#0d1520")
         val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport = true }
+        mapScroll = scroll
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(22), dp(20), dp(24)) }
         scroll.addView(root); setContentView(scroll)
         SystemBarInsets.apply(scroll)
         fun text(value: String, size: Float = 14f) = TextView(this).apply {
             this.text = value; textSize = size; setTextColor(Color.parseColor("#d4e2ed")); setPadding(0, dp(5), 0, dp(5)); root.addView(this)
         }
-        fun button(value: String, click: () -> Unit) = Button(this).apply {
-            this.text = value; isAllCaps = false; minHeight = dp(48); setOnClickListener { click() }; root.addView(this)
+        fun button(value: String, primary: Boolean = false, click: () -> Unit) = Button(this).apply {
+            this.text = value; styleButton(this, primary); setOnClickListener { click() }; root.addView(this)
         }
         text("GPS & MAP", 22f).apply { setTypeface(null, Typeface.BOLD); setTextColor(Color.parseColor("#63dec8")) }
         val surveyId = intent.getStringExtra("mobile_survey_id")
         text((if (surveyId == null) "Saved points come from the last phone capture. " else "Saved points come from the selected phone survey; each marker is its capture's last valid reported fix. ") +
-            "Live GPS starts only when you choose it and stops when this screen leaves the foreground. No location is saved by this screen.")
+            "Live GPS stops when you leave this screen. Displayed live fixes are not saved.", 13f)
         liveButton = button("Start live GPS") { if (started) stopLive() else beginLive() }
         status = text("Live GPS off. Saved points may be old; check their capture timestamps.")
-        text("Cyan: live fix · Purple: saved capture fixes. Accuracy circles are approximate horizontal uncertainty, not coverage.")
-        plot = GpsPlotView(this)
-        root.addView(plot, LinearLayout.LayoutParams(-1, dp(270)))
-        plot.setFixes(saved, null)
-        basemap = BasemapView(this).apply { visibility = View.GONE }
-        root.addView(basemap, LinearLayout.LayoutParams(-1, dp(350)))
-        mapInfo = text("Coordinate plot only; no geographic basemap.")
-        text("ONLINE STREET MAP", 17f).setTextColor(Color.parseColor("#63dec8"))
-        text("Enable the map to request visible street tiles from OpenStreetMap. The provider can see your IP address and approximate viewed area. Requires internet; this is not an offline map pack. The map stops requesting tiles when you leave this screen.")
-        button("Enable online street map") {
+        text("Cyan: live · Purple: saved. Circles indicate approximate location uncertainty, not coverage.", 12f)
+        text("ONLINE STREET MAP", 15f).setTextColor(Color.parseColor("#63dec8"))
+        text("Optional: the map provider receives your IP address and approximate viewed area. Internet required; this is not an offline map pack. Tile requests stop when you leave.", 12f)
+        enableMapButton = button("Enable online street map", true) {
             cancelMapLoad()
             basemapEnabled = true
             plot.visibility = View.GONE
@@ -115,38 +123,65 @@ class GpsMapActivity : Activity() {
             basemap.setFixes(saved, live)
             basemap.setActive(true)
             basemap.fitToPoints()
+            enableMapButton.visibility = View.GONE
+            onlineControls.visibility = View.VISIBLE
             mapInfo.text = "Online street map · © OpenStreetMap contributors. Tile requests reveal the viewed area; street data is not a measurement."
+            basemap.viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    if (basemap.viewTreeObserver.isAlive) basemap.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    if (basemapEnabled) scroll.smoothScrollTo(0, (basemap.top - dp(4)).coerceAtLeast(0))
+                }
+            })
         }
-        val mapControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; root.addView(this) }
-        fun mapButton(label: String, action: () -> Unit) = Button(this).apply {
-            text = label; isAllCaps = false; setOnClickListener { if (basemapEnabled) action() }
+        plot = GpsPlotView(this)
+        root.addView(plot, LinearLayout.LayoutParams(-1, dp(270)))
+        plot.setFixes(saved, null)
+        basemap = BasemapView(this).apply { visibility = View.GONE }
+        root.addView(basemap, LinearLayout.LayoutParams(-1, dp(350)))
+        mapInfo = text("Coordinate plot only; no geographic basemap.")
+        onlineControls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE; root.addView(this) }
+        val mapControls = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; onlineControls.addView(this) }
+        fun mapButton(label: String, accessibility: String, action: () -> Unit) = Button(this).apply {
+            text = label; contentDescription = accessibility; styleButton(this); setOnClickListener { if (basemapEnabled) action() }
             mapControls.addView(this, LinearLayout.LayoutParams(0, dp(48), 1f))
         }
-        mapButton("−") { basemap.zoomOut() }
-        mapButton("Fit points") { basemap.fitToPoints() }
-        mapButton("+") { basemap.zoomIn() }
-        button("Retry street map tiles") { if (basemapEnabled) { basemap.setActive(false); basemap.setActive(true) } }
-        button("Disable street map / return to previous view") { showCoordinatePlot() }
+        mapButton("−", "Zoom out") { basemap.zoomOut() }
+        mapButton("Fit points", "Fit map to saved and live points") { basemap.fitToPoints() }
+        mapButton("+", "Zoom in") { basemap.zoomIn() }
+        onlineControls.addView(Button(this).apply { text = "Retry street map tiles"; styleButton(this); setOnClickListener { if (basemapEnabled) { basemap.setActive(false); basemap.setActive(true) } } })
+        onlineControls.addView(Button(this).apply { text = "Disable street map"; styleButton(this); setOnClickListener { showCoordinatePlot() } })
         savedInfo = text("Loading saved locations…")
         loadSavedFixes(surveyId)
-        text("OFFLINE IMAGE MAP", 17f).setTextColor(Color.parseColor("#63dec8"))
-        text("Optional: choose a local north-up Plate Carrée / equirectangular image and enter its full WGS84 bounds. Bounds, source and north-up orientation are operator supplied and unverified. Images with rotated or mirrored EXIF orientation are rejected. Web Mercator images are not supported. No buildings or terrain are measured. The image is kept for this screen only.")
+        val imageOptions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        lateinit var imageToggle: Button
+        imageToggle = button("Show offline image options") {
+            val expanded = imageOptions.visibility != View.VISIBLE
+            imageOptions.visibility = if (expanded) View.VISIBLE else View.GONE
+            imageToggle.text = if (expanded) "Hide offline image options" else "Show offline image options"
+        }
+        root.addView(imageOptions)
+        imageOptions.addView(TextView(this).apply {
+            text = "Choose a north-up Plate Carrée / equirectangular image and enter its full WGS84 bounds. Bounds, source and orientation are operator supplied and unverified. Rotated or mirrored images and Web Mercator images are not supported. The image is kept for this screen only."
+            textSize = 13f; setTextColor(Color.parseColor("#d4e2ed")); setPadding(0, dp(5), 0, dp(5))
+        })
         val labels = listOf("West longitude", "South latitude", "East longitude", "North latitude")
         fields = labels.map { label ->
-            EditText(this).apply { hint = label; contentDescription = label; setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL; root.addView(this) }
+            EditText(this).apply { hint = label; contentDescription = label; setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_SIGNED or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL; imageOptions.addView(this) }
         }
-        source = EditText(this).apply { hint = "Image source / attribution"; contentDescription = "Image source and attribution"; setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); filters = arrayOf(android.text.InputFilter.LengthFilter(120)); root.addView(this) }
-        button("Choose local map image…") {
+        source = EditText(this).apply { hint = "Image source / attribution"; contentDescription = "Image source and attribution"; setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY); filters = arrayOf(android.text.InputFilter.LengthFilter(120)); imageOptions.addView(this) }
+        imageInfo = TextView(this).apply { textSize = 13f; setTextColor(Color.parseColor("#d4e2ed")); setPadding(0, dp(5), 0, dp(5)); imageOptions.addView(this) }
+        imageOptions.addView(Button(this).apply { text = "Choose local map image…"; styleButton(this); setOnClickListener {
             val values = fields.map { it.text.toString().trim().toDoubleOrNull() }
             val bounds = if (values.all { it != null }) GpsSpatialModel.bounds(values[0]!!, values[1]!!, values[2]!!, values[3]!!) else null
             if (bounds == null || source.text.toString().isBlank()) {
-                status.text = "Enter finite west, south, east, north bounds and an image source. Dateline-spanning extents are not supported."
+                imageInfo.text = "Enter finite west, south, east, north bounds and an image source. Dateline-spanning extents are not supported."
             } else {
+                imageInfo.text = "Choose a local image."
                 pendingBounds = bounds; pendingSource = source.text.toString().trim()
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply { addCategory(Intent.CATEGORY_OPENABLE); type = "image/*"; putExtra(Intent.EXTRA_LOCAL_ONLY, true) }, 45)
             }
-        }
-        button("Remove image / show coordinate plot") { cancelMapLoad(); plot.setImage(null, null); imageSource = ""; showCoordinatePlot() }
+        } })
+        imageOptions.addView(Button(this).apply { text = "Remove image / show coordinate plot"; styleButton(this); setOnClickListener { cancelMapLoad(); plot.setImage(null, null); imageSource = ""; showCoordinatePlot(); imageInfo.text = "Image removed. Coordinate plot shown." } })
         button("Back to field workspace") { finish() }
     }
 
@@ -203,7 +238,11 @@ class GpsMapActivity : Activity() {
         status.text = "Live GPS stopped. Saved locations remain available."
     }
 
-    override fun onStart() { super.onStart(); visible = true }
+    override fun onStart() {
+        super.onStart(); visible = true
+        val load = deferredImageLoad; deferredImageLoad = null
+        if (load != null && imageLoad === load && !load.cancelled) beginImageLoad(load)
+    }
     override fun onStop() { visible = false; cancelMapLoad(); stopLive(); if (basemapEnabled) showCoordinatePlot(); super.onStop() }
 
     private fun showCoordinatePlot() {
@@ -211,18 +250,27 @@ class GpsMapActivity : Activity() {
         basemap.setActive(false)
         basemap.visibility = View.GONE
         plot.visibility = View.VISIBLE
+        enableMapButton.visibility = View.VISIBLE
+        onlineControls.visibility = View.GONE
         mapInfo.text = if (imageSource.isNotEmpty()) "Operator image: $imageSource · bounds and orientation are unverified." else "Coordinate plot only; no geographic basemap."
     }
 
     @Deprecated("The document picker returns a temporary read grant for the selected image")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 45 || resultCode != RESULT_OK || data?.data == null) return
+        if (requestCode != 45) return
+        if (resultCode != RESULT_OK || data?.data == null) { imageInfo.text = "Image selection cancelled; existing map is unchanged."; return }
         val bounds = pendingBounds ?: return
         cancelMapLoad()
         val load = MapLoad(data.data!!, bounds, pendingSource)
         imageLoad = load
         status.text = "Loading local image…"
+        imageInfo.text = "Loading local image…"
+        if (visible) beginImageLoad(load) else deferredImageLoad = load
+    }
+
+    private fun beginImageLoad(load: MapLoad) {
+        val bounds = load.bounds
         load.thread = Thread {
             val result = runCatching { readImage(load) }
             handler.post {
@@ -235,8 +283,11 @@ class GpsMapActivity : Activity() {
                         plot.setImage(bitmap, bounds); imageSource = load.source
                         mapInfo.text = "Operator image: $imageSource · WGS84 Plate Carrée bounds ${bounds.west}, ${bounds.south}, ${bounds.east}, ${bounds.north} are unverified. Only fixes inside the bounds appear on the image."
                         status.text = "Image loaded. Live GPS remains off until started."
+                        imageInfo.text = "Image loaded. Bounds and source remain operator supplied."
+                        mapScroll.post { mapScroll.smoothScrollTo(0, (plot.top - dp(4)).coerceAtLeast(0)) }
                     }, onFailure = { error ->
                         status.text = "Cannot open map image: ${error.message ?: "unsupported or unavailable"}. Existing image is unchanged."
+                        imageInfo.text = status.text
                     })
                 }
             }
@@ -244,6 +295,7 @@ class GpsMapActivity : Activity() {
     }
 
     private fun cancelMapLoad() {
+        deferredImageLoad = null
         val load = imageLoad ?: return
         imageLoad = null; load.cancelled = true
         load.thread?.interrupt()
@@ -276,8 +328,11 @@ class GpsMapActivity : Activity() {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, probe)
         require(probe.outMimeType == "image/png" || probe.outMimeType == "image/jpeg") { "Choose a JPEG or PNG image." }
         val sample = GpsSpatialModel.imageSampleSize(probe.outWidth, probe.outHeight) ?: throw IllegalArgumentException("Image dimensions exceed the limit.")
-        val orientation = try { ExifInterface(ByteArrayInputStream(bytes)).getAttribute(ExifInterface.TAG_ORIENTATION) }
-            catch (_: Exception) { throw IllegalArgumentException("Image orientation metadata cannot be read safely.") }
+        val pngExif = if (probe.outMimeType == "image/png") PngExifPresence.hasExif(bytes) else null
+        if (probe.outMimeType == "image/png") require(pngExif != null) { "PNG metadata cannot be read safely." }
+        val orientation = if (probe.outMimeType == "image/png" && pngExif == false) null else try {
+            ExifInterface(ByteArrayInputStream(bytes)).getAttribute(ExifInterface.TAG_ORIENTATION)
+        } catch (_: Exception) { throw IllegalArgumentException("Image orientation metadata cannot be read safely.") }
         require(GpsSpatialModel.isMapOrientationSafe(orientation)) { "Rotated, mirrored or unknown EXIF orientation is not supported; save a north-up image with normal orientation." }
         check(!load.cancelled) { "Image loading cancelled." }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })

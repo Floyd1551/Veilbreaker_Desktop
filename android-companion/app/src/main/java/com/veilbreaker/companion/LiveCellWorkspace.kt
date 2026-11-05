@@ -31,6 +31,7 @@ class LiveCellWorkspace(
     private val handler = Handler(Looper.getMainLooper())
     private val status = TextView(context)
     private val details = TextView(context)
+    private val detailsButton = Button(context)
     private val button = Button(context)
     private val trend = LiveCellTrend()
     private val trendView = LiveCellTrendView(context)
@@ -40,6 +41,8 @@ class LiveCellWorkspace(
     private var requestId = 0L
     private var subscriptionId: Int? = null
     private var shownSubscriptionId: Int? = null
+    private var fullDetails = ""
+    private var detailsExpanded = false
     private var nextRequest: Runnable? = null
     private var timeout: Runnable? = null
     private var endSession: Runnable? = null
@@ -62,17 +65,33 @@ class LiveCellWorkspace(
         addView(status)
         trendView.visibility = View.GONE; addView(trendView)
         addView(details)
+        detailsButton.apply {
+            text = "Show more cell reports"; isAllCaps = false; minHeight = dp(48); visibility = View.GONE
+            setOnClickListener { detailsExpanded = !detailsExpanded; renderDetails() }
+        }
+        addView(detailsButton)
     }
+
+    /** Keep the first, serving-prioritized cell visible; fold additional reports. */
+    private fun renderDetails() {
+        val hasMore = fullDetails.contains("\n\n")
+        details.text = if (detailsExpanded || !hasMore) fullDetails else fullDetails.substringBefore("\n\n")
+        detailsButton.visibility = if (hasMore) View.VISIBLE else View.GONE
+        detailsButton.text = if (detailsExpanded) "Show fewer cell reports" else "Show more cell reports"
+        detailsButton.contentDescription = detailsButton.text
+        detailsButton.isSelected = detailsExpanded
+    }
+    private fun clearDetails() { fullDetails = ""; detailsExpanded = false; renderDetails() }
 
     fun selectionChanged() {
         val selected = selectedSubscriptionId()
         if (active && selected != subscriptionId) stop("SIM changed. Start the live monitor again for the selected SIM.")
-        if (shownSubscriptionId != selected) { details.text = ""; shownSubscriptionId = null }
+        if (shownSubscriptionId != selected) { clearDetails(); shownSubscriptionId = null }
     }
     fun setCollectionBlocked(blocked: Boolean) {
         collectionBlocked = blocked
         if (blocked && active) stop("Live monitor stopped while another capture or Desktop session is active.")
-        if (blocked) { details.text = ""; shownSubscriptionId = null }
+        if (blocked) { clearDetails(); shownSubscriptionId = null }
         button.isEnabled = !blocked
     }
     fun stop(message: String = "Live monitor stopped. No readings were saved.") {
@@ -99,7 +118,7 @@ class LiveCellWorkspace(
         if (id == null) { status.text = "Choose a SIM in Phone inputs before starting."; return }
         if (!ready(id)) { status.text = "Choose an active SIM, grant phone and precise location permissions, enable location services, and stop other collection first."; return }
         active = true; subscriptionId = id; val token = ++generation
-        button.text = "Stop live cellular"; status.text = "Requesting a cell update…"; details.text = ""; shownSubscriptionId = null
+        button.text = "Stop live cellular"; status.text = "Requesting a cell update…"; clearDetails(); shownSubscriptionId = null
         trend.reset(); trendView.show(trend); trendView.visibility = View.VISIBLE
         endSession = Runnable { if (active && token == generation) stop("Five-minute limit reached. No live readings were saved.") }.also { handler.postDelayed(it, MAX_DURATION_MS) }
         request(token, id)
@@ -120,7 +139,7 @@ class LiveCellWorkspace(
             val now = SystemClock.elapsedRealtime()
             if (error != null) {
                 status.text = "$error · retrying while this screen remains open."
-                details.text = ""; shownSubscriptionId = null
+                clearDetails(); shownSubscriptionId = null
                 trend.reset("Cell response unavailable; history cleared."); trendView.show(trend)
             } else {
                 val values = cells.orEmpty().take(MAX_CELLS).mapNotNull { runCatching { CellularSnapshot.cell(it, now) }.getOrNull() }
@@ -128,7 +147,8 @@ class LiveCellWorkspace(
                 val rendered = runCatching { LiveCellSummary.render(values, channelPlan()) }.getOrElse { "Cell details are unavailable for this response." }
                 val omitted = (cells.orEmpty().size - values.size).coerceAtLeast(0)
                 status.text = "Response received ${DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date())}. Modem sample age is shown at receipt; a new response may be cached."
-                details.text = rendered + if (omitted > 0) "\n\n$omitted reports omitted or unreadable." else ""
+                fullDetails = rendered + if (omitted > 0) "\n\n$omitted reports omitted or unreadable." else ""
+                renderDetails()
                 shownSubscriptionId = id
             }
             val delay = (MIN_INTERVAL_MS - (SystemClock.elapsedRealtime() - started)).coerceAtLeast(0)

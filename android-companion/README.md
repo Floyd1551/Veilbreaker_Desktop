@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.6 development build
+# Veilbreaker Mobile 0.8.7 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -74,3 +74,11 @@ channel width and advertised security capabilities when available, not a securit
 audit. Mobile survey points support separately labeled operator observations.
 Standalone cellular and GPS captures wait up to 30 seconds for a requested GPS fix;
 cell response and location times are distinct, and missing location is partial.
+
+The survey screen keeps primary point actions visible, with completion, export,
+and deletion under More survey actions. GPS map controls are grouped around the
+map; operator-supplied image settings are available on demand.
+
+A PNG with no EXIF orientation metadata can be used when the operator supplies
+a north-up image; declared rotated, mirrored or undefined orientations remain
+unsupported. The app does not verify image orientation or geographic bounds.

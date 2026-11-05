@@ -7,6 +7,9 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
+import android.text.Editable
+import android.text.TextWatcher
 import android.os.*
 import android.telephony.*
 import android.util.AtomicFile
@@ -67,6 +70,9 @@ class MainActivity : Activity() {
     private val permissions=arrayOf(Manifest.permission.READ_PHONE_STATE,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION)
     private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
     private fun background(color:String)=GradientDrawable().apply { setColor(Color.parseColor(color)); cornerRadius=dp(12).toFloat() }
+    private fun buttonColors(enabled:String, disabled:String)=ColorStateList(
+        arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
+        intArrayOf(Color.parseColor(disabled),Color.parseColor(enabled)))
 
     private fun showPage(page: WorkspacePage) {
         if(currentPage==WorkspacePage.DIAGNOSE && page!=WorkspacePage.DIAGNOSE && ::networkTestWorkspace.isInitialized) networkTestWorkspace.cancel()
@@ -131,7 +137,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.6 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.7 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -154,12 +160,19 @@ class MainActivity : Activity() {
         }
         fun button(parent:LinearLayout,title:String,primary:Boolean=false,action:()->Unit)=Button(this).apply {
             text=title;isAllCaps=false;minHeight=dp(48);textSize=13f
-            backgroundTintList=android.content.res.ColorStateList.valueOf(Color.parseColor(if(primary) "#2089ee" else "#233b50"))
-            setTextColor(Color.WHITE);setOnClickListener { action() };parent.addView(this)
+            backgroundTintList=buttonColors(if(primary) "#2089ee" else "#233b50", "#1b2935")
+            setTextColor(buttonColors("#ffffff", "#8ca0ae"));setOnClickListener { action() };parent.addView(this)
         }
         val live=page("Live", "Captured measurements and field equipment at a glance.")
         captureButton=button(live,"Capture on phone",true) { takeSnapshot(null) }
-        status=text(live,"Choose inputs and grant permissions to begin.")
+        status=text(live,"").apply {
+            visibility=View.GONE
+            addTextChangedListener(object:TextWatcher {
+                override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+                override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) { visibility=if(s.isNullOrBlank()) View.GONE else View.VISIBLE }
+                override fun afterTextChanged(s:Editable?) {}
+            })
+        }
         inputReadiness=text(live,"Checking phone inputs…",12f)
         button(live,"Configure cellular & GPS") { showPage(WorkspacePage.DIAGNOSE);showDiagnoseSection(0) }
         liveDashboard=LiveDashboard(this,::openWifi,::openGps);live.addView(liveDashboard)
@@ -208,9 +221,7 @@ class MainActivity : Activity() {
         hardwareSection.addView(UsbHardwareWorkspace(this))
 
         val survey=page("Survey", "Organize field captures and inspect GPS positions.",false)
-        val map=card(survey,"GPS & map")
-        text(map,"Use a live foreground fix or locations from the last capture. An optional image uses operator-entered bounds.")
-        gpsButton=button(map,"Open GPS & map") { openGps() }
+        gpsButton=button(survey,"Open GPS & map") { openGps() }
         surveyWorkspace=SurveyWorkspace(this, { capture }, { complete -> takeSnapshot(null, complete) },
             { if(pending && connection==null) cancelPending() })
         survey.addView(surveyWorkspace,LinearLayout.LayoutParams(-1,0,1f))
@@ -349,7 +360,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.6-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.7-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }

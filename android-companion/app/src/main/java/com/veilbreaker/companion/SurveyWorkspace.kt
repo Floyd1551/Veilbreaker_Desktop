@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -40,6 +41,8 @@ class SurveyWorkspace(
     private var externalEnabled = true
     private var pendingExport: ByteArray? = null
     private var comparison: List<SurveyComparisonModel.Point>? = null
+    private var showMoreActions = false
+    private var showAllPoints = false
     private val noteDrafts = mutableMapOf<String, String>()
     private var message = "Loading local surveys…"
     private var requestedName = ""
@@ -78,8 +81,10 @@ class SurveyWorkspace(
 
     private fun button(parent: LinearLayout, title: String, enabled: Boolean = true, action: () -> Unit): Button = Button(context).apply {
         text = title; isAllCaps = false; minHeight = dp(48); isEnabled = enabled && !busy && !capturing
-        backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#213e56"))
-        setTextColor(Color.parseColor("#e5f5fa")); setOnClickListener { action() }; parent.addView(this)
+        val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
+        backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1a2c3a"), Color.parseColor("#213e56")))
+        setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#8597a2"), Color.parseColor("#e5f5fa"))))
+        setOnClickListener { action() }; parent.addView(this)
     }
 
     private fun render() {
@@ -109,14 +114,14 @@ class SurveyWorkspace(
                     runJob({
                         val made = MobileSurvey.create(nameToCreate, Instant.now().toString())
                         store.save(made); made
-                    }) { made -> current = made; creating = false; requestedName = ""; message = "Survey created on this phone." }
+                    }) { made -> current = made; showMoreActions = false; showAllPoints = false; creating = false; requestedName = ""; message = "Survey created on this phone." }
                 }
                 button(create, "Cancel") { creating = false; message = ""; render() }
             } else {
                 val list = card("Saved on this phone · ${listing.surveys.size}")
                 if (listing.surveys.isEmpty()) text(list, "No mobile surveys yet.", 13f)
                 for (row in listing.surveys) button(list, "${row.name}\n${row.state} · ${row.count}/20 captures") {
-                    runJob({ store.load(row.id) }) { loaded -> current = loaded; message = "Opened phone-only survey." }
+                    runJob({ store.load(row.id) }) { loaded -> current = loaded; showMoreActions = false; showAllPoints = false; message = "Opened phone-only survey." }
                 }
                 if (listing.unavailable > 0) text(list, "${listing.unavailable} survey file(s) could not be read; they were preserved.")
                 button(list, "New survey") { creating = true; message = ""; render() }
@@ -149,6 +154,8 @@ class SurveyWorkspace(
         }
         val summary = card(survey.getString("name"))
         text(summary, "${state.uppercase()} · ${points.length()}/20 captures · Created ${survey.getString("created_utc")}")
+        if (state != "open") text(summary, "This survey is complete. Open More survey actions to reopen it before adding points.", 12f)
+        button(summary, "All surveys") { current = null; showMoreActions = false; showAllPoints = false; message = "Choose a survey or create one."; reloadList(); scroll.post { scroll.scrollTo(0, 0) } }
         if (capturing) {
             text(summary, "Capturing a new point. Keep Veilbreaker in the foreground. GPS acquisition may take up to 30 seconds; partial results will be identified.")
             summary.addView(Button(context).apply {
@@ -165,22 +172,14 @@ class SurveyWorkspace(
         button(summary, "Capture and add point", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
             startCaptureAndAdd(survey.getString("survey_id"))
         }
-        if (state == "open" && points.length() >= MobileSurvey.MAX_POINTS) text(summary, "This survey already has 20 captures.", 12f)
-        button(summary, "Add last phone capture", externalEnabled && state == "open") {
+        button(summary, "Add last phone capture", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
             val selected = captureProvider()
             if (selected == null) { message = "Capture on the phone first, then return here to add it."; render() }
             else runJob({
                 store.update(survey.getString("survey_id")) { latest -> MobileSurvey.addCapture(latest, selected, Instant.now().toString()) }
             }) { updated -> current = updated; message = "Capture added as a separate survey point." }
         }
-        if (state == "open") button(summary, "Complete survey") {
-            runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
-                current = it; message = "Survey completed. Reopen it to add captures."
-            }
-        } else button(summary, "Reopen survey") {
-            runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.reopen(latest) } }) { current = it; message = "Survey reopened." }
-        }
-        button(summary, "Export mobile survey JSON…", externalEnabled) { prepareExport(survey) }
+        if (state == "open" && points.length() >= MobileSurvey.MAX_POINTS) text(summary, "This survey already has 20 captures.", 12f)
         button(summary, "View survey locations", externalEnabled) {
             if (!externalEnabled) return@button
             try {
@@ -193,24 +192,37 @@ class SurveyWorkspace(
                 SurveyComparisonModel.build(survey, plan)
             }) { comparison = it; message = ""; scroll.post { scroll.scrollTo(0, 0) } }
         }
-        text(summary, "Export contains original phone captures and operator observations, and may include identifiers and location. Desktop survey import is not yet supported.", 12f)
-        button(summary, "Delete survey…") {
-            val surveyId = survey.getString("survey_id")
-            AlertDialog.Builder(context).setTitle("Delete mobile survey?")
-                .setMessage("Permanently delete this survey and its copied captures? The phone's last capture and other surveys are kept.")
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Delete") { _, _ ->
-                    runJob({ store.delete(surveyId); runCatching { store.list() }.getOrNull() }) { updated ->
-                        current = null
-                        listing = updated ?: listing.copy(surveys = listing.surveys.filterNot { it.id == surveyId })
-                        message = "Mobile survey deleted. Other surveys and the last capture were kept."
-                    }
-                }.show()
+        button(summary, if (showMoreActions) "Fewer survey actions ▲" else "More survey actions ▾") {
+            showMoreActions = !showMoreActions; render()
+        }.apply { contentDescription = if (showMoreActions) "Hide additional survey actions" else "Show additional survey actions" }
+        if (showMoreActions) {
+            if (state == "open") button(summary, "Complete survey") {
+                runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
+                    current = it; message = "Survey completed. Reopen it to add captures."
+                }
+            } else button(summary, "Reopen survey") {
+                runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.reopen(latest) } }) { current = it; message = "Survey reopened." }
+            }
+            button(summary, "Export mobile survey JSON…", externalEnabled) { prepareExport(survey) }
+            text(summary, "Export contains original phone captures and operator observations, and may include identifiers and location. Desktop survey import is not yet supported.", 12f)
+            button(summary, "Delete survey…") {
+                val surveyId = survey.getString("survey_id")
+                AlertDialog.Builder(context).setTitle("Delete mobile survey?")
+                    .setMessage("Permanently delete this survey and its copied captures? The phone's last capture and other surveys are kept.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Delete") { _, _ ->
+                        runJob({ store.delete(surveyId); runCatching { store.list() }.getOrNull() }) { updated ->
+                            current = null; showMoreActions = false; showAllPoints = false
+                            listing = updated ?: listing.copy(surveys = listing.surveys.filterNot { it.id == surveyId })
+                            message = "Mobile survey deleted. Other surveys and the last capture were kept."
+                        }
+                    }.show()
+            }
         }
-        button(summary, "All surveys") { current = null; message = "Choose a survey or create one."; reloadList() }
         val pointCard = card("Captured points")
         if (points.length() == 0) text(pointCard, "No points yet. Capture on the phone, then add the saved capture.")
-        for (i in 0 until points.length()) {
+        if (points.length() > 4) button(pointCard, if (showAllPoints) "Show first 4 points" else "Show all ${points.length()} points") { showAllPoints = !showAllPoints; render() }
+        for (i in 0 until (if (showAllPoints) points.length() else minOf(points.length(), 4))) {
             val point = points.getJSONObject(i); val capture = point.getJSONObject("capture")
             val fixes = GpsSpatialModel.savedFixes(capture); val lastFix = fixes.lastOrNull()
             val location = if (lastFix == null) "No usable GPS fix" else {

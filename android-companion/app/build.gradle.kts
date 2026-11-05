@@ -6,8 +6,8 @@ android {
         applicationId = "com.veilbreaker.companion"
         minSdk = 29
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.8.6-dev"
+        versionCode = 16
+        versionName = "0.8.7-dev"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

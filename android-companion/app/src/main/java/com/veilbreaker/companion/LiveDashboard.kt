@@ -81,7 +81,9 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     private fun action(parent: LinearLayout, title: String, action: () -> Unit): Button =
         Button(context).apply {
             text = title; isAllCaps = false; minHeight = dp(48); gravity = Gravity.CENTER
-            backgroundTintList = ColorStateList.valueOf(color("#254e7f")); setTextColor(color("#ffffff"))
+            val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
+            backgroundTintList = ColorStateList(states, intArrayOf(color("#1b2935"), color("#254e7f")))
+            setTextColor(ColorStateList(states, intArrayOf(color("#8ca0ae"), color("#ffffff"))))
             setOnClickListener { action() }; isEnabled = navigationEnabled
             parent.addView(this, if (parent.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(4)
