@@ -75,6 +75,21 @@ object MobileSurvey {
         return addCapture(survey, capture, now)
     }
 
+    /** An operator observation belongs to the survey point, never the original capture. */
+    fun setPointNote(survey: JSONObject, captureId: String, note: String): JSONObject {
+        validate(survey)
+        require(survey.getString("lifecycle") == "open") { "Reopen the survey before editing point notes." }
+        val value = note.trim()
+        require(value.length <= 500 && value.none { it.isISOControl() && it != '\n' }) { "Note must contain at most 500 printable characters." }
+        val copy = JSONObject(survey.toString())
+        val points = copy.getJSONArray("points")
+        val point = (0 until points.length()).asSequence().map { points.getJSONObject(it) }
+            .firstOrNull { it.getJSONObject("capture").optString("capture_id") == captureId }
+            ?: throw IllegalArgumentException("Survey point is unavailable.")
+        if (value.isEmpty()) point.remove("operator_note") else point.put("operator_note", value)
+        return validate(copy)
+    }
+
     fun complete(survey: JSONObject, now: String): JSONObject {
         validate(survey); require(survey.getString("lifecycle") == "open") { "Survey is already complete." }
         return validate(JSONObject(survey.toString()).put("lifecycle", "completed").put("completed_utc", timestamp(now)))

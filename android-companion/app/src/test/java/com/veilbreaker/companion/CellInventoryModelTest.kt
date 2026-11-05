@@ -34,6 +34,13 @@ class CellInventoryModelTest {
         assertTrue(cell.identity.any { it.contains("PCI: 7") })
         assertTrue(cell.age.contains("5 ms old at receipt"))
     }
+    @Test fun retainsCellCallbackTimeSeparatelyFromObservationAssembly() {
+        val obs=observation(10,JSONArray().put(row("LTE",true,"primary")))
+            .put("cell_response_received_utc","2026-11-05T11:59:50Z")
+        val cell=CellInventoryModel.build(capture(obs),plan).cells.single()
+        assertEquals("2026-11-05T11:59:50Z",cell.cellResponseReceived)
+        assertEquals("2026-11-05T12:00:00Z",cell.received)
+    }
     @Test fun conflictingOrUnknownRegistrationDoesNotBecomeNeighbor() {
         val rows=JSONArray().put(row("LTE",false,"primary")).put(row("LTE",JSONObject.NULL,"unknown"))
         val groups=CellInventoryModel.build(capture(observation(10,rows)),plan).cells.map { it.group }

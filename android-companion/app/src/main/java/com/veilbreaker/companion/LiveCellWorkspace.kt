@@ -32,6 +32,8 @@ class LiveCellWorkspace(
     private val status = TextView(context)
     private val details = TextView(context)
     private val button = Button(context)
+    private val trend = LiveCellTrend()
+    private val trendView = LiveCellTrendView(context)
     private var active = false
     private var collectionBlocked = false
     private var generation = 0L
@@ -57,7 +59,9 @@ class LiveCellWorkspace(
         addView(button)
         status.apply { text = "Live monitor off. Choose a SIM and start when ready."; textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(5)) }
         details.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); setPadding(0, dp(5), 0, dp(10)) }
-        addView(status); addView(details)
+        addView(status)
+        trendView.visibility = View.GONE; addView(trendView)
+        addView(details)
     }
 
     fun selectionChanged() {
@@ -76,6 +80,7 @@ class LiveCellWorkspace(
         active = false; generation++; requestId++; subscriptionId = null
         nextRequest?.let(handler::removeCallbacks); timeout?.let(handler::removeCallbacks); endSession?.let(handler::removeCallbacks)
         nextRequest = null; timeout = null; endSession = null
+        trend.reset(); trendView.show(trend); trendView.visibility = View.GONE
         button.text = "Start live cellular"; status.text = message
     }
 
@@ -95,6 +100,7 @@ class LiveCellWorkspace(
         if (!ready(id)) { status.text = "Choose an active SIM, grant phone and precise location permissions, enable location services, and stop other collection first."; return }
         active = true; subscriptionId = id; val token = ++generation
         button.text = "Stop live cellular"; status.text = "Requesting a cell update…"; details.text = ""; shownSubscriptionId = null
+        trend.reset(); trendView.show(trend); trendView.visibility = View.VISIBLE
         endSession = Runnable { if (active && token == generation) stop("Five-minute limit reached. No live readings were saved.") }.also { handler.postDelayed(it, MAX_DURATION_MS) }
         request(token, id)
     }
@@ -115,8 +121,10 @@ class LiveCellWorkspace(
             if (error != null) {
                 status.text = "$error · retrying while this screen remains open."
                 details.text = ""; shownSubscriptionId = null
+                trend.reset("Cell response unavailable; history cleared."); trendView.show(trend)
             } else {
                 val values = cells.orEmpty().take(MAX_CELLS).mapNotNull { runCatching { CellularSnapshot.cell(it, now) }.getOrNull() }
+                trend.accept(values, now); trendView.show(trend)
                 val rendered = runCatching { LiveCellSummary.render(values, channelPlan()) }.getOrElse { "Cell details are unavailable for this response." }
                 val omitted = (cells.orEmpty().size - values.size).coerceAtLeast(0)
                 status.text = "Response received ${DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date())}. Modem sample age is shown at receipt; a new response may be cached."

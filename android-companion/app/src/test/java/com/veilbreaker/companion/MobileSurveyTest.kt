@@ -54,6 +54,33 @@ class MobileSurveyTest {
         assertEquals(0, survey.getJSONArray("points").length())
     }
 
+    @Test fun operatorNoteIsStoredOnPointWithoutChangingCapturedEvidence() {
+        val t = "2026-11-04T12:00:00Z"
+        val original = capture()
+        val survey = MobileSurvey.addCapture(MobileSurvey.create("Site", t), original, t)
+        val before = original.toString()
+        val updated = MobileSurvey.setPointNote(survey, "cap-1", "Concrete pillar north of measurement")
+        assertEquals(before, original.toString())
+        val point = updated.getJSONArray("points").getJSONObject(0)
+        assertEquals("Concrete pillar north of measurement", point.getString("operator_note"))
+        assertEquals(before, point.getJSONObject("capture").toString())
+        assertFalse(survey.getJSONArray("points").getJSONObject(0).has("operator_note"))
+        assertEquals(updated.toString(), MobileSurvey.validate(JSONObject(updated.toString())).toString())
+        val cleared = MobileSurvey.setPointNote(updated, "cap-1", " ")
+        assertFalse(cleared.getJSONArray("points").getJSONObject(0).has("operator_note"))
+    }
+
+    @Test fun operatorNoteRejectsMissingPointInvalidTextAndCompletedSurvey() {
+        val t = "2026-11-04T12:00:00Z"
+        val survey = MobileSurvey.addCapture(MobileSurvey.create("Site", t), capture(), t)
+        for (note in listOf("x".repeat(501), "invalid\u0000control")) {
+            try { MobileSurvey.setPointNote(survey, "cap-1", note); fail("invalid note") } catch (_: IllegalArgumentException) { }
+        }
+        try { MobileSurvey.setPointNote(survey, "missing", "note"); fail("missing point") } catch (_: IllegalArgumentException) { }
+        try { MobileSurvey.setPointNote(MobileSurvey.complete(survey, t), "cap-1", "note"); fail("completed") } catch (_: IllegalArgumentException) { }
+        assertFalse(survey.getJSONArray("points").getJSONObject(0).has("operator_note"))
+    }
+
     @Test fun validatesNamesBoundsAndCaptureShape() {
         val t = "2026-11-04T12:00:00Z"
         for (name in listOf("", " ", "x".repeat(81))) {

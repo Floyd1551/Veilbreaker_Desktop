@@ -8,7 +8,7 @@ object CellInventoryModel {
     enum class Group { SERVING, NEIGHBOR, UNCLASSIFIED }
     data class Cell(val group: Group, val radio: String, val role: String, val subscription: String,
                     val carrier: String, val band: String, val received: String, val age: String,
-                    val identity: List<String>, val metrics: List<String>) {
+                    val identity: List<String>, val metrics: List<String>, val cellResponseReceived: String?) {
         fun searchText(): String = (listOf(radio, role, subscription, carrier, band, received, age) + identity + metrics)
             .joinToString(" ").lowercase(Locale.ROOT)
     }
@@ -93,7 +93,7 @@ object CellInventoryModel {
                 val band=if (id!=null && plan!=null && radio in listOf("LTE","NR")) runCatching { CellularOverview.bandLabel(radio,id,plan) }.getOrNull() else null
                 val age=(row.opt("age_ms") as? Number)?.toLong()?.takeIf { it>=0 }?.let { "$it ms old at receipt" } ?: "Sample age unavailable at receipt"
                 bucket.add(Cell(group,radio,role,sub,carrier ?: "Carrier not exposed",band ?: "Band not exposed",
-                    item(obs,"received_utc") ?: "Receipt time unavailable",age,identity(id),metrics(row,radio)))
+                    item(obs,"received_utc") ?: "Receipt time unavailable",age,identity(id),metrics(row,radio),item(obs,"cell_response_received_utc")))
             }
         }
         val rows=Group.entries.flatMap { buckets.getValue(it) }.take(LIMIT)

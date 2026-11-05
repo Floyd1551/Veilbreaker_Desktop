@@ -56,4 +56,13 @@ class SurveyComparisonModelTest {
         assertEquals(4, row.servingCells.size)
         assertEquals(2, row.omittedServing)
     }
+
+    @Test fun pointReviewKeepsOperatorObservationSeparateFromMeasuredValues() {
+        var survey = MobileSurvey.addCapture(MobileSurvey.create("Field", t), sample("p1", "complete", JSONArray().put(lte(-86))), t)
+        assertNull(SurveyComparisonModel.build(survey, plan).single().operatorNote)
+        survey = MobileSurvey.setPointNote(survey, "p1", "Concrete pillar near antenna")
+        val row = SurveyComparisonModel.build(survey, plan).single()
+        assertEquals("Concrete pillar near antenna", row.operatorNote)
+        assertTrue(row.servingCells.single().metrics.any { it == "RSRP: -86 dBm" })
+    }
 }

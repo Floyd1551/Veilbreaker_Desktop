@@ -94,7 +94,8 @@ class CellInventoryWorkspace(context:Context): LinearLayout(context) {
             }
             card.addView(toggle,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT))
             if(expanded===cell) {
-                card.addView(text("Received: ${cell.received}",12f))
+                card.addView(text("Observation assembled: ${cell.received}",12f))
+                cell.cellResponseReceived?.let { card.addView(text("Cell response received: $it · location may have been acquired separately",12f)) }
                 card.addView(text("IDENTITY",11f,true).apply { setTextColor(Color.parseColor("#63d6ee")) })
                 cell.identity.forEach { card.addView(text(it)) }
                 card.addView(text("MEASUREMENTS",11f,true).apply { setTextColor(Color.parseColor("#63d6ee")) })

@@ -250,7 +250,10 @@ class WifiSnapshotActivity : Activity() {
             }
             results.addView(WifiChannelChartWorkspace(this, chart), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
             val rows = scans.take(2000).map { scan ->
-                WifiObservationFilter.Row(WifiSnapshotFormat.ssid(scan.SSID), WifiSnapshotFormat.bssid(scan.BSSID), scan.frequency, scan.level, WifiSnapshotFormat.ageSeconds(now, scan.timestamp))
+                WifiObservationFilter.Row(WifiSnapshotFormat.ssid(scan.SSID), WifiSnapshotFormat.bssid(scan.BSSID),
+                    scan.frequency, scan.level, WifiSnapshotFormat.ageSeconds(now, scan.timestamp),
+                    scan.channelWidth.takeIf { it != 5 || Build.VERSION.SDK_INT >= 33 },
+                    scan.centerFreq0, scan.centerFreq1, WifiReportedDetails.security(scan.capabilities))
             }
             showObservationFilters(rows, scans.size)
         }
@@ -259,6 +262,7 @@ class WifiSnapshotActivity : Activity() {
     private fun showObservationFilters(rows: List<WifiObservationFilter.Row>, total: Int) {
         val filter = card(results, "FIND CACHED NETWORKS")
         label(filter, "Filter this cached list by network name, BSSID, or band. Changing a filter does not refresh the observations.", 12f)
+        label(filter, "Widths and security capabilities are Android-reported cached details, not a security assessment or proof of channel authorization.", 12f)
         val search = EditText(this).apply {
             hint = "Search SSID or BSSID"; contentDescription = "Search cached Wi-Fi by SSID or BSSID"
             setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(color("#a7bac9"))
@@ -290,6 +294,8 @@ class WifiSnapshotActivity : Activity() {
                 label(entry, "BSSID · ${row.bssid ?: "Not exposed / redacted"}", 12f)
                 signalMeter(entry, row.rssiDbm)
                 label(entry, WifiDisplay.channelText(row.frequencyMhz.takeIf { it > 0 }), 12f)
+                label(entry, "Android-reported width · ${WifiReportedDetails.width(row.reportedWidth, row.center0Mhz, row.center1Mhz)}", 12f)
+                label(entry, "Advertised security capabilities · ${row.securityCapabilities ?: "Not exposed"}", 12f)
                 label(entry, row.ageSeconds?.let { "$it s old when cached list was read" } ?: "Age unavailable", 12f, "#9eb4c4")
             }
         }

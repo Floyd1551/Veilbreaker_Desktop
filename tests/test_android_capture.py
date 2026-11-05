@@ -11,6 +11,15 @@ def fixture():
 
 
 class CaptureTests(unittest.TestCase):
+    def test_optional_cell_response_timestamp_is_preserved_and_validated(self):
+        value = fixture()
+        observation = value['observations'][0]
+        observation['cell_response_received_utc'] = observation['received_utc']
+        validate_capture(value)
+        observation['cell_response_received_utc'] = 'not a timestamp'
+        with self.assertRaises(ValueError):
+            validate_capture(value)
+
     def test_legacy_and_advanced_phone_fields_remain_compatible_reference_evidence(self):
         value = fixture()
         lte = value['observations'][0]['cells'][0]

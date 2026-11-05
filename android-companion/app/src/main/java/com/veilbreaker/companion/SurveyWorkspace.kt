@@ -40,6 +40,7 @@ class SurveyWorkspace(
     private var externalEnabled = true
     private var pendingExport: ByteArray? = null
     private var comparison: List<SurveyComparisonModel.Point>? = null
+    private val noteDrafts = mutableMapOf<String, String>()
     private var message = "Loading local surveys…"
     private var requestedName = ""
     private var creating = false
@@ -132,10 +133,12 @@ class SurveyWorkspace(
                 val item = card("Point ${point.number} · ${point.outcome.uppercase()}")
                 text(item, "Captured ${point.createdUtc}\nCapture ${point.captureId}", 12f)
                 text(item, point.location, 12f, true)
+                point.operatorNote?.let { text(item, "Operator observation · not a measured value\n$it", 12f) }
                 if (point.servingCells.isEmpty()) text(item, "No registered serving cell reported in the latest observations.", 12f)
                 for (cell in point.servingCells) {
                     text(item, "${cell.radio} · ${cell.role} · ${cell.subscription}\n${cell.carrier} · ${cell.band}", 13f, true)
-                    text(item, "${cell.age} · received ${cell.received}", 12f)
+                    text(item, "${cell.age} · observation assembled ${cell.received}", 12f)
+                    cell.cellResponseReceived?.let { text(item, "Cell response received $it · location may have been acquired separately", 12f) }
                     text(item, cell.identity.joinToString(" · "), 12f)
                     text(item, cell.metrics.joinToString(" · "), 12f)
                 }
@@ -147,7 +150,7 @@ class SurveyWorkspace(
         val summary = card(survey.getString("name"))
         text(summary, "${state.uppercase()} · ${points.length()}/20 captures · Created ${survey.getString("created_utc")}")
         if (capturing) {
-            text(summary, "Capturing a new point. Keep Veilbreaker in the foreground; partial results will be identified.")
+            text(summary, "Capturing a new point. Keep Veilbreaker in the foreground. GPS acquisition may take up to 30 seconds; partial results will be identified.")
             summary.addView(Button(context).apply {
                 text = "Cancel capture"; isAllCaps = false; minHeight = dp(48)
                 setOnClickListener {
@@ -190,7 +193,7 @@ class SurveyWorkspace(
                 SurveyComparisonModel.build(survey, plan)
             }) { comparison = it; message = ""; scroll.post { scroll.scrollTo(0, 0) } }
         }
-        text(summary, "Export contains original phone captures and may include identifiers and location. Desktop survey import is not yet supported.", 12f)
+        text(summary, "Export contains original phone captures and operator observations, and may include identifiers and location. Desktop survey import is not yet supported.", 12f)
         button(summary, "Delete survey…") {
             val surveyId = survey.getString("survey_id")
             AlertDialog.Builder(context).setTitle("Delete mobile survey?")
@@ -217,7 +220,39 @@ class SurveyWorkspace(
             text(pointCard, "${i + 1}. ${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)
             text(pointCard, MobileSurvey.signalSummary(capture), 12f)
             text(pointCard, "Capture ${capture.getString("capture_id")} · ${capture.getJSONObject("collection").optString("outcome")} · added ${point.getString("attached_utc")}", 12f)
+            val operatorNote = (point.opt("operator_note") as? String)?.takeIf { it.length <= 500 && it.none { ch -> ch.isISOControl() && ch != '\n' } }
+            if (!operatorNote.isNullOrBlank()) text(pointCard, "Operator observation · not a measured value\n$operatorNote", 12f)
+            else if (point.has("operator_note") && !point.isNull("operator_note") && operatorNote == null) text(pointCard, "Operator observation unavailable or invalid; the saved survey is unchanged.", 12f)
+            if (state == "open") button(pointCard, if (operatorNote.isNullOrBlank()) "Add note to point ${i+1}…" else "Edit note for point ${i+1}…") {
+                editPointNote(survey.getString("survey_id"), capture.getString("capture_id"), operatorNote.orEmpty())
+            }
         }
+    }
+
+    private fun editPointNote(surveyId: String, captureId: String, existing: String) {
+        if (busy || capturing) return
+        val entry = EditText(context).apply {
+            hint = "Example: concrete pillar between antenna and test point"
+            contentDescription = "Operator observation for survey point"
+            setTextColor(Color.WHITE); setHintTextColor(Color.LTGRAY)
+            setText(noteDrafts[captureId] ?: existing); minLines = 3
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            filters = arrayOf(android.text.InputFilter.LengthFilter(500))
+        }
+        AlertDialog.Builder(context).setTitle("Operator observation")
+            .setMessage("Describe visible conditions. This note is operator-entered, is stored with the survey, and does not change the captured measurement. Clear the text to remove the note.")
+            .setView(entry).setNegativeButton("Cancel", null)
+            .setPositiveButton("Save") { _, _ ->
+                val note = entry.text.toString()
+                noteDrafts[captureId] = note
+                runJob({
+                    try { store.update(surveyId) { latest -> MobileSurvey.setPointNote(latest, captureId, note) } }
+                    catch (error: Exception) { throw IllegalArgumentException("Could not save the note; its draft remains available while this screen is open. ${error.message ?: "Try again."}") }
+                }) {
+                    noteDrafts.remove(captureId)
+                    current = it; message = if (note.isBlank()) "Operator observation removed." else "Operator observation saved with the survey point."
+                }
+            }.show()
     }
 
     private fun startCaptureAndAdd(surveyId: String) {

@@ -6,7 +6,9 @@ import java.util.Locale
 object WifiObservationFilter {
     enum class Band { ALL, GHZ_24, GHZ_5, GHZ_6 }
     enum class Order { SIGNAL, FREQUENCY, AGE }
-    data class Row(val ssid: String?, val bssid: String?, val frequencyMhz: Int, val rssiDbm: Int, val ageSeconds: Long?)
+    data class Row(val ssid: String?, val bssid: String?, val frequencyMhz: Int, val rssiDbm: Int, val ageSeconds: Long?,
+                   val reportedWidth: Int? = null, val center0Mhz: Int? = null, val center1Mhz: Int? = null,
+                   val securityCapabilities: String? = null)
     fun select(rows: List<Row>, query: String, band: Band, order: Order): List<Row> {
         val needle = query.trim().lowercase(Locale.ROOT)
         val selected = rows.filter { row ->

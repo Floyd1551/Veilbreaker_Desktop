@@ -131,7 +131,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.5 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.6 DEV";textSize=10f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -333,6 +333,8 @@ class MainActivity : Activity() {
         pendingSnapshotCompletion=onComplete
         val epoch=++generation;pending=true;lockInputs(true)
         val started=Instant.now().toString()
+        val locationDeadline=SystemClock.elapsedRealtime()+30000
+        var cellResponseUtc:String?=null
         status.text=if(useCell) "Collecting cellular measurements…" else "Collecting location…"
         fun finish(cells:List<CellInfo>?,error:String?) {
             if(epoch!=generation || !pending || (target!=null && target!==connection?.session)) return
@@ -345,9 +347,12 @@ class MainActivity : Activity() {
                 val locationValue=if(useLocation) location.atReceipt(elapsed) else null
                 val assessment=CaptureAssessment.assess(useCell,source.size,stillPresent,error,useLocation,locationValue?.optString("status"))
                 val outcome=assessment.outcome
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.5-dev",
-                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,assessment.notes,started)
+                val notes=assessment.notes.toMutableList()
+                if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.6-dev",
+                    source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
+                cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }
                 snapshot.getJSONObject("collection").put("inputs",JSONObject().put("cellular",useCell).put("location",useLocation))
                 if(locationValue!=null) observation.put("location",locationValue)
                 if(useCell) {
@@ -368,24 +373,44 @@ class MainActivity : Activity() {
             if(target==null) finishSnapshotRequest(result ?: Result.failure(IllegalStateException("Capture unavailable.")))
         }
         if(!useCell) {
-            val deadline=SystemClock.elapsedRealtime()+30000
             val waitForFix=object:Runnable {
                 override fun run() {
                     if(epoch!=generation || !pending) return
-                    val state=location.atReceipt(SystemClock.elapsedRealtime()).optString("status")
-                    if(target!=null || state!="unavailable" || SystemClock.elapsedRealtime()>=deadline) finish(emptyList(),null)
+                    val now=SystemClock.elapsedRealtime()
+                    val state=location.atReceipt(now).optString("status")
+                    if(!CaptureWaitPolicy.waitForLocation(target==null,useLocation,state,now,locationDeadline)) finish(emptyList(),null)
                     else { status.text="Waiting for GPS fix… Keep the phone near a clear view of the sky.";handler.postDelayed(this,1000) }
                 }
             }
             handler.postDelayed(waitForFix,1000);return
         }
-        handler.postDelayed({ finish(null,"Cell request timed out") },15000)
+        var cellResponseReceived=false
+        lateinit var cellTimeout:Runnable
+        fun cellularComplete(cells:List<CellInfo>?,error:String?) {
+            if(epoch!=generation || !pending || cellResponseReceived || (target!=null && target!==connection?.session)) return
+            cellResponseReceived=true;handler.removeCallbacks(cellTimeout)
+            if(error==null && cells!=null) cellResponseUtc=Instant.now().toString()
+            val waitForFix=object:Runnable {
+                override fun run() {
+                    if(epoch!=generation || !pending) return
+                    val now=SystemClock.elapsedRealtime()
+                    val state=if(useLocation) location.atReceipt(now).optString("status") else null
+                    if(CaptureWaitPolicy.waitForLocation(target==null,useLocation,state,now,locationDeadline)) {
+                        status.text="Cell response received · waiting for GPS fix (up to 30 seconds total)…"
+                        handler.postDelayed(this,1000)
+                    } else finish(cells,error)
+                }
+            }
+            waitForFix.run()
+        }
+        cellTimeout=Runnable { cellularComplete(null,"Cell request timed out") }
+        handler.postDelayed(cellTimeout,15000)
         try {
             getSystemService(TelephonyManager::class.java).createForSubscriptionId(selected!!.subscriptionId).requestCellInfoUpdate(mainExecutor,object:TelephonyManager.CellInfoCallback() {
-                override fun onCellInfo(info:MutableList<CellInfo>) { finish(info,null) }
-                override fun onError(code:Int,detail:Throwable?) { finish(null,"Cell information unavailable") }
+                override fun onCellInfo(info:MutableList<CellInfo>) { cellularComplete(info,null) }
+                override fun onError(code:Int,detail:Throwable?) { cellularComplete(null,"Cell information unavailable") }
             })
-        } catch(_:Exception) { finish(null,"Cell information unavailable") }
+        } catch(_:Exception) { cellularComplete(null,"Cell information unavailable") }
     }
     private fun save(value:JSONObject) {
         val file=AtomicFile(filesDir.resolve("last-capture.json"))

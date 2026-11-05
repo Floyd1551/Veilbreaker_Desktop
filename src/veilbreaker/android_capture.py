@@ -109,6 +109,7 @@ def _validate_capture(value):
         require(obs['observation_id'] not in ids, 'Duplicate observation ID'); ids.add(obs['observation_id'])
         require(obs.get('subscription_key') in keys, 'Unknown subscription reference')
         utc(obs.get('received_utc'))
+        if 'cell_response_received_utc' in obs: utc(obs['cell_response_received_utc'])
         require(number(obs.get('elapsed_realtime_ms'),0,1e15), 'Invalid receipt monotonic timestamp')
         require(obs.get('outcome') in OUTCOMES, 'Invalid observation outcome')
         if obs.get('location') is not None: validate_location(obs['location'])

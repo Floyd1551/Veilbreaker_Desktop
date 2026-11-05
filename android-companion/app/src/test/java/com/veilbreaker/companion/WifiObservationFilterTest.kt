@@ -29,4 +29,11 @@ class WifiObservationFilterTest {
         assertEquals(listOf(10L, 20L, 90L, null), WifiObservationFilter.select(rows, "", WifiObservationFilter.Band.ALL, WifiObservationFilter.Order.AGE).map { it.ageSeconds })
         assertEquals(listOf(2412, 2437, 5180, 5955), WifiObservationFilter.select(rows, "", WifiObservationFilter.Band.ALL, WifiObservationFilter.Order.FREQUENCY).map { it.frequencyMhz })
     }
+
+    @Test fun selectingAndSortingPreservesPerObservationReportedDetails() {
+        val reported = WifiObservationFilter.Row("Example", "00:11:22:33:44:88", 5180, -60, 12,
+            2, 5210, 0, "[WPA2-PSK-CCMP]")
+        val selected = WifiObservationFilter.select(rows + reported, "example", WifiObservationFilter.Band.GHZ_5, WifiObservationFilter.Order.AGE)
+        assertEquals(reported, selected.single())
+    }
 }
