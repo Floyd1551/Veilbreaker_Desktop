@@ -29,12 +29,15 @@ timestamps associated with the same identified cell; those timestamps do not
 guarantee fresh physical measurements. Lines between points are for readability
 and are not continuous measurements.
 
-Open **GPS & offline map** after stopping the Desktop session or pending capture.
+Open **GPS & map** after stopping the Desktop session or pending capture.
 Start live GPS explicitly, or inspect locations from the last saved phone capture.
-Without an image the display is a coordinate plot, not a basemap. For an actual
-offline image background, choose a local north-up Plate Carrée/equirectangular
+Choose the online OpenStreetMap street basemap explicitly to view a map over the
+network. Requests disclose the approximate viewed area to the tile provider.
+The online basemap is not an offline map pack. Without a basemap or image the
+display is a coordinate plot. For an offline image background, choose a local
+north-up Plate Carrée/equirectangular
 JPEG or PNG and supply its full WGS84 bounds and source. The app does not verify
-the image or bounds; other projections, including Web Mercator, are unsupported.
+the image or bounds; imported images in other projections, including Web Mercator, are unsupported.
 Images with rotated or mirrored EXIF orientation are rejected.
 Images and live display-only fixes are not added to evidence or retained by this
 screen, and GPS stops when the screen leaves the foreground.

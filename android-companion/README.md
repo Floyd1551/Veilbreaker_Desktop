@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8 development build
+# Veilbreaker Mobile 0.8.1 development build
 
 Android 10/API 29 or newer. Public LTE/NR snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed.
 
@@ -25,8 +25,10 @@ identified cell; timestamps do not guarantee fresh physical measurements. Wi-Fi 
 including sample age when available. The GPS view can show an explicitly started
 foreground fix and locations from the last saved capture. It can overlay points on
 a user-supplied, north-up Plate Carrée image with operator-entered WGS84 bounds;
-it does not download a basemap, validate the image or support Web Mercator. Images
-with rotated or mirrored EXIF orientation are rejected. The
+an explicitly enabled OpenStreetMap street basemap is also available when online.
+Tile requests disclose the approximate map area to the map provider; this is not
+a downloadable offline map. The image workflow does not validate its bounds or
+support Web Mercator images. Images with rotated or mirrored EXIF orientation are rejected. The
 image and display do not modify recorded evidence. USB sessions must be stopped
 before opening the GPS or Wi-Fi views.
 
