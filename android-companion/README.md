@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.3 development build
+# Veilbreaker Mobile 0.8.4 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -18,7 +18,9 @@ shortcut; SIM selection follows the subscription identity when the list changes.
 operator's chosen URL over an explicitly selected Android network; a short
 download is an estimate, not a sustained capacity test. Upload, jitter and
 packet loss are not measured. The app can group up to 20 explicitly added
-captures into a phone-only survey and export that survey as JSON; Desktop
+captures into a phone-only survey and export that survey as JSON; a new capture
+can also be collected and added directly from an open survey, with cancellation
+and partial results clearly indicated; Desktop
 survey import and migration from the older Mobile application are not yet
 supported. Reports can export the most recent phone capture as PDF or JSON.
 
@@ -52,3 +54,8 @@ interface inventory. A USB peripheral view lists Android-reported descriptors an
 identifies a possible HackRF by USB ID; detection does not mean SDR capture is
 supported. No USB peripheral is opened or controlled. Ethernet is visible only
 when Android supports the adapter and exposes a network.
+
+Reports can browse the latest captured serving and neighboring cells, filtered by
+role or search, with timestamps, modem-reported and derived bands distinguished.
+Wi-Fi inspection filters and sorts previously cached results without starting a
+new scan; the frequency chart is not affected by the list filters.

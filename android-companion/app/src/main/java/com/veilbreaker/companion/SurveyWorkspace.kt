@@ -21,7 +21,12 @@ import org.json.JSONObject
 import java.time.Instant
 
 /** Local survey workspace; no automatic collection, scoring, or synthetic coordinates. */
-class SurveyWorkspace(context: Context, private val captureProvider: () -> JSONObject?) : LinearLayout(context) {
+class SurveyWorkspace(
+    context: Context,
+    private val captureProvider: () -> JSONObject?,
+    private val requestCapture: ((Result<JSONObject>) -> Unit) -> Unit,
+    private val cancelCapture: () -> Unit
+) : LinearLayout(context) {
     private val activity = context as Activity
     private val store = MobileSurveyStore(context)
     private val handler = Handler(Looper.getMainLooper())
@@ -29,6 +34,8 @@ class SurveyWorkspace(context: Context, private val captureProvider: () -> JSONO
     private var listing = MobileSurveyStore.Listing(emptyList(), 0)
     private var current: JSONObject? = null
     private var busy = false
+    private var capturing = false
+    private var captureGeneration = 0
     private var externalEnabled = true
     private var pendingExport: ByteArray? = null
     private var message = "Loading local surveys…"
@@ -67,7 +74,7 @@ class SurveyWorkspace(context: Context, private val captureProvider: () -> JSONO
     }
 
     private fun button(parent: LinearLayout, title: String, enabled: Boolean = true, action: () -> Unit): Button = Button(context).apply {
-        text = title; isAllCaps = false; minHeight = dp(48); isEnabled = enabled && !busy
+        text = title; isAllCaps = false; minHeight = dp(48); isEnabled = enabled && !busy && !capturing
         backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#213e56"))
         setTextColor(Color.parseColor("#e5f5fa")); setOnClickListener { action() }; parent.addView(this)
     }
@@ -80,7 +87,7 @@ class SurveyWorkspace(context: Context, private val captureProvider: () -> JSONO
         if (survey == null) {
             if (creating) {
                 val create = card("New survey")
-                text(create, "Group up to 20 saved captures. Adding a point does not start collection.", 12f)
+                text(create, "Group up to 20 captures. Capture a new point or add a previously saved phone capture.", 12f)
                 val name = EditText(context).apply {
                     hint = "Survey name"; contentDescription = "Survey name"; setSingleLine(true)
                     isEnabled = !busy
@@ -116,7 +123,23 @@ class SurveyWorkspace(context: Context, private val captureProvider: () -> JSONO
         val state = survey.getString("lifecycle"); val points = survey.getJSONArray("points")
         val summary = card(survey.getString("name"))
         text(summary, "${state.uppercase()} · ${points.length()}/20 captures · Created ${survey.getString("created_utc")}")
-        if (!externalEnabled) text(summary, "Stop the active Desktop session or capture before adding or exporting.")
+        if (capturing) {
+            text(summary, "Capturing a new point. Keep Veilbreaker in the foreground; partial results will be identified.")
+            summary.addView(Button(context).apply {
+                text = "Cancel capture"; isAllCaps = false; minHeight = dp(48)
+                setOnClickListener {
+                    if (!capturing) return@setOnClickListener
+                    captureGeneration++; capturing = false
+                    message = "Capture cancelled. Survey unchanged; any already saved phone capture is retained."
+                    try { cancelCapture() } catch (_: Exception) { }
+                    render()
+                }
+            })
+        } else if (!externalEnabled) text(summary, "Stop the active Desktop session or capture before adding or exporting.")
+        button(summary, "Capture and add point", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
+            startCaptureAndAdd(survey.getString("survey_id"))
+        }
+        if (state == "open" && points.length() >= MobileSurvey.MAX_POINTS) text(summary, "This survey already has 20 captures.", 12f)
         button(summary, "Add last phone capture", externalEnabled && state == "open") {
             val selected = captureProvider()
             if (selected == null) { message = "Capture on the phone first, then return here to add it."; render() }
@@ -166,6 +189,46 @@ class SurveyWorkspace(context: Context, private val captureProvider: () -> JSONO
             text(pointCard, "${i + 1}. ${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)
             text(pointCard, MobileSurvey.signalSummary(capture), 12f)
             text(pointCard, "Capture ${capture.getString("capture_id")} · ${capture.getJSONObject("collection").optString("outcome")} · added ${point.getString("attached_utc")}", 12f)
+        }
+    }
+
+    private fun startCaptureAndAdd(surveyId: String) {
+        if (capturing || busy || !externalEnabled) return
+        capturing = true
+        val generation = ++captureGeneration
+        message = "Capturing a new survey point…"
+        render()
+        fun completed(result: Result<JSONObject>) {
+            handler.post {
+                if (!capturing || generation != captureGeneration || activity.isFinishing || activity.isDestroyed) return@post
+                capturing = false
+                val capture = result.getOrElse {
+                    message = it.message ?: "Capture did not complete. Check phone inputs in Live; the survey is unchanged."
+                    render(); return@post
+                }
+                if (current?.optString("survey_id") != surveyId) {
+                    message = "Survey changed before capture finished. The saved phone capture was not added."
+                    render(); return@post
+                }
+                val outcome = capture.optJSONObject("collection")?.optString("outcome")
+                runJob({
+                    try {
+                        val latest = store.load(surveyId)
+                        val updated = MobileSurvey.addNewCapture(latest, capture, Instant.now().toString())
+                        store.save(updated); updated
+                    } catch (error: Exception) {
+                        throw IllegalArgumentException("Survey unchanged; the phone capture remains saved. ${error.message ?: "Could not add point."}")
+                    }
+                }) { updated ->
+                    current = updated
+                    message = if (outcome == "partial") "Partial capture added. Review missing data and location before using it." else "New capture added as a survey point."
+                }
+            }
+        }
+        try { requestCapture(::completed) } catch (_: Exception) {
+            capturing = false; captureGeneration++
+            message = "Capture could not start. Configure phone inputs in Live; the survey is unchanged."
+            render()
         }
     }
 

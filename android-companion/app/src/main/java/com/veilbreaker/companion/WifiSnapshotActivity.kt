@@ -20,10 +20,17 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
 import java.text.DateFormat
 import java.util.Date
@@ -41,6 +48,10 @@ class WifiSnapshotActivity : Activity() {
     private var lastPermission = false
     private var lastLocationEnabled = false
     private var lastWifiEnabled = false
+    private var filterQuery = ""
+    private var filterBand = WifiObservationFilter.Band.ALL
+    private var filterOrder = WifiObservationFilter.Order.SIGNAL
+    private var pendingListRender: Runnable? = null
     private val redrawConnected = Runnable {
         if (refreshGate.consume() && visible) refreshConnected()
     }
@@ -77,6 +88,11 @@ class WifiSnapshotActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        if (state != null) {
+            filterQuery = state.getString("wifi_filter_query", "").take(128)
+            filterBand = WifiObservationFilter.Band.entries.getOrElse(state.getInt("wifi_filter_band", 0)) { WifiObservationFilter.Band.ALL }
+            filterOrder = WifiObservationFilter.Order.entries.getOrElse(state.getInt("wifi_filter_order", 0)) { WifiObservationFilter.Order.SIGNAL }
+        }
         window.statusBarColor = Color.parseColor("#0d1520")
         window.navigationBarColor = Color.parseColor("#0d1520")
         val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport = true }
@@ -96,6 +112,13 @@ class WifiSnapshotActivity : Activity() {
         results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; content.addView(this) }
         button("Back to field workspace") { finish() }
         refresh()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("wifi_filter_query", filterQuery)
+        outState.putInt("wifi_filter_band", filterBand.ordinal)
+        outState.putInt("wifi_filter_order", filterOrder.ordinal)
+        super.onSaveInstanceState(outState)
     }
 
     private fun requestWifiPermissions() {
@@ -121,6 +144,7 @@ class WifiSnapshotActivity : Activity() {
 
     override fun onStop() {
         visible = false
+        cancelListRender()
         refreshGate.stop()
         mainHandler.removeCallbacks(redrawConnected)
         unregisterWifiCallback()
@@ -174,6 +198,11 @@ class WifiSnapshotActivity : Activity() {
         mainHandler.removeCallbacks(redrawConnected)
     }
 
+    private fun cancelListRender() {
+        pendingListRender?.let(mainHandler::removeCallbacks)
+        pendingListRender = null
+    }
+
     private fun wifiCallback(epoch: Int) = object : ConnectivityManager.NetworkCallback() {
         override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) = onWifiCapabilities(network, capabilities, epoch)
         override fun onLost(network: Network) = onWifiLost(network, epoch)
@@ -187,6 +216,7 @@ class WifiSnapshotActivity : Activity() {
     @Suppress("DEPRECATION")
     private fun refresh() {
         cancelScheduledRefresh()
+        cancelListRender()
         results.removeAllViews()
         val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
         if (wifi == null) { label(card(results, "WI-FI"), "Wi-Fi is not available on this device."); return }
@@ -213,24 +243,76 @@ class WifiSnapshotActivity : Activity() {
             val now = SystemClock.elapsedRealtime()
             val strongest = scans.sortedByDescending { it.level }
             if (scans.isEmpty()) label(nearby, "No cached scan entries were exposed. This does not prove that no networks are present.")
-            label(nearby, "${scans.size} cached entries · chart uses up to 500 · list shows up to 80 · strongest first", 12f)
-            label(nearby, "Each bar is one reported network, not a history graph. Ages use Android monotonic timestamps.", 12f, "#9eb4c4")
+            label(nearby, "${scans.size} cached entries · chart uses up to 500 strongest and is not affected by list filters. Filters examine up to 2,000 entries; list shows up to 80.", 12f)
+            label(nearby, "Ages are calculated when the cached list is read, not when filtered. No new scan is started.", 12f, "#9eb4c4")
             val chart = strongest.take(500).map { scan ->
                 WifiChannelPlotModel.Sample(scan.frequency, scan.level, WifiSnapshotFormat.ageSeconds(now, scan.timestamp))
             }
             results.addView(WifiChannelChartWorkspace(this, chart), LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-            for (scan in strongest.take(80)) {
-                val name = WifiSnapshotFormat.ssid(scan.SSID) ?: "SSID not exposed / hidden"
-                val bssid = WifiSnapshotFormat.bssid(scan.BSSID) ?: "BSSID not exposed / redacted"
-                val frequency = scan.frequency.takeIf { it > 0 }
-                val entry = card(results, "CACHED WI-FI")
-                label(entry, name, 17f, "#eef7fc", true)
-                label(entry, "BSSID · $bssid", 12f)
-                signalMeter(entry, scan.level)
-                label(entry, WifiDisplay.channelText(frequency), 12f)
-                label(entry, WifiDisplay.ageText(WifiSnapshotFormat.ageSeconds(now, scan.timestamp)), 12f, "#9eb4c4")
+            val rows = scans.take(2000).map { scan ->
+                WifiObservationFilter.Row(WifiSnapshotFormat.ssid(scan.SSID), WifiSnapshotFormat.bssid(scan.BSSID), scan.frequency, scan.level, WifiSnapshotFormat.ageSeconds(now, scan.timestamp))
+            }
+            showObservationFilters(rows, scans.size)
+        }
+    }
+
+    private fun showObservationFilters(rows: List<WifiObservationFilter.Row>, total: Int) {
+        val filter = card(results, "FIND CACHED NETWORKS")
+        label(filter, "Filter this cached list by network name, BSSID, or band. Changing a filter does not refresh the observations.", 12f)
+        val search = EditText(this).apply {
+            hint = "Search SSID or BSSID"; contentDescription = "Search cached Wi-Fi by SSID or BSSID"
+            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(color("#a7bac9"))
+            filters = arrayOf(android.text.InputFilter.LengthFilter(128)); setText(filterQuery)
+        }
+        filter.addView(search)
+        val band = Spinner(this).apply {
+            contentDescription = "Filter cached Wi-Fi by band"
+            adapter = ArrayAdapter(this@WifiSnapshotActivity, android.R.layout.simple_spinner_dropdown_item, listOf("All bands", "2.4 GHz", "5 GHz", "6 GHz"))
+            setSelection(filterBand.ordinal)
+        }
+        filter.addView(band)
+        val order = Spinner(this).apply {
+            contentDescription = "Sort cached Wi-Fi"
+            adapter = ArrayAdapter(this@WifiSnapshotActivity, android.R.layout.simple_spinner_dropdown_item, listOf("Strongest signal first", "Frequency", "Newest cached sample first"))
+            setSelection(filterOrder.ordinal)
+        }
+        filter.addView(order)
+        val summary = label(filter, "", 12f)
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; results.addView(this) }
+        fun renderList() {
+            list.removeAllViews()
+            val selected = WifiObservationFilter.select(rows, filterQuery, filterBand, filterOrder)
+            summary.text = "${selected.size} matching cached entries${if (total > rows.size) " · ${total - rows.size} beyond filter limit" else ""}; showing up to 80."
+            if (selected.isEmpty()) label(list, "No matching cached entries. This does not mean the network or band is absent.", 13f)
+            for (row in selected.take(80)) {
+                val entry = card(list, "CACHED WI-FI")
+                label(entry, row.ssid ?: "SSID not exposed / hidden", 17f, "#eef7fc", true)
+                label(entry, "BSSID · ${row.bssid ?: "Not exposed / redacted"}", 12f)
+                signalMeter(entry, row.rssiDbm)
+                label(entry, WifiDisplay.channelText(row.frequencyMhz.takeIf { it > 0 }), 12f)
+                label(entry, row.ageSeconds?.let { "$it s old when cached list was read" } ?: "Age unavailable", 12f, "#9eb4c4")
             }
         }
+        fun scheduleRender() {
+            cancelListRender()
+            if (!visible) return
+            val render = Runnable { pendingListRender = null; if (visible && !isFinishing && !isDestroyed) renderList() }
+            pendingListRender = render; mainHandler.postDelayed(render, 180)
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { filterQuery = s?.toString().orEmpty(); scheduleRender() }
+            override fun afterTextChanged(s: Editable?) {}
+        })
+        band.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { filterBand = WifiObservationFilter.Band.entries.getOrElse(position) { WifiObservationFilter.Band.ALL }; scheduleRender() }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        order.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { filterOrder = WifiObservationFilter.Order.entries.getOrElse(position) { WifiObservationFilter.Order.SIGNAL }; scheduleRender() }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+        renderList()
     }
 
     private fun refreshConnected() {

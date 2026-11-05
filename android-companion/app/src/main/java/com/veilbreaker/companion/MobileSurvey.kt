@@ -68,6 +68,13 @@ object MobileSurvey {
         return validate(copy)
     }
 
+    /** A direct capture can attach only a completed or partial result, never a cancellation or failure. */
+    fun addNewCapture(survey: JSONObject, capture: JSONObject, now: String): JSONObject {
+        val outcome = capture.optJSONObject("collection")?.optString("outcome")
+        require(outcome == "complete" || outcome == "partial") { "No completed or partial capture was collected; survey is unchanged." }
+        return addCapture(survey, capture, now)
+    }
+
     fun complete(survey: JSONObject, now: String): JSONObject {
         validate(survey); require(survey.getString("lifecycle") == "open") { "Survey is already complete." }
         return validate(JSONObject(survey.toString()).put("lifecycle", "completed").put("completed_utc", timestamp(now)))

@@ -36,6 +36,24 @@ class MobileSurveyTest {
         assertEquals(2, MobileSurvey.addCapture(survey, capture("cap-2"), t).getJSONArray("points").length())
     }
 
+    @Test fun newlyCollectedSurveyPointRetainsPartialButRejectsFailedOrCancelled() {
+        val t = "2026-11-04T12:00:00Z"
+        val survey = MobileSurvey.create("Site", t)
+        val partial = capture("partial")
+        partial.getJSONObject("collection").put("outcome", "partial")
+        val updated = MobileSurvey.addNewCapture(survey, partial, t)
+        assertEquals("partial", updated.getJSONArray("points").getJSONObject(0)
+            .getJSONObject("capture").getJSONObject("collection").getString("outcome"))
+        try { MobileSurvey.addNewCapture(updated, partial, t); fail("duplicate") } catch (_: IllegalArgumentException) { }
+        try { MobileSurvey.addNewCapture(MobileSurvey.complete(survey, t), capture("another"), t); fail("completed") } catch (_: IllegalArgumentException) { }
+        for (outcome in listOf("cancelled", "failed")) {
+            val invalid = capture(outcome)
+            invalid.getJSONObject("collection").put("outcome", outcome)
+            try { MobileSurvey.addNewCapture(survey, invalid, t); fail(outcome) } catch (_: IllegalArgumentException) { }
+        }
+        assertEquals(0, survey.getJSONArray("points").length())
+    }
+
     @Test fun validatesNamesBoundsAndCaptureShape() {
         val t = "2026-11-04T12:00:00Z"
         for (name in listOf("", " ", "x".repeat(81))) {
