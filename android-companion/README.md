@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.11 development build
+# Veilbreaker Mobile 0.8.12 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -13,6 +13,11 @@ for remaining migration and reporting work.
 Live, Diagnose, Survey, Reports and Tools pages remain inside the same foreground
 workspace. Tools offers 38 searchable offline engineering calculators, two
 additional two-way converters, 53 reference entries and 10 field guides.
+Selected calculators include schematic diagrams and a calculated input/output
+worksheet. Reference entries provide illustrated channel examples and quick
+tables where applicable; guides have workflow figures and decision-cue tables.
+All illustrations and tabulated examples are offline reference material, not
+captured or calibrated measurements.
 The Planning tab includes an idealized Wi-Fi AP count and geometry schematic, a
 candidate FWA bearing and free-space path estimate with a manual trial comparison,
 and an interactive operator-drawn network topology. These are

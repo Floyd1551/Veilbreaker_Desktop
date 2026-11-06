@@ -84,6 +84,12 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         }
         label(card, tool.title, 17f, bright, true)
         label(card, tool.description, 13f)
+        val visual = ToolVisualModel.forTool(tool.id)?.let { spec ->
+            val diagram = EngineeringToolDiagram(context, tool.id, spec)
+            card.addView(diagram, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
+            label(card, spec.description, 12f)
+            diagram
+        }
         val fields = tool.fields.map { field ->
             label(card, field, 13f, bright)
             EditText(context).apply {
@@ -93,7 +99,11 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
             }
         }
         val result = label(card, "Enter values to calculate.", 14f, cyan, true)
-        fields.forEach { field -> field.addTextChangedListener(watcher { result.text = "Inputs changed. Calculate again." }) }
+        val worksheet = LinearLayout(context).apply { orientation = VERTICAL; visibility = View.GONE; card.addView(this) }
+        fields.forEach { field -> field.addTextChangedListener(watcher {
+            result.text = "Inputs changed. Calculate again."
+            worksheet.removeAllViews(); worksheet.visibility = View.GONE; visual?.clearCalculation()
+        }) }
         Button(context).apply {
             text = "Calculate"; isAllCaps = false; minHeight = dp(48); setTextColor(Color.parseColor("#06232a"))
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(9).toFloat() }
@@ -103,6 +113,24 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
                 val answer = if (values.any { it == null }) null else tool.evaluate(values.filterNotNull())
                 result.text = if (answer == null) "Enter finite values within the ranges described above." else
                     "Calculated: ${String.format(Locale.US, "%.6g", answer)} ${tool.unit}"
+                worksheet.removeAllViews()
+                if (answer == null) { worksheet.visibility = View.GONE; visual?.clearCalculation() }
+                else {
+                    val safeValues = values.filterNotNull()
+                    visual?.showCalculation(safeValues)
+                    label(worksheet, "CALCULATION WORKSHEET", 11f, cyan, true)
+                    fun row(name: String, value: String) {
+                        val line = LinearLayout(context).apply { orientation = HORIZONTAL; setPadding(0, dp(3), 0, dp(3)) }
+                        worksheet.addView(line, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+                        val key = TextView(context).apply { text = name; textSize = 12f; setTextColor(muted) }
+                        val amount = TextView(context).apply { text = value; textSize = 12f; setTextColor(bright); gravity = android.view.Gravity.END }
+                        line.addView(key, LayoutParams(0, LayoutParams.WRAP_CONTENT, 2f))
+                        line.addView(amount, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+                    }
+                    tool.fields.forEachIndexed { index, name -> row(name, fields[index].text.toString().trim()) }
+                    row("Calculated result", "${String.format(Locale.US, "%.6g", answer)} ${tool.unit}")
+                    worksheet.visibility = View.VISIBLE
+                }
             }
             card.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
         }

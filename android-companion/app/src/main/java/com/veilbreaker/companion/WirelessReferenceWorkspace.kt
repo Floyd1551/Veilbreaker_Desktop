@@ -90,8 +90,12 @@ class WirelessReferenceWorkspace(context: Context) : LinearLayout(context) {
             }
             card.addView(toggle, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
             if (openId == entry.id) {
-                card.addView(text("FIELD USE", 11f, true).apply { setTextColor(Color.parseColor("#63d6ee")) })
-                card.addView(text(entry.fieldUse))
+                GuideVisuals.create(context, entry.id)?.let { card.addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) }) }
+                ReferenceVisuals.addTo(card, entry.id)
+                if (entry.id !in setOf("expanded-dbm-table", "expanded-db-ratio-table", "expanded-cidr-table")) {
+                    card.addView(text("FIELD USE", 11f, true).apply { setTextColor(Color.parseColor("#63d6ee")) })
+                    card.addView(text(entry.fieldUse))
+                }
                 card.addView(text("LIMITATIONS", 11f, true).apply { setTextColor(Color.parseColor("#63d6ee")) })
                 card.addView(text(entry.limitations))
                 card.addView(text("Source: ${entry.sourceName}\n${entry.sourceUrl}\nReference record date: ${entry.reviewed}. Source may change; recheck current rules and specifications.", 11f))
