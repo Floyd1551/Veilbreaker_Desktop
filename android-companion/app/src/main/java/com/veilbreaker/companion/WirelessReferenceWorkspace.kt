@@ -32,7 +32,7 @@ class WirelessReferenceWorkspace(context: Context) : LinearLayout(context) {
     }
     init {
         orientation = VERTICAL
-        addView(text("WIRELESS FIELD REFERENCE", 16f, true))
+        addView(text("FIELD REFERENCE LIBRARY", 16f, true))
         addView(text("Search offline notes by metric, technology, equipment or material. Reference context is not measured evidence.", 12f))
         search.apply {
             hint = "Search: RSRP, BSSID, SINR, concrete…"
@@ -71,7 +71,7 @@ class WirelessReferenceWorkspace(context: Context) : LinearLayout(context) {
     private fun render() {
         results.removeAllViews()
         val found = WirelessReferenceLibrary.search(category, search.text?.toString().orEmpty())
-        results.addView(text(if (found.isEmpty()) "No matching references. Try another term or category." else "${found.size} reference${if (found.size == 1) "" else "s"} · tap to ${if (openId == null) "read" else "expand or collapse"}", 12f))
+        results.addView(text(if (found.isEmpty()) "No matching references or guides. Try another term or category." else "${found.size} ${if (found.size == 1) "entry" else "entries"} · tap to ${if (openId == null) "read" else "expand or collapse"}", 12f))
         found.forEach { entry ->
             val card = LinearLayout(context).apply {
                 orientation = VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(10))

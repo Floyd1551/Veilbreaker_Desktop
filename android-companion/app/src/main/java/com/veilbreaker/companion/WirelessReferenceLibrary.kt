@@ -23,7 +23,7 @@ object WirelessReferenceLibrary {
     private const val LTE = "https://developer.android.com/reference/android/telephony/CellSignalStrengthLte"
     private const val NR = "https://developer.android.com/reference/android/telephony/CellSignalStrengthNr"
     private const val P2040 = "https://www.itu.int/rec/R-REC-P.2040/en"
-    val categories = listOf("All", "Wi-Fi", "Cellular", "RF")
+    val categories = listOf("All", "Wi-Fi", "Cellular", "RF", "Networking", "Fiber & Power", "Guides")
     val entries = listOf(
         Entry("wifi-rssi", "Wi-Fi", "Wi-Fi signal and RSSI",
             "RSSI is the received signal strength reported for a Wi-Fi link, commonly shown in dBm. Values closer to zero indicate more received power.",
@@ -75,7 +75,7 @@ object WirelessReferenceLibrary {
             "Record the obstacle, measurement locations and antenna orientation. Compare repeat observations on either side and consider Fresnel clearance for point-to-point paths.",
             "A signal reading cannot identify a specific cause. Material composition, geometry, frequency and moisture matter; do not assign a universal loss to concrete.",
             "ITU-R P.2040-4 (2025) building materials", P2040, REVIEWED, listOf("concrete", "pillar", "wall", "reflection", "diffraction", "fresnel", "material"))
-    )
+    ) + ExpandedFieldReferences.entries
 
     /** All search terms must match; category is an exact, stable display category. */
     fun search(category: String?, query: String): List<Entry> {

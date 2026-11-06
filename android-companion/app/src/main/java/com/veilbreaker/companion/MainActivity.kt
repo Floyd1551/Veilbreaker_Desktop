@@ -137,7 +137,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.8 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.9 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -258,23 +258,34 @@ class MainActivity : Activity() {
         reportStatus=text(local,"The last saved capture is kept on this phone.")
         preview=text(local,"No saved capture.")
         cellularVisuals=CellularVisuals(this);local.addView(cellularVisuals)
-        val tools=page("Tools", "Offline calculators and field references.")
+        val tools=page("Tools", "Calculators, field references, planning and optional online lookup.")
         val toolsTabs=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(4),0,dp(4)) }
-        val calculatorTab=TextView(this).apply { text="Calculators";gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true }
-        val referenceTab=TextView(this).apply { text="References";gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true }
-        toolsTabs.addView(calculatorTab,LinearLayout.LayoutParams(0,-2,1f));toolsTabs.addView(referenceTab,LinearLayout.LayoutParams(0,-2,1f))
+        val names=listOf("Calculate", "References", "Planning", "Online")
+        val tabs=names.map { name -> TextView(this).apply { text=name;textSize=12f;gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true;contentDescription="$name tools" } }
+        tabs.forEach { toolsTabs.addView(it,LinearLayout.LayoutParams(0,-2,1f)) }
         tools.addView(toolsTabs)
-        val calculatorWorkspace=WirelessToolsWorkspace(this);tools.addView(calculatorWorkspace)
-        val referenceWorkspace=WirelessReferenceWorkspace(this);tools.addView(referenceWorkspace)
-        fun showTools(references:Boolean) {
-            calculatorWorkspace.visibility=if(references) View.GONE else View.VISIBLE
-            referenceWorkspace.visibility=if(references) View.VISIBLE else View.GONE
-            calculatorTab.background=background(if(references) "#1b3042" else "#2179ce")
-            referenceTab.background=background(if(references) "#2179ce" else "#1b3042")
-            calculatorTab.setTextColor(Color.WHITE);referenceTab.setTextColor(Color.WHITE)
-            calculatorTab.isSelected=!references;referenceTab.isSelected=references
+        val calculatorWorkspace=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            addView(EngineeringToolsWorkspace(this@MainActivity))
+            val converters=WirelessToolsWorkspace(this@MainActivity).apply { visibility=View.GONE }
+            lateinit var converterToggle:Button
+            converterToggle=button(this,"Show two-way Wi-Fi and power converters") {
+                val show=converters.visibility==View.GONE
+                converters.visibility=if(show) View.VISIBLE else View.GONE
+                converterToggle.text=if(show) "Hide two-way converters" else "Show two-way Wi-Fi and power converters"
+            }
+            addView(converters)
         }
-        calculatorTab.setOnClickListener { showTools(false) };referenceTab.setOnClickListener { showTools(true) };showTools(false)
+        val workspaces=listOf(calculatorWorkspace,WirelessReferenceWorkspace(this),PlanningModelsWorkspace(this),OnlineLookupWorkspace(this))
+        workspaces.forEach { tools.addView(it) }
+        fun showTools(selected:Int) {
+            workspaces.forEachIndexed { i, workspace -> workspace.visibility=if(i==selected) View.VISIBLE else View.GONE }
+            tabs.forEachIndexed { i, tab ->
+                tab.background=background(if(i==selected) "#2179ce" else "#1b3042")
+                tab.setTextColor(Color.WHITE);tab.isSelected=i==selected
+            }
+        }
+        tabs.forEachIndexed { i, tab -> tab.setOnClickListener { showTools(i) } };showTools(0)
         val bar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(dp(4),dp(4),dp(4),dp(4));setBackgroundColor(Color.parseColor("#0a1b29")) }
         val labels=listOf("Live","Diagnose","Survey","Reports","Tools")
         val icons=listOf(R.drawable.ic_nav_live,R.drawable.ic_nav_diagnose,R.drawable.ic_nav_survey,R.drawable.ic_nav_reports,R.drawable.ic_nav_tools)
@@ -361,7 +372,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.8-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.9-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }

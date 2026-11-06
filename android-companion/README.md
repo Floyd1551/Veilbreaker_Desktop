@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.7 development build
+# Veilbreaker Mobile 0.8.9 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -11,9 +11,24 @@ USB session before opening it. See [the consolidation plan](../docs/android-mobi
 for remaining migration and reporting work.
 
 Live, Diagnose, Survey, Reports and Tools pages remain inside the same foreground
-workspace. Tools offers offline Wi-Fi channel/frequency and dBm/mW calculators
-and a searchable wireless reference library. Entered and calculated values are
-not saved as measurement evidence. Live offers a direct input-configuration
+workspace. Tools offers 38 searchable offline engineering calculators, two
+additional two-way converters, 53 reference entries and 10 field guides.
+The Planning tab includes an idealized Wi-Fi AP count, a candidate FWA bearing
+and free-space path estimate, and an operator-drawn network topology. These are
+initial planning aids, not a site-specific coverage prediction, measured line of
+sight, or network discovery. Planning drafts last only for the app session.
+Entered and calculated values are not saved as measurement evidence.
+
+Tools also offers an optional, user-initiated OpenCellID lookup. Enter an
+OpenCellID account key and a cell's radio, MCC, MNC, LAC/TAC and cell ID; the
+app sends those identifiers and the key over HTTPS only when Look up is pressed.
+The provider receives the network IP address. The key is not saved and no GPS
+coordinates or measurements are sent. OpenCellID results are community-derived
+cell-position estimates, not verified tower or serving-antenna locations; missing
+results do not imply an absence of service. OpenCellID account terms, request
+limits, and CC BY-SA 4.0 attribution apply. No credential is bundled.
+
+Live offers a direct input-configuration
 shortcut; SIM selection follows the subscription identity when the list changes. The optional network test sends one bounded HTTPS request to the
 operator's chosen URL over an explicitly selected Android network; a short
 download is an estimate, not a sustained capacity test. Upload, jitter and
