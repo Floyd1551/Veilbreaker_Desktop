@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.9 development build
+# Veilbreaker Mobile 0.8.10 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -13,14 +13,17 @@ for remaining migration and reporting work.
 Live, Diagnose, Survey, Reports and Tools pages remain inside the same foreground
 workspace. Tools offers 38 searchable offline engineering calculators, two
 additional two-way converters, 53 reference entries and 10 field guides.
-The Planning tab includes an idealized Wi-Fi AP count, a candidate FWA bearing
-and free-space path estimate, and an operator-drawn network topology. These are
+The Planning tab includes an idealized Wi-Fi AP count and geometry schematic, a
+candidate FWA bearing and free-space path estimate with a manual trial comparison,
+and an interactive operator-drawn network topology. These are
 initial planning aids, not a site-specific coverage prediction, measured line of
 sight, or network discovery. Planning drafts last only for the app session.
 Entered and calculated values are not saved as measurement evidence.
 
 Tools also offers an optional, user-initiated OpenCellID lookup. Enter an
-OpenCellID account key and a cell's radio, MCC, MNC, LAC/TAC and cell ID; the
+OpenCellID account key and a cell's radio, MCC, MNC, LAC/TAC and cell ID. A user
+can explicitly select a complete registered identity from the last saved capture
+to fill the form; selection does not perform a lookup. The
 app sends those identifiers and the key over HTTPS only when Look up is pressed.
 The provider receives the network IP address. The key is not saved and no GPS
 coordinates or measurements are sent. OpenCellID results are community-derived

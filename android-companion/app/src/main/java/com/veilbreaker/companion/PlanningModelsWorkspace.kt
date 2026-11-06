@@ -56,10 +56,10 @@ class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
         text = value; textSize = size; setTextColor(color); if (bold) setTypeface(null, Typeface.BOLD)
         setPadding(0, dp(5), 0, dp(5)); parent.addView(this)
     }
-    private fun card(title: String): LinearLayout = LinearLayout(context).apply {
+    private fun card(title: String, parent: LinearLayout = body): LinearLayout = LinearLayout(context).apply {
         orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(14))
         background = GradientDrawable().apply { setColor(Color.parseColor("#102638")); cornerRadius = dp(10).toFloat(); setStroke(dp(1), Color.parseColor("#29495a")) }
-        body.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+        parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
         text(this, title, 16f, bright, true)
     }
     private fun input(parent: LinearLayout, label: String, number: Boolean = true, multiline: Boolean = false): EditText {
@@ -96,12 +96,16 @@ class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
         val clients = input(c, "Concurrent clients")
         val perAp = input(c, "Planned clients per AP")
         val result = text(c, "Enter all four inputs and calculate.", 14f, cyan, true)
-        invalidateOnEdit(listOf(area, radius, clients, perAp), result)
+        val diagram = WifiPlanningDiagram(context).apply { visibility = View.GONE }
+        c.addView(diagram, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        invalidateOnEdit(listOf(area, radius, clients, perAp), result) { diagram.clearEstimate(); diagram.visibility = View.GONE }
         button(c, "Estimate starting AP count") {
             val model = PlanningModels.wifi(num(area) ?: Double.NaN, num(radius) ?: Double.NaN,
                 clients.text.toString().trim().toIntOrNull() ?: -1, perAp.text.toString().trim().toIntOrNull() ?: 0)
             result.text = if (model == null) "Enter positive finite area and radius, whole clients ≥ 0 and whole clients per AP > 0."
                 else "Ideal area: ${model.areaCount} APs · Capacity: ${model.capacityCount} APs\nStarting estimate: ${model.startingCount} APs"
+            if (model != null && diagram.showEstimate(num(area)!!, num(radius)!!, model)) diagram.visibility = View.VISIBLE
+            else { diagram.clearEstimate(); diagram.visibility = View.GONE }
         }
         text(c, "Area ÷ πr² ignores overlap, room shape, obstacles, floors, interference, antenna patterns and regulatory limits. This optimistic area count is not a coverage prediction or guarantee. Capacity is the operator's assumption, not a measured limit.", 12f)
     }
@@ -115,20 +119,44 @@ class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
         val lon2 = input(c, "Candidate site longitude (decimal degrees)")
         val frequency = input(c, "Frequency (MHz)")
         val result = text(c, "Enter coordinates and frequency to calculate.", 14f, cyan, true)
-        invalidateOnEdit(listOf(lat1, lon1, lat2, lon2, frequency), result)
+        val bearingDiagram = FwaBearingDiagram(context).apply { visibility = View.GONE }
+        c.addView(bearingDiagram, LayoutParams(LayoutParams.MATCH_PARENT, dp(190)))
+        invalidateOnEdit(listOf(lat1, lon1, lat2, lon2, frequency), result) { bearingDiagram.trueBearing = null; bearingDiagram.visibility = View.GONE }
         button(c, "Estimate direction and free-space loss") {
             val m = PlanningModels.fwa(num(lat1) ?: Double.NaN, num(lon1) ?: Double.NaN,
                 num(lat2) ?: Double.NaN, num(lon2) ?: Double.NaN, num(frequency) ?: Double.NaN)
             result.text = if (m == null) "Enter valid distinct, non-antipodal coordinates and a positive frequency."
                 else "Great-circle distance: ${fmt(m.distanceKm)} km\nInitial true bearing: ${fmt(m.bearingDegrees)}°\nIdeal free-space loss: ${fmt(m.freeSpaceLossDb)} dB"
+            bearingDiagram.trueBearing = m?.bearingDegrees
+            bearingDiagram.visibility = if (m == null) View.GONE else View.VISIBLE
         }
         text(c, "Schematic path: antenna ───────── candidate site\nTrue bearing is not a magnetic compass heading; account for local declination. The free-space model assumes unobstructed propagation and does not establish line of sight, tower identity, received power, or service quality.", 12f)
         text(c, "Field tuning: record a baseline; adjust in small steps; allow readings to settle; compare RSRP, RSRQ, SINR and throughput together; record final direction and repeat under similar conditions. Follow equipment and installation safety requirements.", 12f)
         text(c, "Reference: ITU-R P.525-5 (2024), free-space basic transmission loss; spherical great-circle distance approximation.", 11f)
+        val comparison = FwaTuningWorkspace(context).apply { visibility = View.GONE }
+        lateinit var toggle: Button
+        toggle = button(c, "Open tuning comparison") {
+            val show = comparison.visibility == View.GONE
+            comparison.visibility = if (show) View.VISIBLE else View.GONE
+            toggle.text = if (show) "Hide tuning comparison" else "Open tuning comparison"
+        }
+        c.addView(comparison, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
     }
 
     private fun topology() {
-        val c = card("Network topology sketch")
+        val group = LinearLayout(context).apply { orientation = VERTICAL; body.addView(this) }
+        group.addView(NetworkTopologyWorkspace(context), LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
+        val c = card("Separate text-based topology sketch", group).apply { visibility = View.GONE }
+        // Move the toggle before the independent text sketch, preserving its original workflow.
+        group.removeView(c)
+        lateinit var toggle: Button
+        toggle = button(group, "Open text-based sketch") {
+            val show = c.visibility == View.GONE
+            c.visibility = if (show) View.VISIBLE else View.GONE
+            toggle.text = if (show) "Hide text-based sketch" else "Open text-based sketch"
+        }
+        group.addView(c)
+        text(c, "This is a separate temporary sketch and does not change the interactive diagram above.", 12f)
         text(c, "Type one device or location per line, then one link per line as A > B. The separator does not imply direction. This is an operator sketch, not discovered network state.", 13f)
         val nodes = input(c, "Nodes, one per line (up to 12)", number = false, multiline = true)
         val links = input(c, "Links, one per line: A > B (up to 30)", number = false, multiline = true)

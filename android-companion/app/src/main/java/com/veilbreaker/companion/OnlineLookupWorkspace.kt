@@ -1,6 +1,7 @@
 package com.veilbreaker.companion
 
 import android.content.Context
+import android.app.AlertDialog
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -16,9 +17,10 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import org.json.JSONObject
 
 /** One-shot lookup; credentials and returned candidate are not saved or added to evidence. */
-class OnlineLookupWorkspace(context: Context) : LinearLayout(context) {
+class OnlineLookupWorkspace(context: Context, private val captureProvider: () -> JSONObject? = { null }) : LinearLayout(context) {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private var generation = 0
 
@@ -44,6 +46,12 @@ class OnlineLookupWorkspace(context: Context) : LinearLayout(context) {
         text("OPENCELLID  /  ONLINE LOOKUP", 13f, "#63d6ee", true)
         text("Look up an entered cell identity in the community database. An account and API key are required; request limits and provider terms apply.", 13f)
         text("Only when you press Look up: your API key and the MCC, MNC, area code, cell ID and radio are sent to OpenCellID over HTTPS. The provider also receives your IP address. No GPS coordinates or measurements are sent. The key is not saved.", 13f)
+        val chooseCapture = Button(context).apply {
+            this.text = "Choose from last saved capture"; isAllCaps = false; minHeight = dp(48)
+            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#233e51")); setTextColor(Color.WHITE)
+            card.addView(this, LayoutParams(-1, -2))
+        }
+        text("Choose a registered LTE/NR cell with a complete identity. This fills the form only; it does not start a lookup.", 12f)
         val key = input("OpenCellID API key", true)
         val mcc = input("MCC (3 digits)")
         val mnc = input("MNC (2 or 3 digits)")
@@ -73,6 +81,27 @@ class OnlineLookupWorkspace(context: Context) : LinearLayout(context) {
             backgroundTintList = ColorStateList.valueOf(Color.parseColor("#43d7e3")); setTextColor(Color.parseColor("#06232a"))
             card.addView(this, LayoutParams(-1, -2))
         }
+        chooseCapture.setOnClickListener {
+            val options = runCatching { OpenCellCapturePicker.options(captureProvider()) }.getOrNull()
+            if (options == null || options.candidates.isEmpty()) {
+                AlertDialog.Builder(context).setTitle("No complete registered cell")
+                    .setMessage("The last saved capture has no registered LTE/NR cell with MCC, MNC, TAC and cell ID. Capture again or enter the identifiers manually. No lookup was made.")
+                    .setPositiveButton("OK", null).show()
+            } else {
+                val title = buildString {
+                    append("Choose a saved cell")
+                    if (options.incomplete > 0) append("\n${options.incomplete} incomplete cell(s) omitted")
+                    if (options.truncated) append("\nList limited")
+                }
+                AlertDialog.Builder(context).setTitle(title)
+                    .setItems(options.candidates.map { it.label }.toTypedArray()) { _, index ->
+                        val selected = options.candidates[index]
+                        mcc.setText(selected.mcc); mnc.setText(selected.mnc); area.setText(selected.area); cell.setText(selected.cellId)
+                        radio.setSelection(if (selected.radio == "LTE") 0 else 1)
+                        result.text = "Saved cell selected. Review its identity, enter your API key and choose Look up cell."
+                    }.setNegativeButton("Cancel", null).show()
+            }
+        }
         text("Results are community-derived cell-position estimates, not confirmed physical towers. Coverage can be incomplete. Source: OpenCellID, CC BY-SA 4.0 · opencellid.org · creativecommons.org/licenses/by-sa/4.0/", 12f)
         button.setOnClickListener {
             val secret = key.text.toString().trim()
@@ -82,11 +111,11 @@ class OnlineLookupWorkspace(context: Context) : LinearLayout(context) {
                 return@setOnClickListener
             }
             val request = ++generation
-            button.isEnabled = false; fields.forEach { it.isEnabled = false }; radio.isEnabled = false; result.text = "Looking up the entered cell…"
+            button.isEnabled = false; chooseCapture.isEnabled = false; fields.forEach { it.isEnabled = false }; radio.isEnabled = false; result.text = "Looking up the entered cell…"
             Thread {
                 val answer = OpenCellLookup.lookup(secret, query)
                 post {
-                    if (request == generation && isAttachedToWindow) { result.text = answer; button.isEnabled = true; fields.forEach { it.isEnabled = true }; radio.isEnabled = true }
+                    if (request == generation && isAttachedToWindow) { result.text = answer; button.isEnabled = true; chooseCapture.isEnabled = true; fields.forEach { it.isEnabled = true }; radio.isEnabled = true }
                 }
             }.start()
         }
