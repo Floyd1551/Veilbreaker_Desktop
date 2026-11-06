@@ -19,7 +19,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import org.json.JSONObject
 
-/** One-shot lookup; credentials and returned candidate are not saved or added to evidence. */
+/** One-shot lookup; credentials are saved only on explicit request, results are not evidence. */
 class OnlineLookupWorkspace(context: Context, private val captureProvider: () -> JSONObject? = { null }) : LinearLayout(context) {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private var generation = 0
@@ -45,14 +45,38 @@ class OnlineLookupWorkspace(context: Context, private val captureProvider: () ->
         }
         text("OPENCELLID  /  ONLINE LOOKUP", 13f, "#63d6ee", true)
         text("Look up an entered cell identity in the community database. An account and API key are required; request limits and provider terms apply.", 13f)
-        text("Only when you press Look up: your API key and the MCC, MNC, area code, cell ID and radio are sent to OpenCellID over HTTPS. The provider also receives your IP address. No GPS coordinates or measurements are sent. The key is not saved.", 13f)
+        text("Only when you press Look up: your API key and the MCC, MNC, area code, cell ID and radio are sent to OpenCellID over HTTPS. The provider also receives your IP address. No GPS coordinates or measurements are sent.", 13f)
         val chooseCapture = Button(context).apply {
             this.text = "Choose from last saved capture"; isAllCaps = false; minHeight = dp(48)
             backgroundTintList = ColorStateList.valueOf(Color.parseColor("#233e51")); setTextColor(Color.WHITE)
             card.addView(this, LayoutParams(-1, -2))
         }
         text("Choose a registered LTE/NR cell with a complete identity. This fills the form only; it does not start a lookup.", 12f)
-        val key = input("OpenCellID API key", true)
+        val key = input("OpenCellID API key", true).apply { isSaveEnabled = false; importantForAutofill = android.view.View.IMPORTANT_FOR_AUTOFILL_NO }
+        val vault = OpenCellApiKeyVault(context)
+        val keyStatus = text("", 12f)
+        fun describeKey() {
+            keyStatus.text = when (vault.load()) {
+                is OpenCellKeyReadResult.Available -> "A key is saved securely on this device. Leave the field empty to use it."
+                OpenCellKeyReadResult.Empty -> "No key saved. Enter a key for a one-time lookup or save it on this device."
+                OpenCellKeyReadResult.Unavailable -> "The saved key is unavailable. Enter a key again or clear the stored key."
+            }
+        }
+        describeKey()
+        val saveKey = Button(context).apply {
+            text = "Save key on this device"; isAllCaps = false; minHeight = dp(48); setTextColor(Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#233e51")); card.addView(this, LayoutParams(-1, -2))
+            setOnClickListener {
+                val value = key.text.toString().trim()
+                if (value.isNotEmpty() && vault.save(value)) { key.text.clear(); describeKey() }
+                else keyStatus.text = "Enter a key first. If storage is unavailable, you can still use it for a one-time lookup."
+            }
+        }
+        val clearKey = Button(context).apply {
+            text = "Forget saved key"; isAllCaps = false; minHeight = dp(48); setTextColor(Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#233e51")); card.addView(this, LayoutParams(-1, -2))
+            setOnClickListener { keyStatus.text = if (vault.clear()) "Saved key removed from this device." else "Could not remove the saved key; try again." }
+        }
         val mcc = input("MCC (3 digits)")
         val mnc = input("MNC (2 or 3 digits)")
         val area = input("LAC / TAC (decimal)")
@@ -104,18 +128,19 @@ class OnlineLookupWorkspace(context: Context, private val captureProvider: () ->
         }
         text("Results are community-derived cell-position estimates, not confirmed physical towers. Coverage can be incomplete. Source: OpenCellID, CC BY-SA 4.0 · opencellid.org · creativecommons.org/licenses/by-sa/4.0/", 12f)
         button.setOnClickListener {
-            val secret = key.text.toString().trim()
+            val typedKey = key.text.toString().trim()
+            val secret = if (typedKey.isNotEmpty()) typedKey else (vault.load() as? OpenCellKeyReadResult.Available)?.key.orEmpty()
             val query = OpenCellLookup.query(mcc.text.toString().trim(), mnc.text.toString().trim(), area.text.toString().trim(), cell.text.toString().trim(), radio.selectedItem.toString())
             if (secret.isEmpty() || query == null) {
                 result.text = "Enter an API key and valid decimal cell identifiers. MCC needs 3 digits; MNC needs 2 or 3."
                 return@setOnClickListener
             }
             val request = ++generation
-            button.isEnabled = false; chooseCapture.isEnabled = false; fields.forEach { it.isEnabled = false }; radio.isEnabled = false; result.text = "Looking up the entered cell…"
+            button.isEnabled = false; chooseCapture.isEnabled = false; saveKey.isEnabled = false; clearKey.isEnabled = false; fields.forEach { it.isEnabled = false }; radio.isEnabled = false; result.text = "Looking up the entered cell…"
             Thread {
                 val answer = OpenCellLookup.lookup(secret, query)
                 post {
-                    if (request == generation && isAttachedToWindow) { result.text = answer; button.isEnabled = true; chooseCapture.isEnabled = true; fields.forEach { it.isEnabled = true }; radio.isEnabled = true }
+                    if (request == generation && isAttachedToWindow) { result.text = answer; button.isEnabled = true; chooseCapture.isEnabled = true; saveKey.isEnabled = true; clearKey.isEnabled = true; fields.forEach { it.isEnabled = true }; radio.isEnabled = true }
                 }
             }.start()
         }

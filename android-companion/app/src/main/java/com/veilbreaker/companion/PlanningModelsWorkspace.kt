@@ -21,19 +21,21 @@ import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import java.util.Locale
+import org.json.JSONObject
 
 /** Compact planning aids using operator input, never device discovery or measured coverage. */
-class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
+class PlanningModelsWorkspace(context: Context, private val captureProvider: () -> JSONObject? = { null }) : LinearLayout(context) {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private val bright = Color.parseColor("#e8f5fa")
     private val pale = Color.parseColor("#b8cbd9")
     private val cyan = Color.parseColor("#63d6ee")
+    private val drafts = PlanningDraftStore(context)
     private val body = LinearLayout(context).apply { orientation = VERTICAL }
 
     init {
         orientation = VERTICAL
         text(this, "PLANNING MODELS", 12f, cyan, true)
-        text(this, "Offline working models from values you enter. Results are estimates, not captured evidence; verify them on site. Drafts are not saved between app sessions.", 13f)
+        text(this, "Offline planning models use entered values. Results are estimates, not captured evidence; verify them on site. Wi-Fi and FWA inputs can be saved explicitly on this phone.", 13f)
         val selector = Spinner(context).apply {
             contentDescription = "Planning model"
             adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item,
@@ -87,6 +89,13 @@ class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
     }
     private fun num(field: EditText) = field.text.toString().trim().toDoubleOrNull()
     private fun fmt(n: Double) = String.format(Locale.US, "%.1f", n)
+    private fun draftActions(parent: LinearLayout, save: () -> Boolean, load: () -> Boolean, clear: () -> Boolean) {
+        text(parent, "Saved inputs stay on this phone as operator-entered planning data. Loading a draft requires recalculation.", 12f)
+        val status = text(parent, "", 12f)
+        button(parent, "Save planning inputs") { status.text = if (runCatching(save).getOrDefault(false)) "Planning inputs saved on this phone." else "Could not save: check input ranges or device storage." }
+        button(parent, "Load saved inputs") { status.text = if (runCatching(load).getOrDefault(false)) "Saved inputs loaded. Calculate again to refresh the result." else "No usable saved inputs found; existing fields were left unchanged." }
+        button(parent, "Delete saved inputs") { status.text = if (runCatching(clear).getOrDefault(false)) "Saved inputs deleted. Current fields remain open." else "Could not delete saved inputs." }
+    }
 
     private fun wifi() {
         val c = card("Wi-Fi AP planning")
@@ -108,6 +117,10 @@ class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
             else { diagram.clearEstimate(); diagram.visibility = View.GONE }
         }
         text(c, "Area ÷ πr² ignores overlap, room shape, obstacles, floors, interference, antenna patterns and regulatory limits. This optimistic area count is not a coverage prediction or guarantee. Capacity is the operator's assumption, not a measured limit.", 12f)
+        draftActions(c,
+            save = { drafts.saveWifi(PlanningWifiDraft(area.text.toString(), radius.text.toString(), clients.text.toString(), perAp.text.toString())) },
+            load = { drafts.loadWifi()?.let { area.setText(it.areaM2); radius.setText(it.radiusM); clients.setText(it.clients); perAp.setText(it.clientsPerAp); true } ?: false },
+            clear = { drafts.clearWifi() })
     }
 
     private fun fwa() {
@@ -133,7 +146,11 @@ class PlanningModelsWorkspace(context: Context) : LinearLayout(context) {
         text(c, "Schematic path: antenna ───────── candidate site\nTrue bearing is not a magnetic compass heading; account for local declination. The free-space model assumes unobstructed propagation and does not establish line of sight, tower identity, received power, or service quality.", 12f)
         text(c, "Field tuning: record a baseline; adjust in small steps; allow readings to settle; compare RSRP, RSRQ, SINR and throughput together; record final direction and repeat under similar conditions. Follow equipment and installation safety requirements.", 12f)
         text(c, "Reference: ITU-R P.525-5 (2024), free-space basic transmission loss; spherical great-circle distance approximation.", 11f)
-        val comparison = FwaTuningWorkspace(context).apply { visibility = View.GONE }
+        draftActions(c,
+            save = { drafts.saveFwa(PlanningFwaDraft(lat1.text.toString(), lon1.text.toString(), lat2.text.toString(), lon2.text.toString(), frequency.text.toString())) },
+            load = { drafts.loadFwa()?.let { lat1.setText(it.antennaLatitude); lon1.setText(it.antennaLongitude); lat2.setText(it.siteLatitude); lon2.setText(it.siteLongitude); frequency.setText(it.frequencyMhz); true } ?: false },
+            clear = { drafts.clearFwa() })
+        val comparison = FwaTuningWorkspace(context, captureProvider).apply { visibility = View.GONE }
         lateinit var toggle: Button
         toggle = button(c, "Open tuning comparison") {
             val show = comparison.visibility == View.GONE

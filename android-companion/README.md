@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.10 development build
+# Veilbreaker Mobile 0.8.11 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -17,16 +17,21 @@ The Planning tab includes an idealized Wi-Fi AP count and geometry schematic, a
 candidate FWA bearing and free-space path estimate with a manual trial comparison,
 and an interactive operator-drawn network topology. These are
 initial planning aids, not a site-specific coverage prediction, measured line of
-sight, or network discovery. Planning drafts last only for the app session.
-Entered and calculated values are not saved as measurement evidence.
+sight, or network discovery. Wi-Fi and FWA planning inputs can be explicitly
+saved and loaded on the phone; topology sketches and tuning comparisons remain
+session-only. Entered and calculated values are not saved as measurement evidence.
+FWA comparisons can include explicitly selected past cellular observations and
+show original values and provenance; incompatible known cell contexts suppress
+cellular deltas.
 
 Tools also offers an optional, user-initiated OpenCellID lookup. Enter an
 OpenCellID account key and a cell's radio, MCC, MNC, LAC/TAC and cell ID. A user
 can explicitly select a complete registered identity from the last saved capture
 to fill the form; selection does not perform a lookup. The
 app sends those identifiers and the key over HTTPS only when Look up is pressed.
-The provider receives the network IP address. The key is not saved and no GPS
-coordinates or measurements are sent. OpenCellID results are community-derived
+The provider receives the network IP address. You can explicitly save a key on
+the phone using Android Keystore-backed encryption or use it for one lookup;
+no GPS coordinates or measurements are sent. OpenCellID results are community-derived
 cell-position estimates, not verified tower or serving-antenna locations; missing
 results do not imply an absence of service. OpenCellID account terms, request
 limits, and CC BY-SA 4.0 attribution apply. No credential is bundled.
