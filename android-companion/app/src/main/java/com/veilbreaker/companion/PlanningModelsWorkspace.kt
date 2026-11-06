@@ -31,6 +31,11 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
     private val cyan = Color.parseColor("#63d6ee")
     private val drafts = PlanningDraftStore(context)
     private val body = LinearLayout(context).apply { orientation = VERTICAL }
+    private lateinit var modelSelector: Spinner
+    private lateinit var siteLatitude: EditText
+    private lateinit var siteLongitude: EditText
+    private lateinit var candidateSource: TextView
+    private var applyingCandidate = false
 
     init {
         orientation = VERTICAL
@@ -41,6 +46,7 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
             adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item,
                 listOf("Wi-Fi AP planning", "Cellular FWA placement & tuning", "Network topology"))
         }
+        modelSelector = selector
         addView(selector)
         addView(body, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         // Keep drafts while switching models in this workspace session.
@@ -89,6 +95,19 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
     }
     private fun num(field: EditText) = field.text.toString().trim().toDoubleOrNull()
     private fun fmt(n: Double) = String.format(Locale.US, "%.1f", n)
+
+    /** Called after the operator confirms replacing the two candidate-site fields. */
+    fun useOpenCellCandidate(located: OpenCellLookup.LocatedCandidate) {
+        applyingCandidate = true
+        try {
+            siteLatitude.setText(located.candidate.latitude.toString())
+            siteLongitude.setText(located.candidate.longitude.toString())
+        } finally { applyingCandidate = false }
+        val identity = located.query
+        candidateSource.text = "OpenCellID community candidate (CC BY-SA 4.0) · ${identity.radio} ${identity.mcc}/${identity.mnc} · area ${identity.area} · cell ${identity.cellId} · retrieved ${located.retrievedAt}. This is not a verified tower or line of sight. Saved planning inputs retain coordinates only; record the source separately."
+        modelSelector.setSelection(1)
+        for (index in 0 until body.childCount) body.getChildAt(index).visibility = if (index == 1) View.VISIBLE else View.GONE
+    }
     private fun draftActions(parent: LinearLayout, save: () -> Boolean, load: () -> Boolean, clear: () -> Boolean) {
         text(parent, "Saved inputs stay on this phone as operator-entered planning data. Loading a draft requires recalculation.", 12f)
         val status = text(parent, "", 12f)
@@ -130,6 +149,15 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
         val lon1 = input(c, "Antenna longitude (decimal degrees)")
         val lat2 = input(c, "Candidate site latitude (decimal degrees)")
         val lon2 = input(c, "Candidate site longitude (decimal degrees)")
+        siteLatitude = lat2; siteLongitude = lon2
+        candidateSource = text(c, "Candidate site: operator-entered or not set.", 12f)
+        listOf(lat2, lon2).forEach { field -> field.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                if (!applyingCandidate) candidateSource.text = "Candidate coordinates changed. Treat them as operator-entered; no source is attached."
+            }
+            override fun afterTextChanged(s: Editable?) {}
+        }) }
         val frequency = input(c, "Frequency (MHz)")
         val result = text(c, "Enter coordinates and frequency to calculate.", 14f, cyan, true)
         val bearingDiagram = FwaBearingDiagram(context).apply { visibility = View.GONE }

@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.12 development build
+# Veilbreaker Mobile 0.8.13 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -13,6 +13,7 @@ for remaining migration and reporting work.
 Live, Diagnose, Survey, Reports and Tools pages remain inside the same foreground
 workspace. Tools offers 38 searchable offline engineering calculators, two
 additional two-way converters, 53 reference entries and 10 field guides.
+Calculated worksheets can be copied with inputs, results and limitations.
 Selected calculators include schematic diagrams and a calculated input/output
 worksheet. Reference entries provide illustrated channel examples and quick
 tables where applicable; guides have workflow figures and decision-cue tables.
@@ -40,6 +41,9 @@ no GPS coordinates or measurements are sent. OpenCellID results are community-de
 cell-position estimates, not verified tower or serving-antenna locations; missing
 results do not imply an absence of service. OpenCellID account terms, request
 limits, and CC BY-SA 4.0 attribution apply. No credential is bundled.
+After a successful lookup, the operator can explicitly send the candidate
+coordinates to FWA planning after confirming replacement of the candidate-site
+fields. Saved FWA inputs retain coordinates only, so record provenance separately.
 
 Live offers a direct input-configuration
 shortcut; SIM selection follows the subscription identity when the list changes. The optional network test sends one bounded HTTPS request to the

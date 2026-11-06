@@ -20,7 +20,13 @@ import android.widget.TextView
 import org.json.JSONObject
 
 /** One-shot lookup; credentials are saved only on explicit request, results are not evidence. */
-class OnlineLookupWorkspace(context: Context, private val captureProvider: () -> JSONObject? = { null }) : LinearLayout(context) {
+class OnlineLookupWorkspace(
+    context: Context,
+    private val onUseCandidate: ((OpenCellLookup.LocatedCandidate) -> Unit)? = null,
+    private val captureProvider: () -> JSONObject? = { null }
+) : LinearLayout(context) {
+    constructor(context: Context, captureProvider: () -> JSONObject?) : this(context, null, captureProvider)
+
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private var generation = 0
 
@@ -86,17 +92,27 @@ class OnlineLookupWorkspace(context: Context, private val captureProvider: () ->
             contentDescription = "Radio technology"; card.addView(this)
         }
         val result = text("Enter the identifiers and choose Look up.", 13f, "#e8f5fa")
+        var candidate: OpenCellLookup.LocatedCandidate? = null
+        val useCandidate = Button(context).apply {
+            this.text = "Use candidate in FWA planning"; isAllCaps = false; minHeight = dp(48)
+            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#233e51")); setTextColor(Color.WHITE)
+            isEnabled = false
+            visibility = if (onUseCandidate == null) android.view.View.GONE else android.view.View.VISIBLE
+            card.addView(this, LayoutParams(-1, -2))
+            setOnClickListener { candidate?.let { onUseCandidate?.invoke(it) } }
+        }
+        fun clearCandidate() { candidate = null; useCandidate.isEnabled = false }
         val fields = listOf(key, mcc, mnc, area, cell)
         fields.forEach { field -> field.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { result.text = "Inputs changed. Choose Look up to request a new result." }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { clearCandidate(); result.text = "Inputs changed. Choose Look up to request a new result." }
             override fun afterTextChanged(s: Editable?) {}
         }) }
         var radioInitialized = false
         radio.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
             override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                if (radioInitialized) result.text = "Inputs changed. Choose Look up to request a new result."
+                if (radioInitialized) { clearCandidate(); result.text = "Inputs changed. Choose Look up to request a new result." }
                 radioInitialized = true
             }
         }
@@ -128,6 +144,7 @@ class OnlineLookupWorkspace(context: Context, private val captureProvider: () ->
         }
         text("Results are community-derived cell-position estimates, not confirmed physical towers. Coverage can be incomplete. Source: OpenCellID, CC BY-SA 4.0 · opencellid.org · creativecommons.org/licenses/by-sa/4.0/", 12f)
         button.setOnClickListener {
+            clearCandidate()
             val typedKey = key.text.toString().trim()
             val secret = if (typedKey.isNotEmpty()) typedKey else (vault.load() as? OpenCellKeyReadResult.Available)?.key.orEmpty()
             val query = OpenCellLookup.query(mcc.text.toString().trim(), mnc.text.toString().trim(), area.text.toString().trim(), cell.text.toString().trim(), radio.selectedItem.toString())
@@ -138,9 +155,19 @@ class OnlineLookupWorkspace(context: Context, private val captureProvider: () ->
             val request = ++generation
             button.isEnabled = false; chooseCapture.isEnabled = false; saveKey.isEnabled = false; clearKey.isEnabled = false; fields.forEach { it.isEnabled = false }; radio.isEnabled = false; result.text = "Looking up the entered cell…"
             Thread {
-                val answer = OpenCellLookup.lookup(secret, query)
+                val answer = OpenCellLookup.lookupResult(secret, query)
                 post {
-                    if (request == generation && isAttachedToWindow) { result.text = answer; button.isEnabled = true; chooseCapture.isEnabled = true; saveKey.isEnabled = true; clearKey.isEnabled = true; fields.forEach { it.isEnabled = true }; radio.isEnabled = true }
+                    if (request == generation && isAttachedToWindow) {
+                        when (answer) {
+                            is OpenCellLookup.LookupResult.Success -> {
+                                candidate = answer.located
+                                result.text = OpenCellLookup.describe(answer.located)
+                                useCandidate.isEnabled = onUseCandidate != null
+                            }
+                            is OpenCellLookup.LookupResult.Failure -> result.text = answer.message
+                        }
+                        button.isEnabled = true; chooseCapture.isEnabled = true; saveKey.isEnabled = true; clearKey.isEnabled = true; fields.forEach { it.isEnabled = true }; radio.isEnabled = true
+                    }
                 }
             }.start()
         }

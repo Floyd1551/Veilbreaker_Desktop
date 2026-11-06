@@ -2,6 +2,7 @@ package com.veilbreaker.companion
 
 import android.Manifest
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
@@ -137,7 +138,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.12 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.13 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -276,9 +277,20 @@ class MainActivity : Activity() {
             }
             addView(converters)
         }
-        val workspaces=listOf(calculatorWorkspace,WirelessReferenceWorkspace(this),PlanningModelsWorkspace(this) { capture },OnlineLookupWorkspace(this) { capture })
+        val planningWorkspace=PlanningModelsWorkspace(this) { capture }
+        lateinit var showTools:(Int)->Unit
+        val onlineWorkspace=OnlineLookupWorkspace(this, onUseCandidate = { candidate ->
+            AlertDialog.Builder(this).setTitle("Use OpenCellID candidate in FWA planning?")
+                .setMessage("This replaces the candidate-site coordinates in the current FWA form. Antenna coordinates and frequency are unchanged. OpenCellID is a community-derived estimate, not a verified tower or line-of-sight result.")
+                .setPositiveButton("Use candidate") { _,_ ->
+                    planningWorkspace.useOpenCellCandidate(candidate)
+                    showTools(2)
+                    tools.post { (tools.parent as? ScrollView)?.smoothScrollTo(0,0) }
+                }.setNegativeButton("Cancel", null).show()
+        }, captureProvider = { capture })
+        val workspaces=listOf(calculatorWorkspace,WirelessReferenceWorkspace(this),planningWorkspace,onlineWorkspace)
         workspaces.forEach { tools.addView(it) }
-        fun showTools(selected:Int) {
+        showTools = { selected ->
             workspaces.forEachIndexed { i, workspace -> workspace.visibility=if(i==selected) View.VISIBLE else View.GONE }
             tabs.forEachIndexed { i, tab ->
                 tab.background=background(if(i==selected) "#2179ce" else "#1b3042")
@@ -372,7 +384,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.12-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.13-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }

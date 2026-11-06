@@ -1,6 +1,8 @@
 package com.veilbreaker.companion
 
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -17,6 +19,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 import java.util.Locale
 
 /** Searchable offline calculations. Results remain separate from captured evidence. */
@@ -100,8 +103,27 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         }
         val result = label(card, "Enter values to calculate.", 14f, cyan, true)
         val worksheet = LinearLayout(context).apply { orientation = VERTICAL; visibility = View.GONE; card.addView(this) }
+        var calculatedInputs: List<String>? = null
+        var worksheetText: String? = null
+        val copy = Button(context).apply {
+            text = "Copy worksheet"; isAllCaps = false; minHeight = dp(48); isEnabled = false
+            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(9).toFloat() }
+            val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
+            backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1b2935"), Color.parseColor("#233e51")))
+            setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#8ca0ae"), bright)))
+            setOnClickListener {
+                val currentInputs = fields.map { it.text.toString().trim() }
+                val textToCopy = worksheetText
+                if (textToCopy != null && calculatedInputs == currentInputs) {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    clipboard.setPrimaryClip(ClipData.newPlainText("Calculated worksheet", textToCopy))
+                    Toast.makeText(context, "Worksheet copied", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
         fields.forEach { field -> field.addTextChangedListener(watcher {
             result.text = "Inputs changed. Calculate again."
+            calculatedInputs = null; worksheetText = null; copy.isEnabled = false
             worksheet.removeAllViews(); worksheet.visibility = View.GONE; visual?.clearCalculation()
         }) }
         Button(context).apply {
@@ -109,7 +131,9 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
             background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(9).toFloat() }
             backgroundTintList = ColorStateList.valueOf(Color.parseColor("#43d7e3"))
             setOnClickListener {
-                val values = fields.map { it.text.toString().trim().toDoubleOrNull() }
+                calculatedInputs = null; worksheetText = null; copy.isEnabled = false
+                val inputText = fields.map { it.text.toString().trim() }
+                val values = inputText.map { it.toDoubleOrNull() }
                 val answer = if (values.any { it == null }) null else tool.evaluate(values.filterNotNull())
                 result.text = if (answer == null) "Enter finite values within the ranges described above." else
                     "Calculated: ${String.format(Locale.US, "%.6g", answer)} ${tool.unit}"
@@ -128,12 +152,24 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
                         line.addView(amount, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
                     }
                     tool.fields.forEachIndexed { index, name -> row(name, fields[index].text.toString().trim()) }
-                    row("Calculated result", "${String.format(Locale.US, "%.6g", answer)} ${tool.unit}")
+                    val formattedAnswer = "${String.format(Locale.US, "%.6g", answer)} ${tool.unit}"
+                    row("Calculated result", formattedAnswer)
+                    calculatedInputs = inputText
+                    worksheetText = buildString {
+                        appendLine("${tool.title} — calculation worksheet")
+                        appendLine("Calculated from operator inputs; not a measurement or captured evidence.")
+                        appendLine("Operator inputs:")
+                        tool.fields.forEachIndexed { index, name -> appendLine("$name: ${inputText[index]}") }
+                        appendLine("Calculated result: $formattedAnswer")
+                        append("Assumptions and limitations: ${tool.description}")
+                    }
+                    copy.isEnabled = true
                     worksheet.visibility = View.VISIBLE
                 }
             }
             card.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) })
         }
+        card.addView(copy, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         label(card, "Calculated from operator inputs · not saved as evidence", 11f)
     }
 }

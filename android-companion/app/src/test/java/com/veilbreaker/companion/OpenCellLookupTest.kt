@@ -26,4 +26,16 @@ class OpenCellLookupTest {
         assertEquals(5L, result.samples)
         assertEquals(900L, result.rangeMeters)
     }
+
+    @Test fun locatedCandidateRetainsQueryAndRetrievalTimeOnlyForExactResponse() {
+        val q = OpenCellLookup.query("310", "260", "123", "456", "LTE")!!
+        val time = java.time.Instant.parse("2026-01-02T03:04:05Z")
+        val body = "{\"lat\":34.7,\"lon\":-86.6,\"mcc\":310,\"mnc\":260,\"lac\":123,\"cellid\":456,\"radio\":\"LTE\",\"samples\":5,\"range\":900}"
+        val located = OpenCellLookup.locate(body, q, time)!!
+        assertEquals(q, located.query)
+        assertEquals(time, located.retrievedAt)
+        assertEquals(34.7, located.candidate.latitude, 0.00001)
+        assertNull(OpenCellLookup.locate(body.replace("456", "457"), q, time))
+        assertNull(OpenCellLookup.locate(body.replace("\"cellid\":456", "\"cellid\":456.5"), q, time))
+    }
 }
