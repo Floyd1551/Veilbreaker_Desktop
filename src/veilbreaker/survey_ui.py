@@ -105,6 +105,7 @@ class SurveyPage(QWidget):
         layout.addLayout(start_actions)
         layout = self.landing_layout
         layout.addWidget(button('New survey', self.new_survey, True))
+        layout.addWidget(button('Review mobile survey…', self.review_mobile_survey))
         layout.addWidget(button('Trash / restore', self.window.open_trash))
         layout.addWidget(label("Saved surveys", "section"))
         self.session_search = QLineEdit()
@@ -411,6 +412,17 @@ class SurveyPage(QWidget):
             if include.isChecked() and self.window.payload and any(step['run_id']==self.window.payload['run_id'] for step in self.session['steps']): self.window.clear_workspace()
             self.session=None; self.session_path=None; self.show_landing()
         except (OSError,ValueError) as exc: self.window.error(str(exc))
+
+    def review_mobile_survey(self):
+        from .mobile_survey_import import load_mobile_survey
+        from .mobile_survey_ui import MobileSurveyReviewDialog
+        path, _ = QFileDialog.getOpenFileName(self, 'Review mobile survey', '', 'Mobile survey JSON (*.json)')
+        if not path: return
+        try:
+            loaded = load_mobile_survey(path)
+            MobileSurveyReviewDialog(self, path, loaded).exec()
+        except (OSError, ValueError) as exc:
+            self.window.error(str(exc))
 
     def refresh(self):
         self.session_cache = list_sessions(self.window.config)

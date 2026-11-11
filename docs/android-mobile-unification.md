@@ -39,6 +39,13 @@ reporting. Bring those capabilities forward in independently verified slices.
    explicit endpoints, cancellation and data-quality limits.
 3. **Mobile surveys and migration.** Phone-only surveys can group up to 20
    explicitly selected captures; their JSON is not a Desktop survey import.
+   Desktop Surveys can review a mobile survey JSON, including operator notes,
+   and save an individual capture as a new JSON file for the existing Android
+   diagnostic-input workflow. The extracted capture preserves its data, but
+   survey point notes stay in the original mobile survey file. Capture JSON is
+   re-encoded during extraction, so the standalone file has its own hash; retain
+   the original survey for source context. This review does
+   not create a Desktop survey or automatically attach its points.
    Design versioned, user-controlled interchange for prior Mobile survey data
    and Desktop surveys. Preserve GPS
    quality, source and capture timestamps; never convert manual positions into
