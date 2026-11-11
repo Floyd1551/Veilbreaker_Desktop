@@ -20,6 +20,7 @@ class CellInventoryModelTest {
         val result = CellInventoryModel.build(capture(old,newer),plan)
         assertEquals(1,result.total)
         assertEquals(CellInventoryModel.Group.NEIGHBOR,result.cells.single().group)
+        assertEquals("Not registered · possible neighbor", result.cells.single().role)
         assertEquals("NR",result.cells.single().radio)
     }
     @Test fun showsModemBandProvenanceAndMissingMetricsWithoutChangingEvidence() {

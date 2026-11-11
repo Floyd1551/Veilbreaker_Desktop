@@ -48,7 +48,7 @@ class CellInventoryWorkspace(context:Context): LinearLayout(context) {
         addView(search,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT))
         addView(Spinner(context).apply {
             contentDescription="Cell role filter"
-            adapter=ArrayAdapter(context,android.R.layout.simple_spinner_dropdown_item,listOf("All cell roles","Serving","Neighbors","Unclassified"))
+            adapter=ArrayAdapter(context,android.R.layout.simple_spinner_dropdown_item,listOf("All cell roles","Serving / registered","Not registered","Unclassified"))
             onItemSelectedListener=object:AdapterView.OnItemSelectedListener {
                 override fun onNothingSelected(parent:AdapterView<*>?) {}
                 override fun onItemSelected(parent:AdapterView<*>?,view:View?,position:Int,id:Long) {
@@ -79,7 +79,7 @@ class CellInventoryWorkspace(context:Context): LinearLayout(context) {
         val serving=visible.count { it.group==CellInventoryModel.Group.SERVING }
         val neighbors=visible.count { it.group==CellInventoryModel.Group.NEIGHBOR }
         val unclassified=visible.size-serving-neighbors
-        cards.addView(text("Shown below: $serving serving / registered · $neighbors neighbors · $unclassified unclassified",12f))
+        cards.addView(text("Shown below: $serving serving / registered · $neighbors not registered · $unclassified unclassified",12f))
         visible.forEach { cell ->
             val card=LinearLayout(context).apply {
                 orientation=VERTICAL;setPadding(dp(12),dp(9),dp(12),dp(10))

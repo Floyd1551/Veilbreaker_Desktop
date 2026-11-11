@@ -83,7 +83,7 @@ object CellularOverview {
             else -> "Registered; role not exposed"
         }
         if (connection in listOf("primary", "secondary")) return "Conflicting serving flags"
-        return if (cell.has("registered") && !cell.isNull("registered")) "Neighbor" else "Role not exposed"
+        return if (cell.opt("registered") == false) "Not registered · possible neighbor" else "Role not exposed"
     }
 
     fun render(envelope: JSONObject, plan: JSONObject): String {
@@ -161,8 +161,8 @@ object CellularOverview {
                 }
             }
         }
-        lines.add("\nNeighbor / unclassified observations")
-        if (neighbors.isEmpty()) lines.add("No neighbors reported") else lines.addAll(neighbors.values)
+        lines.add("\nNot registered / unclassified observations")
+        if (neighbors.isEmpty()) lines.add("No unregistered or unclassified cells reported") else lines.addAll(neighbors.values)
         lines.add("\nBands observed during capture")
         if (bands.isEmpty()) lines.add("No band labels available")
         for ((band, roles) in bands) lines.add(band + "\n" + roles.joinToString("; "))

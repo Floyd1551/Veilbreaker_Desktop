@@ -40,7 +40,7 @@ class LiveCellMetricsPanel(context: Context) : LinearLayout(context) {
             }
             label(box, value.label, 12f)
             val number = value.value?.let { if (it == it.toLong().toDouble()) it.toLong().toString() else String.format(Locale.US, "%.1f", it) }
-            label(box, if (number == null) "Not exposed" else "$number ${value.unit}", 16f, true)
+            label(box, if (number == null) "Unavailable" else "$number ${value.unit}", 16f, true)
         }
     }
 }

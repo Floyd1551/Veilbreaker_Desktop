@@ -23,7 +23,7 @@ class LiveCellSummaryTest {
     @Test fun prioritizesServingAndCountsOmittedNeighbors() {
         val neighbors = (1..15).map { cell(false, "none", 0, -100) }
         val result = LiveCellSummary.render(neighbors + cell(true, "primary", 5, -86), JSONObject().put("ranges", JSONArray()))
-        assertTrue(result.indexOf("Primary serving") < result.indexOf("Neighbor"))
+        assertTrue(result.indexOf("Primary serving") < result.indexOf("Not registered"))
         assertTrue(result.contains("6 more"))
     }
 

@@ -29,7 +29,7 @@ object CellInventoryModel {
             registered == true && status == "secondary" -> Group.SERVING to "Secondary serving"
             registered == true -> Group.SERVING to "Registered · role not exposed"
             registered == false && status in listOf("primary", "secondary") -> Group.UNCLASSIFIED to "Conflicting role flags"
-            registered == false -> Group.NEIGHBOR to "Neighbor / not registered"
+            registered == false -> Group.NEIGHBOR to "Not registered · possible neighbor"
             else -> Group.UNCLASSIFIED to "Registration not exposed"
         }
     }

@@ -16,7 +16,7 @@ class CellularOverviewTest {
     @Test fun showsServingNeighborsAndBandSources() {
         val text = CellularOverview.render(capture(), plan())
         assertTrue(text.contains("Primary serving"))
-        assertTrue(text.contains("Neighbor"))
+        assertTrue(text.contains("possible neighbor"))
         assertTrue(text.contains("B13 (modem reported)"))
         assertTrue(text.contains("B13 (channel-derived candidates)"))
         assertTrue(text.contains("PCI 491"))
@@ -51,7 +51,7 @@ class CellularOverviewTest {
         neighbor.put("identity", JSONObject().put("mcc","310").put("mnc","260"))
         cells.put(JSONObject(neighbor.toString()))
         val text = CellularOverview.render(data, plan())
-        assertEquals(2, Regex("sim-1 / Neighbor /").findAll(text).count())
+        assertEquals(2, Regex("sim-1 / Not registered · possible neighbor /").findAll(text).count())
     }
     @Test fun explainsServingMeasurementsWithoutInventingMissingValues() {
         val data = capture()
