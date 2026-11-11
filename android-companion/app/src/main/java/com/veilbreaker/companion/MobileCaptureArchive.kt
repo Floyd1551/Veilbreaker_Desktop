@@ -38,6 +38,11 @@ object MobileCaptureArchive {
         copy.put("points", kept)
         return validate(copy)
     }
+    fun addToSurvey(archive: JSONObject, survey: JSONObject, captureId: String, now: String): JSONObject {
+        val capture = captures(archive).firstOrNull { it.optString("capture_id") == captureId }
+            ?: throw IllegalArgumentException("Archived capture is no longer available; survey is unchanged.")
+        return MobileSurvey.addCapture(survey, capture, now)
+    }
 }
 
 class MobileCaptureArchiveStore(context: Context) {
@@ -53,5 +58,13 @@ class MobileCaptureArchiveStore(context: Context) {
         require(store.exists(MobileCaptureArchive.ID)) { "Capture archive is unavailable." }
         val updated = MobileCaptureArchive.remove(store.load(MobileCaptureArchive.ID), id)
         store.save(updated); MobileCaptureArchive.captures(updated)
+    }
+    /** Re-read both records under the shared lock before attaching a separate survey copy. */
+    fun addToSurvey(surveyStore: MobileSurveyStore, surveyId: String, captureId: String): JSONObject = MobileSurveyTransactions.locked {
+        require(store.exists(MobileCaptureArchive.ID)) { "Capture archive is unavailable; survey is unchanged." }
+        val archive = store.load(MobileCaptureArchive.ID)
+        surveyStore.update(surveyId) { survey ->
+            MobileCaptureArchive.addToSurvey(archive, survey, captureId, Instant.now().toString())
+        }
     }
 }

@@ -30,6 +30,7 @@ class SurveyWorkspace(
 ) : LinearLayout(context) {
     private val activity = context as Activity
     private val store = MobileSurveyStore(context)
+    private val archiveStore = MobileCaptureArchiveStore(context)
     private val handler = Handler(Looper.getMainLooper())
     private val content = LinearLayout(context)
     private val scroll = ScrollView(context)
@@ -189,6 +190,10 @@ class SurveyWorkspace(
                 store.update(survey.getString("survey_id")) { latest -> MobileSurvey.addCapture(latest, selected, Instant.now().toString()) }
             }) { updated -> current = updated; message = "Capture added as a separate survey point." }
         }
+        button(summary, "Add archived capture…", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
+            pickArchivedCapture(survey.getString("survey_id"))
+        }
+        text(summary, "Archived captures are copied into the survey; the archive and latest phone capture stay unchanged.", 12f)
         if (state == "open" && points.length() >= MobileSurvey.MAX_POINTS) text(summary, "This survey already has 20 captures.", 12f)
         button(summary, "View survey locations", externalEnabled) {
             if (!externalEnabled) return@button
@@ -254,6 +259,41 @@ class SurveyWorkspace(
             if (state == "open") button(pointPanel, if (operatorNote.isNullOrBlank()) "Add note to point ${i+1}…" else "Edit note for point ${i+1}…") {
                 editPointNote(survey.getString("survey_id"), capture.getString("capture_id"), operatorNote.orEmpty())
             }
+        }
+    }
+
+    private fun pickArchivedCapture(surveyId: String) {
+        if (busy || capturing || !externalEnabled) return
+        runJob({ archiveStore.list() }) { saved ->
+            if (current?.optString("survey_id") != surveyId || !externalEnabled) {
+                message = "Survey or collection state changed. Choose the capture again."
+                return@runJob
+            }
+            val points = current?.optJSONArray("points")
+            val present = if (points == null) emptySet() else (0 until points.length()).mapNotNull {
+                points.optJSONObject(it)?.optJSONObject("capture")?.optString("capture_id")
+            }.toSet()
+            val choices = saved.filterNot { it.optString("capture_id") in present }.asReversed()
+            if (choices.isEmpty()) {
+                message = "No archived captures available to add. Save a copy in Reports, or check whether it is already in this survey."
+                return@runJob
+            }
+            val labels = choices.map { capture ->
+                val summary = runCatching { MobileSurvey.signalSummary(capture) }.getOrDefault("Signal summary unavailable")
+                "${capture.optString("created_utc", "Time unavailable")} · ${capture.optJSONObject("collection")?.optString("outcome") ?: "unknown"}\n$summary\n${capture.optString("capture_id")}"
+            }.toTypedArray()
+            AlertDialog.Builder(context).setTitle("Choose an archived capture")
+                .setNegativeButton("Cancel", null)
+                .setItems(labels) { _, index ->
+                    if (current?.optString("survey_id") != surveyId || !externalEnabled) {
+                        message = "Survey or collection state changed. Choose the capture again."; render()
+                    } else {
+                        val id = choices[index].getString("capture_id")
+                        runJob({ archiveStore.addToSurvey(store, surveyId, id) }) { updated ->
+                            current = updated; message = "Archived capture added as a separate survey point."
+                        }
+                    }
+                }.show()
         }
     }
 

@@ -42,4 +42,22 @@ class MobileCaptureArchiveTest {
         assertEquals(before, archive.toString())
         assertEquals(20, MobileCaptureArchive.captures(archive).size)
     }
+
+    @Test fun archivedCaptureCanBeCopiedIntoAnOpenSurveyWithoutChangingArchive() {
+        val captured = capture(); val id = captured.getString("capture_id")
+        val archive = MobileCaptureArchive.add(MobileCaptureArchive.empty(time), captured, time)
+        val survey = MobileSurvey.create("Field site", time)
+        val beforeArchive = archive.toString(); val beforeSurvey = survey.toString()
+        val updated = MobileCaptureArchive.addToSurvey(archive, survey, id, time)
+        assertEquals(beforeArchive, archive.toString()); assertEquals(beforeSurvey, survey.toString())
+        assertEquals(id, updated.getJSONArray("points").getJSONObject(0).getJSONObject("capture").getString("capture_id"))
+        assertThrows(IllegalArgumentException::class.java) { MobileCaptureArchive.addToSurvey(archive, updated, id, time) }
+        assertThrows(IllegalArgumentException::class.java) { MobileCaptureArchive.addToSurvey(archive, survey, "missing", time) }
+        assertThrows(IllegalArgumentException::class.java) { MobileCaptureArchive.addToSurvey(archive, MobileSurvey.complete(survey, time), id, time) }
+        var full = survey
+        repeat(20) { full = MobileSurvey.addCapture(full, capture(), time) }
+        val fullBefore = full.toString()
+        assertThrows(IllegalArgumentException::class.java) { MobileCaptureArchive.addToSurvey(archive, full, id, time) }
+        assertEquals(fullBefore, full.toString()); assertEquals(beforeArchive, archive.toString())
+    }
 }

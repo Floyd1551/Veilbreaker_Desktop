@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.24 development build
+# Veilbreaker Mobile 0.8.25 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -69,6 +69,9 @@ Reports also provides a separate explicit archive of up to 20 phone-capture copi
 Archived copies can be reviewed in-app, exported as PDF or JSON, and deleted after
 confirmation without changing the latest capture or survey copies. The archive is
 app-private local storage, not a backup; export important evidence separately.
+An open survey can add an archived capture as a separate point. Attachment checks
+the archive and survey again together and respects the survey's duplicate and
+20-point limits; it does not replace the latest phone capture.
 
 The cellular view shows gauges for captured serving-cell measurements and a
 trend only when there are multiple distinct modem-receipt timestamps for the same
