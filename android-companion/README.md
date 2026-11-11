@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.17 development build
+# Veilbreaker Mobile 0.8.18 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -24,8 +24,10 @@ candidate FWA bearing and free-space path estimate with a manual trial compariso
 and an interactive operator-drawn network topology. These are
 initial planning aids, not a site-specific coverage prediction, measured line of
 sight, or network discovery. Wi-Fi and FWA planning inputs can be explicitly
-saved and loaded on the phone; topology sketches and tuning comparisons remain
-session-only. Entered and calculated values are not saved as measurement evidence.
+saved and loaded on the phone. The interactive topology supports one explicitly
+saved operator sketch, with confirmation before replacing or deleting the draft;
+tuning comparisons remain session-only. Entered and calculated values are not
+saved as measurement evidence.
 FWA comparisons can include explicitly selected past cellular observations and
 show original values and provenance; incompatible known cell contexts suppress
 cellular deltas.

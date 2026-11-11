@@ -1,6 +1,6 @@
 package com.veilbreaker.companion
 
-/** Session-only operator sketches. Node order determines indexes in undirected links. */
+/** Operator sketches. Node order determines indexes in undirected links. */
 object TopologyEditor {
     data class State(val nodes: List<String> = emptyList(), val links: List<Pair<Int, Int>> = emptyList())
     private const val MAX_NODES = 12

@@ -1,6 +1,7 @@
 package com.veilbreaker.companion
 
 import android.content.Context
+import android.app.AlertDialog
 import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
@@ -22,7 +23,7 @@ import android.widget.Spinner
 import android.widget.TextView
 import kotlin.math.hypot
 
-/** An operator-authored topology sketch. No discovery, measured link state or automatic persistence. */
+/** An operator-authored topology sketch, not discovery or measured link state. */
 class NetworkTopologyWorkspace(context: Context) : LinearLayout(context) {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private val pale = Color.parseColor("#b8cbd9")
@@ -30,6 +31,7 @@ class NetworkTopologyWorkspace(context: Context) : LinearLayout(context) {
     private val cyan = Color.parseColor("#63d6ee")
     private var state = TopologyEditor.State()
     private val history = ArrayDeque<TopologyEditor.State>()
+    private val drafts = TopologyDraftStore(context)
     private lateinit var diagram: InteractiveTopologyDiagram
     private lateinit var nodePicker: Spinner
     private lateinit var fromPicker: Spinner
@@ -47,7 +49,7 @@ class NetworkTopologyWorkspace(context: Context) : LinearLayout(context) {
             setColor(Color.parseColor("#102638")); setStroke(dp(1), Color.parseColor("#29495a")); cornerRadius = dp(10).toFloat()
         }
         label("Network topology sketch", 16f, bright, true)
-        label("Build a diagram by adding nodes and undirected links. Tap a node or use the selector for details. This is an operator sketch, not network discovery or verified link status. Drafts are not saved between app sessions.", 13f)
+        label("Build a diagram by adding nodes and undirected links. Tap a node or use the selector for details. This is an operator sketch, not network discovery or verified link status. Save explicitly to keep one draft on this phone.", 13f)
         diagram = InteractiveTopologyDiagram(context) { index ->
             if (index in state.nodes.indices) { selected = index; nodePicker.setSelection(index); updateDetails() }
         }
@@ -100,8 +102,32 @@ class NetworkTopologyWorkspace(context: Context) : LinearLayout(context) {
                 refresh(); status.text = "Previous sketch restored."
             }
         }
+        action("Save topology draft") {
+            fun save() { status.text = if (runCatching { drafts.save(state) }.getOrDefault(false)) "Operator topology draft saved on this phone." else "Could not save the topology draft. Current sketch is unchanged." }
+            if (drafts.exists()) confirm("Replace saved topology?", "The existing saved draft will be replaced. Your current sketch stays open.", "Replace", ::save)
+            else save()
+        }
+        action("Load topology draft") {
+            val saved = runCatching { drafts.load() }.getOrNull()
+            if (saved == null) status.text = "No usable saved topology draft. Current sketch is unchanged."
+            else confirm("Load saved topology?", "This replaces the current sketch. You can undo the load during this session.", "Load") {
+                commit(saved); selected = if (state.nodes.isEmpty()) -1 else 0
+                refresh(); status.text = "Saved operator topology loaded. Undo is available."
+            }
+        }
+        action("Delete saved topology draft") {
+            if (!drafts.exists()) status.text = "No saved topology draft to delete."
+            else confirm("Delete saved topology?", "This deletes the saved draft on this phone. The current sketch stays open.", "Delete") {
+                status.text = if (runCatching { drafts.clear() }.getOrDefault(false)) "Saved topology deleted. Current sketch is unchanged." else "Could not delete the saved topology."
+            }
+        }
         label("Lines and positions are schematic. They do not show device health, direction, interface, VLAN, traffic, cable length or measured connectivity.", 12f)
         refresh()
+    }
+
+    private fun confirm(title: String, message: String, accept: String, action: () -> Unit) {
+        AlertDialog.Builder(context).setTitle(title).setMessage(message)
+            .setNegativeButton("Cancel", null).setPositiveButton(accept) { _, _ -> action() }.show()
     }
 
     private fun label(value: String, size: Float, color: Int = pale, bold: Boolean = false) = TextView(context).apply {
