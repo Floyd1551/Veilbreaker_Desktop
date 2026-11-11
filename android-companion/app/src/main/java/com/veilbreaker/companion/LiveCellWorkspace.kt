@@ -88,6 +88,25 @@ class LiveCellWorkspace(
             setOnClickListener { detailsExpanded = !detailsExpanded; renderDetails() }
         }
         addView(detailsButton)
+        val referenceText = TextView(context).apply {
+            textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true)
+            setPadding(dp(8), dp(6), dp(8), dp(10)); visibility = View.GONE
+            text = WirelessReferenceLibrary.entries.filter { it.id in setOf("cell-power", "cell-quality") }
+                .joinToString("\n\n") { entry ->
+                    "${entry.title}\n${entry.summary}\n\nField use: ${entry.fieldUse}\n\nLimitations: ${entry.limitations}\n\nSource: ${entry.sourceName} · Reviewed ${entry.reviewed}\n${entry.sourceUrl}"
+                }
+        }
+        val referenceButton = Button(context).apply {
+            text = "Explain cellular measurements"; isAllCaps = false; minHeight = dp(48)
+            setOnClickListener {
+                val opening = referenceText.visibility != View.VISIBLE
+                referenceText.visibility = if (opening) View.VISIBLE else View.GONE
+                text = if (opening) "Hide measurement explanations" else "Explain cellular measurements"
+                isSelected = opening
+            }
+        }
+        addView(referenceButton)
+        addView(referenceText)
     }
 
     fun setSnapshotReady(ready: Boolean, reason: CharSequence) {
