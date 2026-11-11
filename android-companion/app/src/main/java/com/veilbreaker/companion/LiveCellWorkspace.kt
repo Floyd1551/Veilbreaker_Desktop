@@ -39,6 +39,7 @@ class LiveCellWorkspace(
     private val captureReadiness = TextView(context)
     private val trend = LiveCellTrend()
     private val trendView = LiveCellTrendView(context)
+    private val metricPanel = LiveCellMetricsPanel(context)
     private var active = false
     private var collectionBlocked = false
     private var generation = 0L
@@ -87,6 +88,7 @@ class LiveCellWorkspace(
         addView(captureStatus)
         reviewButton.apply { text = "Review latest saved capture"; isAllCaps = false; minHeight = dp(48); isEnabled = false; setOnClickListener { reviewCapture() } }
         addView(reviewButton)
+        metricPanel.visibility = View.GONE; addView(metricPanel)
         trendView.visibility = View.GONE; addView(trendView)
         addView(details)
         detailsButton.apply {
@@ -117,7 +119,7 @@ class LiveCellWorkspace(
         detailsButton.contentDescription = detailsButton.text
         detailsButton.isSelected = detailsExpanded
     }
-    private fun clearDetails() { fullDetails = ""; detailsExpanded = false; renderDetails() }
+    private fun clearDetails() { fullDetails = ""; detailsExpanded = false; renderDetails(); metricPanel.visibility = View.GONE; metricPanel.removeAllViews() }
     private fun clearFreshness() { handler.removeCallbacks(freshnessTicker); responseReceivedAt = null }
 
     fun selectionChanged() {
@@ -183,6 +185,8 @@ class LiveCellWorkspace(
             } else {
                 val values = cells.orEmpty().take(MAX_CELLS).mapNotNull { runCatching { CellularSnapshot.cell(it, now) }.getOrNull() }
                 trend.accept(values, now); trendView.show(trend)
+                metricPanel.show(runCatching { LiveCellMetrics.build(values, channelPlan()) }.getOrNull())
+                metricPanel.visibility = View.VISIBLE
                 val rendered = runCatching { LiveCellSummary.render(values, channelPlan()) }.getOrElse { "Cell details are unavailable for this response." }
                 val omitted = (cells.orEmpty().size - values.size).coerceAtLeast(0)
                 clearFreshness(); responseReceivedAt = now; freshnessTicker.run()

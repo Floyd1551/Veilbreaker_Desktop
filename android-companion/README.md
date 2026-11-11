@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.20 development build
+# Veilbreaker Mobile 0.8.21 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -115,7 +115,9 @@ A capture requested with location but without a usable fix is marked partial.
 
 The live cellular monitor includes a short foreground-only trend for distinct,
 recent samples of one fully identified LTE/NR serving cell. It clears on ambiguity,
-cell changes, gaps or stop; it is not saved. Cached Wi-Fi cards show Android-reported
+cell changes, gaps or stop; it is not saved. The live monitor also shows compact
+numeric signal cards when one serving cell is unambiguous, with unavailable metrics
+and sample age explicitly labeled. Cached Wi-Fi cards show Android-reported
 channel width and advertised security capabilities when available, not a security
 audit. Mobile survey points support separately labeled operator observations.
 Standalone cellular and GPS captures wait up to 30 seconds for a requested GPS fix;
