@@ -67,6 +67,23 @@ class CellInventoryWorkspace(context:Context): LinearLayout(context) {
         data=result.getOrElse { CellInventoryModel.Inventory(emptyList(),0,0) }
         expanded=null;render()
     }
+    private fun metricFields(parent:LinearLayout, metrics:List<String>) {
+        val row=LinearLayout(context).apply {
+            orientation=if(resources.configuration.screenWidthDp < 360 || resources.configuration.fontScale > 1.15f) VERTICAL else HORIZONTAL
+            parent.addView(this,LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT).apply { topMargin=dp(4) })
+        }
+        metrics.take(3).forEach { metric ->
+            val parts=metric.split(": ",limit=2)
+            val box=LinearLayout(context).apply {
+                orientation=VERTICAL;setPadding(dp(8),dp(5),dp(8),dp(5))
+                background=GradientDrawable().apply { setColor(Color.parseColor("#0b1b29"));cornerRadius=dp(6).toFloat();setStroke(dp(1),Color.parseColor("#294052")) }
+                row.addView(this,if(row.orientation==HORIZONTAL) LayoutParams(0,LayoutParams.WRAP_CONTENT,1f).apply { marginEnd=dp(4) }
+                    else LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.WRAP_CONTENT).apply { bottomMargin=dp(4) })
+            }
+            if(parts.size==2) { box.addView(text(parts[0],12f));box.addView(text(parts[1],14f,true)) }
+            else box.addView(text(metric,13f))
+        }
+    }
     private fun render() {
         cards.removeAllViews()
         if(unavailable) { cards.addView(text("Cell inventory unavailable. The saved capture was not changed; raw JSON remains available."));return }
@@ -90,7 +107,7 @@ class CellInventoryWorkspace(context:Context): LinearLayout(context) {
             card.addView(text("${cell.carrier} · ${cell.band}\n${cell.subscription} · ${cell.age}",12f))
             val identifier=cell.identity.filter { it.startsWith("PCI:") || it.startsWith("EARFCN:") || it.startsWith("NR-ARFCN:") || it.startsWith("ARFCN:") || it.startsWith("UARFCN:") }.take(2)
             if(identifier.isNotEmpty()) card.addView(text(identifier.joinToString(" · "),12f))
-            card.addView(text(cell.metrics.take(3).joinToString(" · "),12f))
+            metricFields(card,cell.metrics)
             val toggle=Button(context).apply {
                 this.text=if(expanded===cell) "Hide details" else "Show details"
                 contentDescription="${this.text}: ${cell.radio}, ${cell.role}, ${cell.subscription}"

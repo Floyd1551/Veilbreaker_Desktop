@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.22 development build
+# Veilbreaker Mobile 0.8.23 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -102,6 +102,7 @@ role or search, with timestamps, modem-reported and derived bands distinguished.
 The inventory summarizes the visible role groups; unregistered reports are
 possible neighbors rather than confirmed neighbor identities. It offers the same offline
 cellular measurement explanations as the live monitor.
+Its signal fields are shown separately and stack at narrow widths or large font sizes.
 Wi-Fi inspection filters and sorts previously cached results without starting a
 new scan; the frequency chart is not affected by the list filters.
 
