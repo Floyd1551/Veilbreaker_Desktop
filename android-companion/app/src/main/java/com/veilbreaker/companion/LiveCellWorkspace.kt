@@ -26,13 +26,19 @@ class LiveCellWorkspace(
     context: Context,
     private val selectedSubscriptionId: () -> Int?,
     private val canRun: () -> Boolean,
-    private val channelPlan: () -> JSONObject
+    private val channelPlan: () -> JSONObject,
+    private val captureSnapshot: () -> Unit,
+    private val reviewCapture: () -> Unit
 ) : LinearLayout(context) {
     private val handler = Handler(Looper.getMainLooper())
     private val status = TextView(context)
     private val details = TextView(context)
     private val detailsButton = Button(context)
     private val button = Button(context)
+    private val captureButton = Button(context)
+    private val reviewButton = Button(context)
+    private val captureStatus = TextView(context)
+    private val captureReadiness = TextView(context)
     private val trend = LiveCellTrend()
     private val trendView = LiveCellTrendView(context)
     private var active = false
@@ -63,6 +69,18 @@ class LiveCellWorkspace(
         status.apply { text = "Live monitor off. Choose a SIM and start when ready."; textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(5)) }
         details.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); setPadding(0, dp(5), 0, dp(10)) }
         addView(status)
+        addView(TextView(context).apply {
+            text = "Save takes a separate snapshot and stops the live monitor. It replaces the latest phone capture; export earlier evidence first if needed."
+            textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(3))
+        })
+        captureButton.apply { text = "Take new snapshot"; isAllCaps = false; minHeight = dp(48); isEnabled = false; setOnClickListener { captureSnapshot() } }
+        addView(captureButton)
+        captureReadiness.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")) }
+        addView(captureReadiness)
+        captureStatus.apply { textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE }
+        addView(captureStatus)
+        reviewButton.apply { text = "Review latest saved capture"; isAllCaps = false; minHeight = dp(48); isEnabled = false; setOnClickListener { reviewCapture() } }
+        addView(reviewButton)
         trendView.visibility = View.GONE; addView(trendView)
         addView(details)
         detailsButton.apply {
@@ -70,6 +88,17 @@ class LiveCellWorkspace(
             setOnClickListener { detailsExpanded = !detailsExpanded; renderDetails() }
         }
         addView(detailsButton)
+    }
+
+    fun setSnapshotReady(ready: Boolean, reason: CharSequence) {
+        captureButton.isEnabled = ready
+        captureReadiness.text = if (ready) "" else reason
+        captureReadiness.visibility = if (ready) View.GONE else View.VISIBLE
+    }
+    fun setCaptureAvailable(available: Boolean) { reviewButton.isEnabled = available }
+    fun showCaptureStatus(message: CharSequence?) {
+        captureStatus.text = message
+        captureStatus.visibility = if (message.isNullOrBlank()) View.GONE else View.VISIBLE
     }
 
     /** Keep the first, serving-prioritized cell visible; fold additional reports. */

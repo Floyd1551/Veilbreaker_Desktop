@@ -142,7 +142,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.14 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.15 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -216,6 +216,7 @@ class MainActivity : Activity() {
             override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
                 cellularCaptureStatus.text=s
                 cellularCaptureStatus.visibility=if(s.isNullOrBlank()) View.GONE else View.VISIBLE
+                if (::liveCellWorkspace.isInitialized) liveCellWorkspace.showCaptureStatus(s)
             }
             override fun afterTextChanged(s:Editable?) {}
         })
@@ -223,7 +224,8 @@ class MainActivity : Activity() {
         cellConnectionWorkspace=CellConnectionWorkspace(this) { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId }
         cellularSection.addView(cellConnectionWorkspace)
         liveCellWorkspace=LiveCellWorkspace(this, { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId },
-            { externalActionsEnabled() && cellularChoice.isChecked }, { channelPlan })
+            { externalActionsEnabled() && cellularChoice.isChecked }, { channelPlan },
+            { takeSnapshot(null) }, { showPage(WorkspacePage.REPORTS) })
         cellularSection.addView(liveCellWorkspace)
         val wifiSection=section()
         val wifi=card(wifiSection,"Wi-Fi environment")
@@ -373,6 +375,7 @@ class MainActivity : Activity() {
         if (::cellularCaptureButton.isInitialized) {
             cellularCaptureButton.isEnabled=captureButton.isEnabled && cellularChoice.isChecked
             cellularCaptureReadiness.text=if (!cellularChoice.isChecked) "Enable cellular measurements to capture cellular evidence." else inputReadiness.text
+            if (::liveCellWorkspace.isInitialized) liveCellWorkspace.setSnapshotReady(cellularCaptureButton.isEnabled, cellularCaptureReadiness.text)
         }
     }
     override fun onRequestPermissionsResult(code:Int,p:Array<out String>,results:IntArray) { super.onRequestPermissionsResult(code,p,results);if(code==1) { refresh();liveDashboard.refreshWifi() } }
@@ -406,7 +409,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.14-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.15-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }
@@ -482,6 +485,7 @@ class MainActivity : Activity() {
     private fun showCapture() {
         val value=capture
         if (::cellularReviewButton.isInitialized) cellularReviewButton.isEnabled=value!=null
+        if (::liveCellWorkspace.isInitialized) liveCellWorkspace.setCaptureAvailable(value!=null)
         cellularVisuals.showCapture(value,if(value==null) null else channelPlan)
         cellInventory.showCapture(value,if(value==null) null else channelPlan)
         liveDashboard.showCapture(value,if(value==null) null else channelPlan)

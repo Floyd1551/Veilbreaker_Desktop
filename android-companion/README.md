@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.14 development build
+# Veilbreaker Mobile 0.8.15 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -46,7 +46,9 @@ coordinates to FWA planning after confirming replacement of the candidate-site
 fields. Saved FWA inputs retain coordinates only, so record provenance separately.
 
 The Cellular workspace offers capture readiness, a direct capture action and a
-shortcut to review the latest saved capture. Capturing replaces the latest phone
+shortcut to review the latest saved capture. The live monitor also offers a
+separate snapshot action; taking a snapshot stops the transient live monitor.
+Capturing replaces the latest phone
 capture, so export earlier evidence when needed. Live offers a direct input-configuration
 shortcut; SIM selection follows the subscription identity when the list changes. The optional network test sends one bounded HTTPS request to the
 operator's chosen URL over an explicitly selected Android network; a short
