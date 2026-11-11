@@ -40,6 +40,10 @@ class MainActivity : Activity() {
     private lateinit var cellularChoice: CheckBox
     private lateinit var locationChoice: CheckBox
     private lateinit var captureButton: Button
+    private lateinit var cellularCaptureButton: Button
+    private lateinit var cellularReviewButton: Button
+    private lateinit var cellularCaptureReadiness: TextView
+    private lateinit var cellularCaptureStatus: TextView
     private lateinit var exportButton: Button
     private lateinit var pdfButton: Button
     private lateinit var reportStatus: TextView
@@ -138,7 +142,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.13 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.14 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -202,6 +206,20 @@ class MainActivity : Activity() {
         text(inputs,"Location is optional. Coordinates are recorded only when enabled. No SIM is needed for location-only capture.")
         button(inputs,"Permissions and refresh SIMs") { if(allowed()) refresh() else requestPermissions(permissions,1) }
         subscriptions=Spinner(this);inputs.addView(subscriptions)
+        cellularCaptureReadiness=text(inputs,"Checking phone inputs…",12f)
+        text(inputs,"A capture saves a new snapshot as the latest phone evidence. Export an earlier capture first if you need to keep it.",12f)
+        cellularCaptureButton=button(inputs,"Capture cellular evidence",true) { takeSnapshot(null) }
+        cellularCaptureStatus=text(inputs,"")
+        cellularReviewButton=button(inputs,"Review latest saved capture") { showPage(WorkspacePage.REPORTS) }
+        status.addTextChangedListener(object:TextWatcher {
+            override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
+            override fun onTextChanged(s:CharSequence?,start:Int,before:Int,count:Int) {
+                cellularCaptureStatus.text=s
+                cellularCaptureStatus.visibility=if(s.isNullOrBlank()) View.GONE else View.VISIBLE
+            }
+            override fun afterTextChanged(s:Editable?) {}
+        })
+        cellularCaptureStatus.visibility=View.GONE
         cellConnectionWorkspace=CellConnectionWorkspace(this) { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId }
         cellularSection.addView(cellConnectionWorkspace)
         liveCellWorkspace=LiveCellWorkspace(this, { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId },
@@ -352,6 +370,10 @@ class MainActivity : Activity() {
             else -> "Inputs ready for capture."
         }
         captureButton.isEnabled=connection==null && !pending && !noInput && allowed() && !missingSim
+        if (::cellularCaptureButton.isInitialized) {
+            cellularCaptureButton.isEnabled=captureButton.isEnabled && cellularChoice.isChecked
+            cellularCaptureReadiness.text=if (!cellularChoice.isChecked) "Enable cellular measurements to capture cellular evidence." else inputReadiness.text
+        }
     }
     override fun onRequestPermissionsResult(code:Int,p:Array<out String>,results:IntArray) { super.onRequestPermissionsResult(code,p,results);if(code==1) { refresh();liveDashboard.refreshWifi() } }
     private fun takeSnapshot(target:UsbSession?, onComplete: ((Result<JSONObject>) -> Unit)? = null) {
@@ -384,7 +406,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.13-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.14-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }
@@ -459,6 +481,7 @@ class MainActivity : Activity() {
     }
     private fun showCapture() {
         val value=capture
+        if (::cellularReviewButton.isInitialized) cellularReviewButton.isEnabled=value!=null
         cellularVisuals.showCapture(value,if(value==null) null else channelPlan)
         cellInventory.showCapture(value,if(value==null) null else channelPlan)
         liveDashboard.showCapture(value,if(value==null) null else channelPlan)
