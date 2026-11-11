@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.16 development build
+# Veilbreaker Mobile 0.8.17 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -43,7 +43,9 @@ results do not imply an absence of service. OpenCellID account terms, request
 limits, and CC BY-SA 4.0 attribution apply. No credential is bundled.
 After a successful lookup, the operator can explicitly send the candidate
 coordinates to FWA planning after confirming replacement of the candidate-site
-fields. Saved FWA inputs retain coordinates only, so record provenance separately.
+fields. Explicitly saved FWA inputs retain the candidate's source, identity,
+retrieval time and reported sample/range metadata; editing either candidate
+coordinate removes that attribution. Older drafts have no retained source.
 
 The Cellular workspace offers capture readiness, a direct capture action and a
 shortcut to review the latest saved capture. The live monitor also offers a

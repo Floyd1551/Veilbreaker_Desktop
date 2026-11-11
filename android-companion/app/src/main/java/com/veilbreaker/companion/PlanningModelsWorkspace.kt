@@ -36,6 +36,7 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
     private lateinit var siteLongitude: EditText
     private lateinit var candidateSource: TextView
     private var applyingCandidate = false
+    private var currentCandidate: OpenCellLookup.LocatedCandidate? = null
 
     init {
         orientation = VERTICAL
@@ -103,13 +104,13 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
             siteLatitude.setText(located.candidate.latitude.toString())
             siteLongitude.setText(located.candidate.longitude.toString())
         } finally { applyingCandidate = false }
-        val identity = located.query
-        candidateSource.text = "OpenCellID community candidate (CC BY-SA 4.0) · ${identity.radio} ${identity.mcc}/${identity.mnc} · area ${identity.area} · cell ${identity.cellId} · retrieved ${located.retrievedAt}. This is not a verified tower or line of sight. Saved planning inputs retain coordinates only; record the source separately."
+        currentCandidate = located
+        candidateSource.text = OpenCellLookup.describe(located)
         modelSelector.setSelection(1)
         for (index in 0 until body.childCount) body.getChildAt(index).visibility = if (index == 1) View.VISIBLE else View.GONE
     }
     private fun draftActions(parent: LinearLayout, save: () -> Boolean, load: () -> Boolean, clear: () -> Boolean) {
-        text(parent, "Saved inputs stay on this phone as operator-entered planning data. Loading a draft requires recalculation.", 12f)
+        text(parent, "Saved planning inputs stay on this phone. Loading a draft requires recalculation; estimates are not captured evidence.", 12f)
         val status = text(parent, "", 12f)
         button(parent, "Save planning inputs") { status.text = if (runCatching(save).getOrDefault(false)) "Planning inputs saved on this phone." else "Could not save: check input ranges or device storage." }
         button(parent, "Load saved inputs") { status.text = if (runCatching(load).getOrDefault(false)) "Saved inputs loaded. Calculate again to refresh the result." else "No usable saved inputs found; existing fields were left unchanged." }
@@ -154,7 +155,10 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
         listOf(lat2, lon2).forEach { field -> field.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                if (!applyingCandidate) candidateSource.text = "Candidate coordinates changed. Treat them as operator-entered; no source is attached."
+                if (!applyingCandidate) {
+                    currentCandidate = null
+                    candidateSource.text = "Candidate coordinates changed. Treat them as operator-entered; no source is attached."
+                }
             }
             override fun afterTextChanged(s: Editable?) {}
         }) }
@@ -175,8 +179,17 @@ class PlanningModelsWorkspace(context: Context, private val captureProvider: () 
         text(c, "Field tuning: record a baseline; adjust in small steps; allow readings to settle; compare RSRP, RSRQ, SINR and throughput together; record final direction and repeat under similar conditions. Follow equipment and installation safety requirements.", 12f)
         text(c, "Reference: ITU-R P.525-5 (2024), free-space basic transmission loss; spherical great-circle distance approximation.", 11f)
         draftActions(c,
-            save = { drafts.saveFwa(PlanningFwaDraft(lat1.text.toString(), lon1.text.toString(), lat2.text.toString(), lon2.text.toString(), frequency.text.toString())) },
-            load = { drafts.loadFwa()?.let { lat1.setText(it.antennaLatitude); lon1.setText(it.antennaLongitude); lat2.setText(it.siteLatitude); lon2.setText(it.siteLongitude); frequency.setText(it.frequencyMhz); true } ?: false },
+            save = { drafts.saveFwa(PlanningFwaDraft(lat1.text.toString(), lon1.text.toString(), lat2.text.toString(), lon2.text.toString(), frequency.text.toString(), currentCandidate)) },
+            load = { drafts.loadFwa()?.let { draft ->
+                lat1.setText(draft.antennaLatitude); lon1.setText(draft.antennaLongitude)
+                applyingCandidate = true
+                try { lat2.setText(draft.siteLatitude); lon2.setText(draft.siteLongitude) } finally { applyingCandidate = false }
+                frequency.setText(draft.frequencyMhz)
+                currentCandidate = draft.candidateSource
+                candidateSource.text = draft.candidateSource?.let(OpenCellLookup::describe)
+                    ?: "Saved candidate coordinates have no retained source; their origin is unknown."
+                true
+            } ?: false },
             clear = { drafts.clearFwa() })
         val comparison = FwaTuningWorkspace(context, captureProvider).apply { visibility = View.GONE }
         lateinit var toggle: Button
