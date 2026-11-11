@@ -30,6 +30,7 @@ class MainActivity : Activity() {
     private lateinit var cellInventory: CellInventoryWorkspace
     private lateinit var liveDashboard: LiveDashboard
     private lateinit var surveyWorkspace: SurveyWorkspace
+    private lateinit var captureArchive: CaptureArchiveWorkspace
     private lateinit var networkTestWorkspace: NetworkTestWorkspace
     private lateinit var detailsButton: Button
     private lateinit var rawButton: Button
@@ -117,6 +118,7 @@ class MainActivity : Activity() {
         wifiButton.isEnabled=enabled;gpsButton.isEnabled=enabled
         if(::liveCellWorkspace.isInitialized) liveCellWorkspace.setCollectionBlocked(!enabled || !cellularChoice.isChecked)
         liveDashboard.setNavigationEnabled(enabled);surveyWorkspace.setExternalActionsEnabled(enabled)
+        if (::captureArchive.isInitialized) captureArchive.setExternalEnabled(enabled && !pdfExporting)
         exportButton.isEnabled=enabled && capture!=null && !pdfExporting;pdfButton.isEnabled=enabled && capture!=null && !pdfExporting
     }
 
@@ -142,7 +144,7 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.23 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.24 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -258,27 +260,16 @@ class MainActivity : Activity() {
             browseCells.text=if(opening) "Hide captured cells" else "Browse captured cells"
         }
         cellInventory=CellInventoryWorkspace(this).apply { visibility=View.GONE };local.addView(cellInventory)
-        pdfButton=button(local,"Export PDF…",true) {
-            capture?.let {
-                exportPdfText=it.toString()
-                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE);type="application/pdf";putExtra(Intent.EXTRA_TITLE,"veilbreaker-field-report.pdf")
-                },3)
-            }
-        }
-        exportButton=button(local,"Export capture JSON…") {
-            capture?.let {
-                exportText=it.toString(2)
-                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE);type="application/json";putExtra(Intent.EXTRA_TITLE,"veilbreaker-"+it.getString("capture_id")+".json")
-                },2)
-            }
-        }
+        pdfButton=button(local,"Export PDF…",true) { capture?.let(::exportCapturePdf) }
+        exportButton=button(local,"Export capture JSON…") { capture?.let(::exportCaptureJson) }
         detailsButton=button(local,"Show cellular details") { previewMode=if(previewMode=="details") "summary" else "details";showCapture() }
         rawButton=button(local,"Show raw JSON") { previewMode=if(previewMode=="raw") "summary" else "raw";showCapture() }
         reportStatus=text(local,"The last saved capture is kept on this phone.")
         preview=text(local,"No saved capture.")
         cellularVisuals=CellularVisuals(this);local.addView(cellularVisuals)
+        val archiveCard=card(reports,"Capture archive")
+        captureArchive=CaptureArchiveWorkspace(this, { capture }, { channelPlan }, ::exportCaptureJson, ::exportCapturePdf)
+        archiveCard.addView(captureArchive)
         val tools=page("Tools", "Calculators, field references, planning and optional online lookup.")
         val toolsTabs=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(4),0,dp(4)) }
         val names=listOf("Calculate", "References", "Planning", "Online")
@@ -349,6 +340,20 @@ class MainActivity : Activity() {
     }
     private fun allowed() = (!cellularChoice.isChecked || (checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)) &&
         (!locationChoice.isChecked || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
+    private fun exportCapturePdf(value:JSONObject) {
+        if (!externalActionsEnabled() || pdfExporting) return
+        exportPdfText=value.toString()
+        try { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE);type="application/pdf";putExtra(Intent.EXTRA_TITLE,"veilbreaker-field-report.pdf")
+        },3) } catch (_:Exception) { exportPdfText=null;reportStatus.text="Could not open the document picker." }
+    }
+    private fun exportCaptureJson(value:JSONObject) {
+        if (!externalActionsEnabled() || pdfExporting) return
+        exportText=value.toString(2)
+        try { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE);type="application/json";putExtra(Intent.EXTRA_TITLE,"veilbreaker-"+value.getString("capture_id")+".json")
+        },2) } catch (_:Exception) { exportText=null;reportStatus.text="Could not open the document picker." }
+    }
     private fun refresh() {
         if(connection!=null) return
         val selectedId=choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId
@@ -409,7 +414,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.23-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.24-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }

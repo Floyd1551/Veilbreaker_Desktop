@@ -7,16 +7,20 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 
 /** Private on-device journal. Captures are copied, never changed in place. */
-class MobileSurveyStore(context: Context) {
+class MobileSurveyStore(context: Context, archive: Boolean = false) {
     data class Summary(val id: String, val name: String, val state: String, val created: String, val count: Int)
     data class Listing(val surveys: List<Summary>, val unavailable: Int)
-    private val directory = File(context.filesDir, "mobile-surveys")
+    private val directory = File(context.filesDir, if (archive) "capture-archive" else "mobile-surveys")
     private val idPattern = Regex("[a-f0-9-]{36}")
     private val totalLimit = 64L * 1024 * 1024
 
     private fun file(id: String): File {
         require(idPattern.matches(id)) { "Invalid survey ID." }
         return File(directory, "$id.json")
+    }
+    fun exists(id: String): Boolean = MobileSurveyTransactions.locked {
+        val target = file(id)
+        target.exists() || File(target.path + ".bak").exists()
     }
 
     fun load(id: String): JSONObject = MobileSurveyTransactions.locked {
