@@ -60,7 +60,7 @@ def load_mobile_survey(path):
         _validate(survey)
     except (UnicodeError, RecursionError, TypeError) as exc:
         raise ValueError('Invalid or excessively nested mobile survey JSON') from exc
-    return {'survey': survey, 'sha256': hashlib.sha256(raw).hexdigest()}
+    return {'survey': survey, 'sha256': hashlib.sha256(raw).hexdigest(), 'raw_bytes': raw}
 
 
 def write_selected_capture(source, expected_sha256, index, destination):
@@ -81,3 +81,44 @@ def write_selected_capture(source, expected_sha256, index, destination):
             target.unlink(missing_ok=True)
         raise
     return target
+
+
+def export_mobile_survey_bundle(source, expected_sha256, destination):
+    """Export a new directory with exact source bytes, captures and point provenance."""
+    loaded = load_mobile_survey(source)
+    require(loaded['sha256'] == expected_sha256, 'Mobile survey changed since preview; reopen it before exporting.')
+    survey = loaded['survey']
+    folder = Path(destination)
+    folder.mkdir()  # exclusive: never merge with or replace an existing directory
+    created = []
+    try:
+        def write_new(name, payload):
+            target = folder / name
+            with target.open('xb') as stream:
+                created.append(target)
+                stream.write(payload)
+
+        write_new('source-mobile-survey.json', loaded['raw_bytes'])
+        points = []
+        for index, point in enumerate(survey['points'], 1):
+            capture = point['capture']
+            name = f"point-{index:02d}-{uuid.UUID(capture['capture_id'])}.json"
+            payload = json.dumps(capture, indent=2, ensure_ascii=False, allow_nan=False).encode('utf-8')
+            write_new(name, payload)
+            points.append({'point': index, 'capture_id': capture['capture_id'], 'capture_file': name,
+                           'capture_sha256': hashlib.sha256(payload).hexdigest(),
+                           'attached_utc': point['attached_utc'], 'operator_note': point.get('operator_note')})
+        manifest = {'format': 'veilbreaker.mobile-survey-extract', 'schema_version': 1,
+                    'source_file': 'source-mobile-survey.json', 'source_sha256': loaded['sha256'],
+                    'survey_id': survey['survey_id'], 'survey_name': survey['name'],
+                    'lifecycle': survey['lifecycle'], 'points': points,
+                    'note': 'Operator notes are not measurements. Captures are re-encoded; retain the original source file.'}
+        write_new('manifest.json', json.dumps(manifest, indent=2, ensure_ascii=False, allow_nan=False).encode('utf-8'))
+    except BaseException:
+        for target in reversed(created):
+            try: target.unlink(missing_ok=True)
+            except OSError: pass
+        try: folder.rmdir()
+        except OSError: pass
+        raise
+    return folder

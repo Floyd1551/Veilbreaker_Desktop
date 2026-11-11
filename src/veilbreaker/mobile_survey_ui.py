@@ -1,18 +1,20 @@
 """Review mobile survey points without changing Desktop or mobile evidence."""
 import json
 import uuid
+from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QAbstractItemView, QDialog, QFileDialog, QHBoxLayout, QLabel,
                                QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout)
 
-from .mobile_survey_import import write_selected_capture
+from .mobile_survey_import import export_mobile_survey_bundle, write_selected_capture
 
 
 class MobileSurveyReviewDialog(QDialog):
-    def __init__(self, parent, source, loaded):
+    def __init__(self, parent, source, loaded, attach_input=None):
         super().__init__(parent)
         self.source, self.loaded = source, loaded
+        self.attach_input = attach_input
         self.setWindowTitle('Review mobile survey')
         self.resize(980, 700)
         layout = QVBoxLayout(self)
@@ -20,7 +22,7 @@ class MobileSurveyReviewDialog(QDialog):
         heading = QLabel(f"{survey['name']} · {survey['lifecycle']} · {len(survey['points'])} points\nCreated {survey['created_utc']}\nSource SHA-256: {loaded['sha256']}")
         heading.setTextFormat(Qt.TextFormat.PlainText); heading.setWordWrap(True)
         layout.addWidget(heading)
-        info = QLabel('Review saved phone evidence and operator notes. Save a selected capture as JSON, then attach it in Investigate. This does not create a Desktop survey or run a test. Coordinates and identifiers may be included.')
+        info = QLabel('Review saved phone evidence and operator notes. Save a selected capture or export all points to a new folder. This does not create a Desktop survey or run a test. Coordinates and identifiers may be included.')
         info.setTextFormat(Qt.TextFormat.PlainText); info.setWordWrap(True)
         layout.addWidget(info)
         self.points = QTableWidget(0, 5)
@@ -46,6 +48,10 @@ class MobileSurveyReviewDialog(QDialog):
         actions = QHBoxLayout()
         self.save = QPushButton('Save selected capture as JSON…'); self.save.setEnabled(False)
         self.save.clicked.connect(self.save_capture); actions.addWidget(self.save)
+        self.attach = QPushButton('Save and attach as input…'); self.attach.setEnabled(False)
+        self.attach.setVisible(attach_input is not None)
+        self.attach.clicked.connect(self.attach_capture); actions.addWidget(self.attach)
+        batch = QPushButton('Export all points to folder…'); batch.clicked.connect(self.export_all); actions.addWidget(batch)
         close = QPushButton('Close'); close.clicked.connect(self.reject); actions.addWidget(close)
         layout.addLayout(actions)
         self.points.itemSelectionChanged.connect(self.show_point)
@@ -55,6 +61,7 @@ class MobileSurveyReviewDialog(QDialog):
         points = self.loaded['survey']['points']
         selected = bool(self.points.selectedItems()) and 0 <= index < len(points)
         self.save.setEnabled(selected)
+        self.attach.setEnabled(selected and self.attach_input is not None)
         if not selected:
             self.details.clear(); return
         point = points[index]; capture = point['capture']
@@ -66,6 +73,12 @@ class MobileSurveyReviewDialog(QDialog):
         self.status.setText('Operator notes remain in the mobile survey. The capture is re-encoded as JSON and has its own file hash. Keep the original survey for context.')
 
     def save_capture(self):
+        self._save_capture(False)
+
+    def attach_capture(self):
+        self._save_capture(True)
+
+    def _save_capture(self, attach):
         index = self.points.currentRow()
         points = self.loaded['survey']['points']
         if not self.points.selectedItems() or not 0 <= index < len(points): return
@@ -77,4 +90,21 @@ class MobileSurveyReviewDialog(QDialog):
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self, 'Capture not saved', str(exc) + '\nChoose a new filename; the source survey remains unchanged.')
             return
-        self.status.setText('Capture saved. In Investigate, choose Attach Android input and select the saved file. The mobile survey itself has not been imported.')
+        if attach and self.attach_input is not None:
+            if self.attach_input(target):
+                self.accept()
+                return
+            self.status.setText('Capture saved, but no input was attached. The mobile survey remains unchanged.')
+        else:
+            self.status.setText('Capture saved. In Investigate, choose Attach Android input and select the saved file. The mobile survey itself has not been imported.')
+
+    def export_all(self):
+        parent = QFileDialog.getExistingDirectory(self, 'Choose a parent folder for a new survey export')
+        if not parent: return
+        folder = Path(parent) / ('mobile-survey-' + str(uuid.UUID(self.loaded['survey']['survey_id'])))
+        try:
+            export_mobile_survey_bundle(self.source, self.loaded['sha256'], folder)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Survey not exported', str(exc) + '\nChoose a parent without an existing export folder. The source survey remains unchanged.')
+            return
+        self.status.setText('Exported the original survey, individual captures, and a provenance manifest to a new folder. No Desktop survey was created.')

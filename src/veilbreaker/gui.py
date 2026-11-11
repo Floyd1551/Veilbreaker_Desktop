@@ -966,11 +966,19 @@ class MainWindow(QMainWindow):
         if self.process is not None:
             self.statusBar().showMessage('Wait for the current task before importing.')
             return
-        from .android_capture import load_capture
-        from .android_ui import AndroidImportDialog
         path, _ = QFileDialog.getOpenFileName(self, 'Import Android cellular capture', '', 'Android capture (*.json)')
         if not path:
             return
+        self.attach_android_capture(path)
+
+    def attach_android_capture(self, path):
+        """Review an existing capture as input; never start collection automatically."""
+        if self.process is not None:
+            self.statusBar().showMessage('Wait for the current task before importing.')
+            return False
+        from .android_capture import load_capture
+        from .android_ui import AndroidImportDialog
+        path = str(path)
         try:
             capture = load_capture(Path(path))
             dialog = AndroidImportDialog(self, capture)
@@ -988,8 +996,10 @@ class MainWindow(QMainWindow):
                 self.android_input_caption = capture['envelope']['device']['model'] + ' · ' + obs['received_utc']
                 self.update_run_plan()
                 self.statusBar().showMessage('Android input attached. Select diagnostic options and press Run diagnostic. No test has started.')
+                return True
         except (OSError, ValueError) as exc:
             self.error(str(exc))
+        return False
 
     def import_metrics(self):
         if self.process is not None:

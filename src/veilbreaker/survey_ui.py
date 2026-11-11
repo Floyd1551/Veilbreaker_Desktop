@@ -420,7 +420,11 @@ class SurveyPage(QWidget):
         if not path: return
         try:
             loaded = load_mobile_survey(path)
-            MobileSurveyReviewDialog(self, path, loaded).exec()
+            def attach_input(capture_path):
+                attached = self.window.attach_android_capture(capture_path)
+                if attached: self.window.nav.setCurrentRow(1)
+                return attached
+            MobileSurveyReviewDialog(self, path, loaded, attach_input=attach_input).exec()
         except (OSError, ValueError) as exc:
             self.window.error(str(exc))
 

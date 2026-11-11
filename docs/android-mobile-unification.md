@@ -41,7 +41,10 @@ reporting. Bring those capabilities forward in independently verified slices.
    explicitly selected captures; their JSON is not a Desktop survey import.
    Desktop Surveys can review a mobile survey JSON, including operator notes,
    and save an individual capture as a new JSON file for the existing Android
-   diagnostic-input workflow. The extracted capture preserves its data, but
+   diagnostic-input workflow, or save and attach it through the existing cell
+   selection dialog. A batch export creates a new folder with the original
+   survey bytes, separate captures, and a manifest of hashes and point notes.
+   Neither action starts a diagnostic. The extracted capture preserves its data, but
    survey point notes stay in the original mobile survey file. Capture JSON is
    re-encoded during extraction, so the standalone file has its own hash; retain
    the original survey for source context. This review does

@@ -281,6 +281,29 @@ class GuiTests(unittest.TestCase):
         self.window.clear_android_input()
         self.assertNotIn('saved Android input', self.window.run_plan.text())
 
+    def test_existing_capture_can_be_attached_without_starting_a_run(self):
+        from PySide6.QtWidgets import QDialog
+        from veilbreaker.android_ui import AndroidImportDialog
+        path = str(Path('examples/android-cellular-v1.json').resolve())
+        with patch.object(AndroidImportDialog, 'exec', return_value=QDialog.DialogCode.Accepted), \
+             patch.object(AndroidImportDialog, 'selection', return_value=('snapshot-1', 0)), \
+             patch.object(self.window, 'start_job') as start:
+            self.assertTrue(self.window.attach_android_capture(path))
+            self.assertEqual(self.window.android_input['path'], path)
+            self.assertEqual(self.window.android_input['observation_id'], 'snapshot-1')
+            start.assert_not_called()
+
+    def test_cancelled_android_selection_preserves_existing_input(self):
+        from PySide6.QtWidgets import QDialog
+        from veilbreaker.android_ui import AndroidImportDialog
+        original = {'path': 'existing.json', 'expected_sha256': 'old', 'observation_id': 'old', 'cell_index': 0}
+        self.window.android_input = dict(original)
+        with patch.object(AndroidImportDialog, 'exec', return_value=QDialog.DialogCode.Rejected), \
+             patch.object(self.window, 'start_job') as start:
+            self.assertFalse(self.window.attach_android_capture(Path('examples/android-cellular-v1.json')))
+            self.assertEqual(self.window.android_input, original)
+            start.assert_not_called()
+
     def test_close_waits_for_usb_cleanup(self):
         from unittest.mock import Mock
         process = Mock()
