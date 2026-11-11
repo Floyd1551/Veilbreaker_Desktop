@@ -18,8 +18,6 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONObject
-import java.text.DateFormat
-import java.util.Date
 
 /** Explicit, foreground-only display of Android cell callbacks; never saves evidence. */
 class LiveCellWorkspace(
@@ -52,6 +50,14 @@ class LiveCellWorkspace(
     private var nextRequest: Runnable? = null
     private var timeout: Runnable? = null
     private var endSession: Runnable? = null
+    private var responseReceivedAt: Long? = null
+    private val freshnessTicker = object : Runnable {
+        override fun run() {
+            if (!active || responseReceivedAt == null) return
+            status.text = LiveCellFreshness.describe(responseReceivedAt, SystemClock.elapsedRealtime()) ?: "Response timing unavailable."
+            handler.postDelayed(this, 1000)
+        }
+    }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     init {
@@ -130,6 +136,7 @@ class LiveCellWorkspace(
         detailsButton.isSelected = detailsExpanded
     }
     private fun clearDetails() { fullDetails = ""; detailsExpanded = false; renderDetails() }
+    private fun clearFreshness() { handler.removeCallbacks(freshnessTicker); responseReceivedAt = null }
 
     fun selectionChanged() {
         val selected = selectedSubscriptionId()
@@ -147,6 +154,7 @@ class LiveCellWorkspace(
         active = false; generation++; requestId++; subscriptionId = null
         nextRequest?.let(handler::removeCallbacks); timeout?.let(handler::removeCallbacks); endSession?.let(handler::removeCallbacks)
         nextRequest = null; timeout = null; endSession = null
+        clearFreshness(); clearDetails(); shownSubscriptionId = null
         trend.reset(); trendView.show(trend); trendView.visibility = View.GONE
         button.text = "Start live cellular"; status.text = message
     }
@@ -166,7 +174,7 @@ class LiveCellWorkspace(
         if (id == null) { status.text = "Choose a SIM in Phone inputs before starting."; return }
         if (!ready(id)) { status.text = "Choose an active SIM, grant phone and precise location permissions, enable location services, and stop other collection first."; return }
         active = true; subscriptionId = id; val token = ++generation
-        button.text = "Stop live cellular"; status.text = "Requesting a cell update…"; clearDetails(); shownSubscriptionId = null
+        button.text = "Stop live cellular"; status.text = "Requesting a cell update…"; clearFreshness(); clearDetails(); shownSubscriptionId = null
         trend.reset(); trendView.show(trend); trendView.visibility = View.VISIBLE
         endSession = Runnable { if (active && token == generation) stop("Five-minute limit reached. No live readings were saved.") }.also { handler.postDelayed(it, MAX_DURATION_MS) }
         request(token, id)
@@ -186,6 +194,7 @@ class LiveCellWorkspace(
             if (selectedSubscriptionId() != id || !ready(id)) { stop("Live monitor stopped because the SIM, permissions, screen, or collection state changed."); return }
             val now = SystemClock.elapsedRealtime()
             if (error != null) {
+                clearFreshness()
                 status.text = "$error · retrying while this screen remains open."
                 clearDetails(); shownSubscriptionId = null
                 trend.reset("Cell response unavailable; history cleared."); trendView.show(trend)
@@ -194,7 +203,7 @@ class LiveCellWorkspace(
                 trend.accept(values, now); trendView.show(trend)
                 val rendered = runCatching { LiveCellSummary.render(values, channelPlan()) }.getOrElse { "Cell details are unavailable for this response." }
                 val omitted = (cells.orEmpty().size - values.size).coerceAtLeast(0)
-                status.text = "Response received ${DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date())}. Modem sample age is shown at receipt; a new response may be cached."
+                clearFreshness(); responseReceivedAt = now; freshnessTicker.run()
                 fullDetails = rendered + if (omitted > 0) "\n\n$omitted reports omitted or unreadable." else ""
                 renderDetails()
                 shownSubscriptionId = id
