@@ -1,10 +1,12 @@
 """Durable, source-preserving local copies of mobile surveys; no diagnostic runs."""
 import os
+import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 
-from .android_capture import MAX_BYTES, require
-from .mobile_survey_import import load_mobile_survey
+from .android_capture import MAX_BYTES, require, utc
+from .mobile_survey_import import _unique, _reject_constant, load_mobile_survey
 from .survey import session_lock
 
 MAX_SURVEYS = 100
@@ -33,17 +35,38 @@ def _folder(config, digest):
     return _root(config) / digest
 
 
-def read_mobile_survey(config, digest):
+def _trash_marker(folder, digest):
+    path = folder / 'trash.json'
+    if not path.exists() and not _link_or_reparse(path): return None
+    require(not _link_or_reparse(path) and path.is_file(), 'Mobile survey Trash marker is unsafe; data was preserved.')
+    with path.open('rb') as stream: raw = stream.read(4097)
+    require(len(raw) <= 4096, 'Mobile survey Trash marker is invalid; data was preserved.')
+    try:
+        value = json.loads(raw.decode('utf-8'), object_pairs_hook=_unique, parse_constant=_reject_constant)
+        require(isinstance(value, dict) and set(value) == {'format', 'schema_version', 'sha256', 'removed_utc'} and
+                value['format'] == 'veilbreaker.mobile-survey-trash' and type(value['schema_version']) is int and
+                value['schema_version'] == 1 and value['sha256'] == digest, 'Mobile survey Trash marker is invalid; data was preserved.')
+        utc(value['removed_utc'])
+        return value
+    except (UnicodeError, RecursionError, TypeError, KeyError) as exc:
+        raise ValueError('Mobile survey Trash marker is invalid; data was preserved.') from exc
+
+
+def read_mobile_survey(config, digest, *, include_trashed=False):
+    require(type(include_trashed) is bool, 'Invalid mobile survey visibility.')
     folder = _folder(config, digest)
     path = folder / 'source.json'
     require(not _link_or_reparse(folder) and folder.is_dir() and not _link_or_reparse(path) and path.is_file(),
             'Saved mobile survey is missing or unsafe; the stored copy was preserved.')
+    marker = _trash_marker(folder, digest)
+    require(include_trashed or marker is None, 'This mobile survey is in Trash; restore it before opening or importing again.')
     loaded = load_mobile_survey(path)
     require(loaded['sha256'] == digest, 'Saved mobile survey has changed; the stored copy was preserved.')
     return dict(loaded, path=str(path))
 
 
-def list_mobile_surveys(config):
+def list_mobile_surveys(config, *, trashed=False):
+    require(type(trashed) is bool, 'Invalid mobile survey visibility.')
     root = _root(config)
     if not root.exists(): return [], 0
     entries = [path for path in root.iterdir() if _HASH.fullmatch(path.name)]
@@ -56,10 +79,13 @@ def list_mobile_surveys(config):
             size = source.stat().st_size
             require(size <= MAX_BYTES and total + size <= MAX_TOTAL_BYTES, 'Mobile survey library exceeds its size limit.')
             total += size
-            loaded = read_mobile_survey(config, folder.name)
+            loaded = read_mobile_survey(config, folder.name, include_trashed=True)
+            marker = _trash_marker(folder, folder.name)
+            if (marker is not None) != trashed: continue
             survey = loaded['survey']
             rows.append({'sha256': loaded['sha256'], 'name': survey['name'], 'lifecycle': survey['lifecycle'],
-                         'created_utc': survey['created_utc'], 'point_count': len(survey['points'])})
+                         'created_utc': survey['created_utc'], 'point_count': len(survey['points']),
+                         'removed_utc': marker['removed_utc'] if marker else None})
         except (OSError, ValueError):
             unavailable += 1
     rows.sort(key=lambda row: row['created_utc'], reverse=True)
@@ -82,7 +108,8 @@ def _import_locked(config, root, loaded):
         existing = read_mobile_survey(config, loaded['sha256'])
         return {'path': existing['path'], 'sha256': loaded['sha256'], 'imported': False}
     rows, unavailable = list_mobile_surveys(config)
-    require(len(rows) + unavailable < MAX_SURVEYS, 'Mobile survey library is full.')
+    removed, _ = list_mobile_surveys(config, trashed=True)
+    require(len(rows) + len(removed) + unavailable < MAX_SURVEYS, 'Mobile survey library is full, including copies in Trash.')
     total = 0
     for entry in root.iterdir():
         if not _HASH.fullmatch(entry.name): continue
@@ -107,3 +134,36 @@ def _import_locked(config, root, loaded):
         except OSError: pass
         raise
     return {'path': str(target), 'sha256': loaded['sha256'], 'imported': True}
+
+
+def trash_mobile_survey(config, digest):
+    """Hide a validated copy without moving or modifying its evidence bytes."""
+    root = _root(config)
+    require(root.is_dir() and not _link_or_reparse(root / 'library.lock'), 'Mobile survey library is unavailable or unsafe.')
+    with session_lock(root / 'library.json'):
+        read_mobile_survey(config, digest)
+        folder = _folder(config, digest); marker = folder / 'trash.json'
+        require(_trash_marker(folder, digest) is None, 'Mobile survey is already in Trash.')
+        payload = json.dumps({'format': 'veilbreaker.mobile-survey-trash', 'schema_version': 1, 'sha256': digest,
+                              'removed_utc': datetime.now(timezone.utc).isoformat()}, ensure_ascii=False).encode('utf-8')
+        created = False
+        try:
+            with marker.open('xb') as stream:
+                created = True; stream.write(payload); stream.flush(); os.fsync(stream.fileno())
+        except BaseException:
+            if created:
+                try: marker.unlink(missing_ok=True)
+                except OSError: pass
+            raise
+
+
+def restore_mobile_survey(config, digest):
+    """Restore only when the exact original source is still intact."""
+    root = _root(config)
+    require(root.is_dir() and not _link_or_reparse(root / 'library.lock'), 'Mobile survey library is unavailable or unsafe.')
+    with session_lock(root / 'library.json'):
+        folder = _folder(config, digest)
+        require(not _link_or_reparse(folder) and folder.is_dir(), 'Saved mobile survey is missing or unsafe.')
+        require(_trash_marker(folder, digest) is not None, 'Mobile survey is not in Trash.')
+        read_mobile_survey(config, digest, include_trashed=True)
+        (folder / 'trash.json').unlink()

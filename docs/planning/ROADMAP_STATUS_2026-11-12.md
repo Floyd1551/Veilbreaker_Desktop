@@ -41,7 +41,8 @@ visually qualified on the phone in these passes.
   archive copies can be added to an open survey.
 - [x] Desktop can review mobile-survey exports, preserve original files in a
   separate local library, preview recorded locations, extract captures and
-  attach a selected capture as diagnostic input. No Desktop run is fabricated.
+  attach a selected capture as diagnostic input. The library supports recoverable
+  Trash without changing source bytes. No Desktop run is fabricated.
 - [ ] Complete native mobile-to-Desktop survey conversion/attachment and point
   associations. Current local copies are separate from Desktop survey sessions.
 - [ ] Finish the cellular vertical slice: interactive history, stronger event

@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 from veilbreaker.core import AppConfig
 from veilbreaker.mobile_survey_library_ui import MobileSurveyLibraryDialog
 
@@ -41,6 +41,17 @@ class MobileSurveyLibraryUiTests(unittest.TestCase):
                     dialog.import_file(); self.wait_idle(dialog)
                 self.assertEqual(len(dialog.rows), 1)
                 self.assertIn('already saved', dialog.status.text())
+                dialog.table.selectRow(0); self.app.processEvents()
+                with patch('veilbreaker.mobile_survey_library_ui.QMessageBox.question', return_value=QMessageBox.StandardButton.Yes):
+                    dialog.manage_selected(); self.wait_idle(dialog)
+                self.assertEqual(dialog.rows, [])
+                dialog.trash_filter.setChecked(True); self.wait_idle(dialog)
+                self.assertEqual(len(dialog.rows), 1)
+                dialog.table.selectRow(0); self.app.processEvents()
+                dialog.manage_selected(); self.wait_idle(dialog)
+                self.assertEqual(dialog.rows, [])
+                dialog.trash_filter.setChecked(False); self.wait_idle(dialog)
+                self.assertEqual(len(dialog.rows), 1)
                 source.unlink()
                 dialog.table.selectRow(0); self.app.processEvents()
                 with patch('veilbreaker.mobile_survey_library_ui.MobileSurveyReviewDialog') as review:

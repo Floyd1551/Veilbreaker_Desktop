@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from veilbreaker.core import AppConfig
 from veilbreaker.mobile_survey_import import load_mobile_survey
-from veilbreaker.mobile_survey_library import _link_or_reparse, import_mobile_survey, list_mobile_surveys, read_mobile_survey
+from veilbreaker.mobile_survey_library import (_link_or_reparse, import_mobile_survey, list_mobile_surveys,
+    read_mobile_survey, trash_mobile_survey, restore_mobile_survey)
 
 
 class MobileSurveyLibraryTests(unittest.TestCase):
@@ -65,3 +66,50 @@ class MobileSurveyLibraryTests(unittest.TestCase):
             with self.assertRaises(OSError): import_mobile_survey(self.config, self.source, self.preview['sha256'])
         self.assertEqual(self.source.read_bytes(), before)
         self.assertEqual(list_mobile_surveys(self.config), ([], 0))
+
+    def test_trash_and_restore_preserve_original_and_require_explicit_restore(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        original = Path(saved['path']).read_bytes()
+        trash_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(list_mobile_surveys(self.config), ([], 0))
+        trash, unavailable = list_mobile_surveys(self.config, trashed=True)
+        self.assertEqual(unavailable, 0); self.assertEqual(trash[0]['sha256'], self.preview['sha256'])
+        with self.assertRaisesRegex(ValueError, 'Trash'): read_mobile_survey(self.config, self.preview['sha256'])
+        with self.assertRaisesRegex(ValueError, 'Trash'): import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        self.assertEqual(Path(saved['path']).read_bytes(), original)
+        restore_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(len(list_mobile_surveys(self.config)[0]), 1)
+        self.assertEqual(Path(saved['path']).read_bytes(), original)
+
+    def test_changed_copy_cannot_be_restored_or_silently_replaced(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        trash_mobile_survey(self.config, self.preview['sha256'])
+        path = Path(saved['path']); path.write_text('damaged', encoding='utf-8')
+        with self.assertRaises(ValueError): restore_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(path.read_text(), 'damaged')
+        self.assertTrue((path.parent / 'trash.json').is_file())
+
+    def test_failed_trash_write_leaves_the_original_active(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        before = Path(saved['path']).read_bytes()
+        with patch('veilbreaker.mobile_survey_library.os.fsync', side_effect=OSError('disk error')):
+            with self.assertRaises(OSError): trash_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(Path(saved['path']).read_bytes(), before)
+        self.assertEqual(len(list_mobile_surveys(self.config)[0]), 1)
+
+    def test_trashed_copies_still_count_toward_storage_limit(self):
+        import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        trash_mobile_survey(self.config, self.preview['sha256'])
+        self.source.write_text(self.source.read_text() + ' ', encoding='utf-8')
+        changed = load_mobile_survey(self.source)
+        with patch('veilbreaker.mobile_survey_library.MAX_SURVEYS', 1):
+            with self.assertRaisesRegex(ValueError, 'full'): import_mobile_survey(self.config, self.source, changed['sha256'])
+
+    def test_damaged_trash_marker_is_preserved_and_not_treated_as_empty(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        path = Path(saved['path']); before = path.read_bytes()
+        marker = path.parent / 'trash.json'; marker.write_text('{broken', encoding='utf-8')
+        self.assertEqual(list_mobile_surveys(self.config), ([], 1))
+        self.assertEqual(list_mobile_surveys(self.config, trashed=True), ([], 1))
+        with self.assertRaises(ValueError): restore_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(marker.read_text(), '{broken'); self.assertEqual(path.read_bytes(), before)

@@ -50,8 +50,9 @@ reporting. Bring those capabilities forward in independently verified slices.
    the original survey for source context. This review does
    not create a Desktop survey or automatically attach its points.
    Desktop's separate Imported mobile surveys library can retain exact source
-   files under a content hash and reopen them offline. It does not yet provide
-   in-app removal or convert the copies into native Desktop survey sessions.
+   files under a content hash and reopen them offline. Its recoverable Trash
+   hides copies without modifying the evidence and checks the hash on restore.
+   It does not convert the copies into native Desktop survey sessions.
    A read-only map preview shows recorded receiver locations and
    their quality, with notes kept as operator observations. It does not map cell
    metrics to fixes or establish a tower location. GeoJSON exports retain mobile
