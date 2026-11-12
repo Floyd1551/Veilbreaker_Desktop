@@ -67,7 +67,7 @@ class MapWindow(QDialog):
         use_pack=QPushButton('Use selected map');use_pack.clicked.connect(self.use_saved_pack);packs.addWidget(use_pack)
         remove_pack=QPushButton('Remove registration');remove_pack.clicked.connect(self.remove_saved_pack);packs.addWidget(remove_pack)
         outer.addLayout(packs);self.refresh_catalog()
-        self.run_filter=QComboBox();self.run_filter.addItem('Survey overview · first qualified fix per run',None)
+        self.run_filter=QComboBox();self.run_filter.addItem('Survey overview · first qualified fix per point' if model.get('mobile_survey_preview') else 'Survey overview · first qualified fix per run',None)
         seen=set()
         for row in model['rows']:
             if row['run_id'] not in seen:
@@ -95,6 +95,8 @@ class MapWindow(QDialog):
         self.source_filter.addItem('All recorded sources',None)
         source_row.addWidget(self.source_filter,1)
         outer.addLayout(source_row)
+        if model.get('mobile_survey_preview'):
+            self.metric_selector.setEnabled(False); self.source_filter.setEnabled(False)
         self.metric_legend=QLabel()
         self.metric_legend.setWordWrap(True)
         self.metric_legend.setTextFormat(Qt.TextFormat.PlainText)
@@ -110,10 +112,12 @@ class MapWindow(QDialog):
         self.splitter=QSplitter(Qt.Orientation.Vertical);outer.addWidget(self.splitter,1)
         self.map_container=QWidget();self.map_layout=QVBoxLayout(self.map_container);self.map_layout.setContentsMargins(0,0,0,0);self.splitter.addWidget(self.map_container)
         self.table=QTableWidget(0,6);self.table.setHorizontalHeaderLabels(['Run / point','Observation','GPS quality','Accuracy (m)','Age (ms)','Selected run metric'])
+        if model.get('mobile_survey_preview'): self.table.setHorizontalHeaderLabels(['Mobile point','Observation','GPS quality','Accuracy (m)','Age (ms)','Metric'])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows);self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection);self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.splitter.addWidget(self.table);self.splitter.setSizes([460,180])
         self.details=QLabel('Select a measurement to inspect its location evidence.');self.details.setWordWrap(True);self.details.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.details)
         self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);outer.addWidget(self.open_button)
+        if open_run is None: self.open_button.hide()
         self.run_filter.currentIndexChanged.connect(self.change_run);self.questionable.toggled.connect(self.update_view)
         self.metric_selector.currentIndexChanged.connect(self.change_metric)
         self.cell_selector.currentIndexChanged.connect(self.change_cell)
@@ -192,7 +196,7 @@ class MapWindow(QDialog):
         elif metric_key and metric_key.startswith('live_phone_') and self.cell_selector.count()>1:
             self.metric_legend.setText('Select a reported cell group to view one run. Each value summarizes fresh samples from that run, not an individual position.')
         else:
-            self.metric_legend.setText('Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
+            self.metric_legend.setText('Mobile survey preview · teal = qualified recorded location; amber = questionable location. Cellular metrics are not assigned to locations in this preview.' if self.model.get('mobile_survey_preview') else 'Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
         coordinate_ids={f['id'] for f in self.model['features']['features']}
         self.visible_rows=[r for r in self.model['rows'] if (run is None or r['run_id']==run) and (r['id'] in ids or r['id'] not in coordinate_ids)]
         self.table.blockSignals(True);self.table.clearContents();self.table.setRowCount(len(self.visible_rows))
@@ -202,7 +206,8 @@ class MapWindow(QDialog):
             for j,value in enumerate([row['label'],row['observation_id'],row['quality']['label'],row.get('horizontal_accuracy_m'),row.get('fix_age_ms'),metric_text]):
                 self.table.setItem(i,j,QTableWidgetItem('Not exposed' if value is None else str(value)))
         self.table.blockSignals(False);self.selected=None;self.open_button.setEnabled(False)
-        counts=self.model['counts'];self.summary.setText(f"{counts['mapped']} qualified plottable observations · {counts['questionable']} questionable fixes · {counts['unpositioned_runs']} runs without a qualified position" + (' · '+ ' '.join(self.model['warnings'][:3]) if self.model['warnings'] else ''))
+        counts=self.model['counts'];unit='points' if self.model.get('mobile_survey_preview') else 'runs'
+        self.summary.setText(f"{counts['mapped']} qualified plottable observations · {counts['questionable']} questionable fixes · {counts['unpositioned_runs']} {unit} without a qualified position" + (' · '+ ' '.join(self.model['warnings'][:3]) if self.model['warnings'] else ''))
         if counts.get('manual'):
             self.summary.setText(self.summary.text()+f" · {counts['manual']} manual placements (purple; not GPS)")
         if source is not None:
@@ -243,7 +248,7 @@ class MapWindow(QDialog):
         for i,row in enumerate(self.visible_rows):
             if row['id']==feature_id:
                 self.table.blockSignals(True);self.table.selectRow(i);self.table.blockSignals(False)
-                self.selected=row;self.open_button.setEnabled(True)
+                self.selected=row;self.open_button.setEnabled(self.open_run_callback is not None)
                 def val(key):return str(row[key]) if row.get(key) is not None else 'Not exposed'
                 metric_key=self.metric_selector.currentData()
                 scale=metric_scale(self.model,metric_key) if metric_key else None
@@ -254,13 +259,14 @@ class MapWindow(QDialog):
                              if metric else ('\nSelected run metric unavailable.' if metric_key else ''))
                 context=self.model.get('run_context',{}).get(row['run_id'],{}).get(metric_key,{}) if metric_key else {}
                 source_note='\n'+provenance_label(context) if metric_key else ''
-                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + metric_note + source_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
+                mobile_note = ('\nCapture ' + row['mobile_capture_id'] + ('\nOperator observation (not measured): ' + row['operator_note'] if row.get('operator_note') else '')) if row.get('mobile_capture_id') else ''
+                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + mobile_note + metric_note + source_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
                 self.bridge.highlight.emit(feature_id);return
     def table_selected(self):
         i=self.table.currentRow()
         if 0<=i<len(self.visible_rows):self.select_feature(self.visible_rows[i]['id'])
     def open_diagnostic(self):
-        if self.selected:self.open_run_callback(self.selected['run_id'])
+        if self.selected and self.open_run_callback is not None:self.open_run_callback(self.selected['run_id'])
     def load_pack(self,path,persist=True):
         pack=self.server.set_pack(Path(path))
         self.pack_status.setText(f"{pack['name']} · {pack['size']/1024/1024:.1f} MiB · {pack['attribution']}")

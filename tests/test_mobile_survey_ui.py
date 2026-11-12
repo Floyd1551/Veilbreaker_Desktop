@@ -42,6 +42,11 @@ class MobileSurveyUiTests(unittest.TestCase):
             bundle = Path(folder) / ('mobile-survey-' + survey['survey_id'])
             self.assertEqual((bundle / 'source-mobile-survey.json').read_bytes(), before)
             self.assertTrue((bundle / 'manifest.json').exists())
+            with patch('veilbreaker.map_ui.MapWindow') as map_window:
+                dialog.preview_map()
+                self.assertTrue(map_window.call_args.args[1]['mobile_survey_preview'])
+                self.assertIsNone(map_window.call_args.args[2])
+                map_window.return_value.exec.assert_called_once()
             self.assertEqual(path.read_bytes(), before)
             dialog.close()
 
@@ -79,4 +84,7 @@ class MobileSurveyUiTests(unittest.TestCase):
                  patch('veilbreaker.mobile_survey_ui.QMessageBox.warning'):
                 dialog.attach_capture()
             self.assertFalse(target.exists()); self.assertEqual(calls, [])
+            with patch('veilbreaker.mobile_survey_ui.QMessageBox.warning'), patch('veilbreaker.map_ui.MapWindow') as map_window:
+                dialog.preview_map()
+                map_window.assert_not_called()
             dialog.close()

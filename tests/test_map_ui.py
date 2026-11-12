@@ -186,6 +186,20 @@ class SourcesTests(unittest.TestCase):
 class MapUiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QApplication.instance() or QApplication([])
+    def test_mobile_preview_disables_diagnostic_and_labels_operator_note(self):
+        model=build_map_data([dict(run_id='mobile-point-1',label='Mobile point 1',locations=[fix()])])
+        model.update(mobile_survey_preview=True,run_metrics={},run_context={},cell_groups={})
+        model['rows'][0].update(mobile_capture_id='capture-id',operator_note='Concrete column')
+        model['features']['features'][0]['properties'].update(mobile_capture_id='capture-id',operator_note='Concrete column')
+        window=MapWindow(None,model,None,enable_web=False,restore_pack=False)
+        try:
+            self.assertTrue(window.open_button.isHidden())
+            self.assertFalse(window.metric_selector.isEnabled())
+            window.select_feature('p0')
+            self.assertIn('Operator observation (not measured): Concrete column',window.details.text())
+            self.assertFalse(window.open_button.isEnabled())
+            window.open_diagnostic()
+        finally:window.close()
     def test_automatic_live_group_does_not_compare_two_runs(self):
         model=build_map_data([dict(run_id='a',locations=[fix()]),dict(run_id='b',locations=[fix(longitude_deg=1)])])
         model['run_metrics']={'a':{'live_phone_lte_rsrp':-95},'b':{'live_phone_lte_rsrp':-110}}

@@ -51,9 +51,8 @@ def _validate(survey):
         seen.add(capture_id)
 
 
-def load_mobile_survey(path):
-    with Path(path).open('rb') as stream:
-        raw = stream.read(MAX_BYTES + 1)
+def parse_mobile_survey_bytes(raw):
+    require(isinstance(raw, bytes), 'Mobile survey source bytes are required')
     require(len(raw) <= MAX_BYTES, 'Mobile survey exceeds 16 MiB')
     try:
         survey = json.loads(raw.decode('utf-8-sig'), object_pairs_hook=_unique, parse_constant=_reject_constant)
@@ -61,6 +60,12 @@ def load_mobile_survey(path):
     except (UnicodeError, RecursionError, TypeError) as exc:
         raise ValueError('Invalid or excessively nested mobile survey JSON') from exc
     return {'survey': survey, 'sha256': hashlib.sha256(raw).hexdigest(), 'raw_bytes': raw}
+
+
+def load_mobile_survey(path):
+    with Path(path).open('rb') as stream:
+        raw = stream.read(MAX_BYTES + 1)
+    return parse_mobile_survey_bytes(raw)
 
 
 def write_selected_capture(source, expected_sha256, index, destination):

@@ -49,6 +49,10 @@ reporting. Bring those capabilities forward in independently verified slices.
    re-encoded during extraction, so the standalone file has its own hash; retain
    the original survey for source context. This review does
    not create a Desktop survey or automatically attach its points.
+   A read-only map preview shows recorded receiver locations and
+   their quality, with notes kept as operator observations. It does not map cell
+   metrics to fixes or establish a tower location. GeoJSON exports retain mobile
+   capture and survey identifiers and the source survey hash.
    Design versioned, user-controlled interchange for prior Mobile survey data
    and Desktop surveys. Preserve GPS
    quality, source and capture timestamps; never convert manual positions into

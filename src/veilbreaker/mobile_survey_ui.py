@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QDialog, QFileDialog, QHBoxLay
                                QMessageBox, QPlainTextEdit, QPushButton, QTableWidget,
                                QTableWidgetItem, QVBoxLayout)
 
-from .mobile_survey_import import export_mobile_survey_bundle, write_selected_capture
+from .mobile_survey_import import export_mobile_survey_bundle, load_mobile_survey, write_selected_capture
 
 
 class MobileSurveyReviewDialog(QDialog):
@@ -54,6 +54,8 @@ class MobileSurveyReviewDialog(QDialog):
         batch = QPushButton('Export all points to folder…'); batch.clicked.connect(self.export_all); actions.addWidget(batch)
         close = QPushButton('Close'); close.clicked.connect(self.reject); actions.addWidget(close)
         layout.addLayout(actions)
+        map_button = QPushButton('Preview recorded locations on map…')
+        map_button.clicked.connect(self.preview_map); layout.addWidget(map_button)
         self.points.itemSelectionChanged.connect(self.show_point)
 
     def show_point(self):
@@ -108,3 +110,16 @@ class MobileSurveyReviewDialog(QDialog):
             QMessageBox.warning(self, 'Survey not exported', str(exc) + '\nChoose a parent without an existing export folder. The source survey remains unchanged.')
             return
         self.status.setText('Exported the original survey, individual captures, and a provenance manifest to a new folder. No Desktop survey was created.')
+
+    def preview_map(self):
+        from .mobile_survey_map import build_mobile_survey_map
+        from .map_ui import MapWindow
+        try:
+            current = load_mobile_survey(self.source)
+            if current['sha256'] != self.loaded['sha256']:
+                raise ValueError('Mobile survey changed since preview; reopen it before mapping.')
+            model = build_mobile_survey_map(current)
+            window = MapWindow(self, model, None, config=None)
+            window.exec()
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, 'Map preview unavailable', str(exc))
