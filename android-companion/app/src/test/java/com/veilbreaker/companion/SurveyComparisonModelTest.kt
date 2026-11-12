@@ -48,6 +48,16 @@ class SurveyComparisonModelTest {
         assertEquals("p1", row.captureId)
     }
 
+    @Test fun locationAccuracyIsReadableWithoutChangingSource() {
+        val location = JSONObject().put("status", "available").put("source", "phone").put("provider", "gps")
+            .put("latitude_deg", 34.7).put("longitude_deg", -86.6).put("horizontal_accuracy_m", 12.991427421569824)
+            .put("fix_age_ms", 500).put("mock", false)
+        val survey = MobileSurvey.addCapture(MobileSurvey.create("Field", t), sample("p1", "complete", JSONArray(), location), t)
+        val before = survey.toString()
+        assertTrue(SurveyComparisonModel.build(survey, plan).single().location.contains("±13.0 m"))
+        assertEquals(before, survey.toString())
+    }
+
     @Test fun capsDisplayedServingCellsAndReportsOmissions() {
         val cells = JSONArray()
         repeat(6) { cells.put(lte(-90)) }

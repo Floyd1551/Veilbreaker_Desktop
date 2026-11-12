@@ -4,6 +4,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveWifiSummaryTest {
+    @Test fun structuredStatusExposesOnlyReportedValues() {
+        val value = LiveWifiSummary.details(true, true, true, true, "\"Field\"", -61, 5180, 433)
+        assertEquals("Field", value.name)
+        assertEquals("-61 dBm", value.signal)
+        assertEquals("36", value.channel)
+        assertEquals("5180 MHz", value.frequency)
+        assertEquals("433 Mbps", value.linkRate)
+        val restricted = LiveWifiSummary.details(true, true, true, false, "secret", -60, 5180, 100)
+        assertFalse(restricted.name.contains("secret"))
+        assertEquals("Not exposed", restricted.signal)
+    }
     @Test fun unavailableAndPermissionStatesDoNotInventAConnection() {
         assertTrue(LiveWifiSummary.format(false, false, false, true, null, null, null, null).contains("Wi-Fi off"))
         assertTrue(LiveWifiSummary.format(true, false, false, true, null, null, null, null).contains("No Wi-Fi network reported"))

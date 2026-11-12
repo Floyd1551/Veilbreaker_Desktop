@@ -33,8 +33,11 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     private var gpsButton: Button? = null
     private var navigationStatus: TextView? = null
     private var wifiSummary: TextView? = null
+    private var wifiName: TextView? = null
+    private var wifiFrequency: TextView? = null
+    private val wifiValues = mutableListOf<TextView>()
     private var wifiChecked: TextView? = null
-    private var wifiText = "Wi-Fi status not yet checked."
+    private var wifiDetails = LiveWifiSummary.details(false, false, false, false, null, null, null, null)
     private var wifiCheckedText = ""
     private val wifiHandler = Handler(Looper.getMainLooper())
     private val wifiInfo = mutableMapOf<Network, WifiInfo>()
@@ -43,6 +46,13 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     private var wifiEpoch = 0
     private var redrawPending = false
     private val redrawWifi = Runnable { redrawPending = false; updateWifiSummary() }
+    private val wifiPoll = object : Runnable {
+        override fun run() {
+            if (wifiCallback == null || !isShown || windowVisibility != View.VISIBLE) return
+            updateWifiSummary()
+            wifiHandler.postDelayed(this, 3000)
+        }
+    }
 
     init { orientation = VERTICAL }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
@@ -113,7 +123,7 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     }
 
     fun showCapture(capture: JSONObject?, plan: JSONObject?) {
-        removeAllViews(); wifiButton = null; gpsButton = null; navigationStatus = null; wifiSummary = null; wifiChecked = null
+        removeAllViews(); wifiButton = null; gpsButton = null; navigationStatus = null; wifiSummary = null; wifiName = null; wifiFrequency = null; wifiValues.clear(); wifiChecked = null
         val model = runCatching { LiveOverviewModel.build(capture, plan) }.getOrElse { LiveOverviewModel.Overview(null, emptyList(), null) }
         val overview = panel("CELLULAR  /  LATEST CAPTURE")
         text(overview, model.receivedUtc?.let { "Received $it · sample ages at receipt" }
@@ -134,9 +144,24 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
                 text(card, "Received ${cell.receivedUtc}", 11f, "#a8bfcd")
         }
         val wifi = panel("WI-FI  /  CURRENT STATUS")
-        wifiSummary = text(wifi, wifiText, 13f, "#e0edf5").apply {
-            setPadding(0, dp(6), 0, dp(4)); setLineSpacing(dp(2).toFloat(), 1f)
+        val wifiCard = cellPanel(wifi)
+        wifiSummary = text(wifiCard, wifiDetails.status, 15f, "#f2f8fc", true)
+        wifiName = text(wifiCard, wifiDetails.name, 13f, "#91d9ed")
+        wifiFrequency = text(wifiCard, "Frequency ${wifiDetails.frequency}", 12f, "#b8cbd9")
+        val wifiMetrics = LinearLayout(context).apply {
+            orientation = if (stackedLayout()) VERTICAL else HORIZONTAL
+            wifiCard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
+        for ((label, value) in listOf("Signal" to wifiDetails.signal, "Channel" to wifiDetails.channel, "Link rate" to wifiDetails.linkRate)) {
+            val box = LinearLayout(context).apply {
+                orientation = VERTICAL; setPadding(dp(8), dp(6), dp(6), dp(6)); background = surface("#0d1c29", "#294152", 6)
+                wifiMetrics.addView(this, if (wifiMetrics.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(4) }
+                    else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
+            }
+            text(box, label, 11f, "#a8c2d1", true)
+            wifiValues.add(text(box, value, 14f, "#f2f8fc", true))
+        }
+        text(wifiCard, "Channel derived from reported frequency. Link rate is negotiated, not measured throughput; sample age not exposed.", 11f, "#a8bfcd")
         wifiChecked = text(wifi, wifiCheckedText, 11f, "#a8bfcd").apply {
             visibility = if (wifiCheckedText.isEmpty()) View.GONE else View.VISIBLE
         }
@@ -146,6 +171,7 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         text(gps, model.gps ?: "No location in the latest saved capture.", 13f, "#e0edf5").apply {
             setPadding(0, dp(6), 0, dp(4))
         }
+        gps.addView(LiveGpsWorkspace(context))
         gpsButton = action(gps, "Open GPS & map", onGps)
         navigationStatus = text(gps, "Stop the current capture or desktop connection to open these views.", 12f, "#d2bd91").apply {
             visibility = if (navigationEnabled) View.GONE else View.VISIBLE
@@ -174,6 +200,7 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         try {
             manager.registerNetworkCallback(NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), callback)
             wifiCallback = callback; wifiPermissionAtRegistration = permission
+            wifiHandler.removeCallbacks(wifiPoll); wifiHandler.post(wifiPoll)
         } catch (_: RuntimeException) { wifiCallback = null }
     }
 
@@ -201,13 +228,13 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         if (!redrawPending) { redrawPending = true; wifiHandler.postDelayed(redrawWifi, 300) }
     }
     private fun stopWifiMonitor() {
-        wifiEpoch++; wifiHandler.removeCallbacks(redrawWifi); redrawPending = false; wifiInfo.clear()
+        wifiEpoch++; wifiHandler.removeCallbacks(redrawWifi); wifiHandler.removeCallbacks(wifiPoll); redrawPending = false; wifiInfo.clear()
         val existing = wifiCallback; wifiCallback = null
         if (existing != null) try { context.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(existing) }
             catch (_: RuntimeException) { }
-        wifiText = "Wi-Fi monitor inactive."
+        wifiDetails = LiveWifiSummary.details(false, false, false, false, null, null, null, null).copy(status = "Wi-Fi monitor inactive")
         wifiCheckedText = ""
-        wifiSummary?.text = wifiText
+        renderWifi()
         wifiChecked?.visibility = View.GONE
     }
 
@@ -217,24 +244,31 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
         val manager = context.getSystemService(ConnectivityManager::class.java)
         if (wifi == null || manager == null) {
-            wifiText = "Android Wi-Fi information unavailable."
+            wifiDetails = LiveWifiSummary.details(false, false, false, false, null, null, null, null).copy(status = "Android Wi-Fi information unavailable")
         } else {
             try {
                 val networks = manager.allNetworks.filter { manager.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true }
                 val active = manager.activeNetwork
                 val network = networks.firstOrNull { it == active } ?: networks.firstOrNull()
                 // Never borrow legacy connectionInfo for a different selected network.
-                val info = network?.let { wifiInfo[it] ?: (manager.getNetworkCapabilities(it)?.transportInfo as? WifiInfo) }
+                val info = network?.let {
+                    val fresh = manager.getNetworkCapabilities(it)?.transportInfo as? WifiInfo
+                    val callback = wifiInfo[it]
+                    if (fresh != null && (WifiSnapshotFormat.ssid(fresh.ssid) != null || callback == null)) fresh else callback
+                }
                 val permission = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                wifiText = LiveWifiSummary.format(wifi.isWifiEnabled, network != null, network != null && network == active,
+                wifiDetails = LiveWifiSummary.details(wifi.isWifiEnabled, network != null, network != null && network == active,
                     permission, info?.ssid, info?.rssi, info?.frequency, info?.linkSpeed)
-                // Combine only adjacent status/name lines; all source and age qualifiers remain visible.
-                val firstBreak = wifiText.indexOf('\n')
-                if (firstBreak >= 0) wifiText = wifiText.replaceRange(firstBreak, firstBreak + 1, " · ")
                 wifiCheckedText = "Checked " + DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date())
-            } catch (_: RuntimeException) { wifiText = "Android did not expose Wi-Fi connection information." }
+            } catch (_: RuntimeException) { wifiDetails = LiveWifiSummary.details(false, false, false, false, null, null, null, null).copy(status = "Android did not expose Wi-Fi connection information") }
         }
-        wifiSummary?.text = wifiText
+        renderWifi()
         wifiChecked?.apply { text = wifiCheckedText; visibility = if (wifiCheckedText.isEmpty()) View.GONE else View.VISIBLE }
+    }
+    private fun renderWifi() {
+        wifiSummary?.text = wifiDetails.status
+        wifiName?.text = wifiDetails.name
+        wifiFrequency?.text = "Frequency ${wifiDetails.frequency}"
+        listOf(wifiDetails.signal, wifiDetails.channel, wifiDetails.linkRate).forEachIndexed { i, value -> wifiValues.getOrNull(i)?.text = value }
     }
 }

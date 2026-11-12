@@ -55,6 +55,12 @@ coordinate removes that attribution. Older drafts have no retained source.
 The Cellular workspace offers capture readiness, a direct capture action and a
 shortcut to review the latest saved capture. The live monitor also offers a
 separate snapshot action; taking a snapshot stops the transient live monitor.
+While visible, the live cellular monitor requests an update every five seconds;
+Android may rate-limit requests or return cached data. The Live Wi-Fi card checks
+current system connection information every three seconds without starting a
+Wi-Fi scan; its sample age is not exposed. The Live GPS control starts an
+explicit foreground-only GPS and GNSS satellite view, stops when hidden, and
+does not save its readings as evidence.
 Expandable offline explanations for RSRP, RSRQ and SINR include field-use notes,
 limitations and source information.
 Capturing replaces the latest phone
@@ -68,7 +74,9 @@ can also be collected and added directly from an open survey, with cancellation
 and partial results clearly indicated. Desktop can attach an exported mobile
 survey to an open Desktop survey while retaining the original source and point
 provenance. Migration from the older Mobile application is not yet supported.
-Reports can export the most recent phone capture as PDF or JSON.
+Reports can export the most recent phone capture as PDF or JSON. A survey's
+dashboard presents its saved points together and can export an HTML report;
+export the survey JSON separately to preserve the original captures.
 Reports also provides a separate explicit archive of up to 20 phone-capture copies.
 Archived copies can be reviewed in-app, exported as PDF or JSON, and deleted after
 confirmation without changing the latest capture or survey copies. The archive is

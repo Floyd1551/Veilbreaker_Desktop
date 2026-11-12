@@ -68,7 +68,7 @@ class LiveCellWorkspace(
             setTextColor(Color.parseColor("#63d6ee")); setPadding(0, dp(12), 0, dp(6))
         })
         addView(TextView(context).apply {
-            text = "Foreground only · Android may return cached or incomplete readings. Stops after five minutes; readings are not saved."
+            text = "Foreground only · Requests every five seconds; Android may return cached or incomplete readings. Stops after five minutes; readings are not saved."
             textSize = 13f; setTextColor(Color.parseColor("#b8cbd9"))
         })
         button.apply { text = "Start live cellular"; styleFieldButton(primary = true); setOnClickListener { if (active) stop() else start() } }
@@ -212,5 +212,5 @@ class LiveCellWorkspace(
     override fun onWindowVisibilityChanged(visibility: Int) { super.onWindowVisibilityChanged(visibility); if (visibility != View.VISIBLE) stop() }
     override fun onVisibilityChanged(changedView: View, visibility: Int) { super.onVisibilityChanged(changedView, visibility); if (visibility != View.VISIBLE) stop() }
 
-    private companion object { const val MIN_INTERVAL_MS = 10_000L; const val TIMEOUT_MS = 12_000L; const val MAX_DURATION_MS = 300_000L; const val MAX_CELLS = 256 }
+    private companion object { const val MIN_INTERVAL_MS = 5_000L; const val TIMEOUT_MS = 12_000L; const val MAX_DURATION_MS = 300_000L; const val MAX_CELLS = 256 }
 }

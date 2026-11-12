@@ -41,7 +41,8 @@ class SurveyWorkspace(
     private var captureGeneration = 0
     private var externalEnabled = true
     private var pendingExport: ByteArray? = null
-    private var comparison: List<SurveyComparisonModel.Point>? = null
+    private var pendingReportExport: ByteArray? = null
+    private var report: MobileSurveyReport.Report? = null
     private var showMoreActions = false
     private var showAllPoints = false
     private val noteDrafts = mutableMapOf<String, String>()
@@ -140,15 +141,20 @@ class SurveyWorkspace(
             return
         }
         val state = survey.getString("lifecycle"); val points = survey.getJSONArray("points")
-        val reviewed = comparison
+        val reviewed = report
         if (reviewed != null) {
-            val heading = card("Point review · ${survey.getString("name")}")
-            text(heading, "${reviewed.size} captured points. Values are reported at capture receipt, not live. Compare the same technology, subscription, carrier, band and cell where exposed; different sources may not be directly comparable.", 12f)
-            button(heading, "Back to survey") { comparison = null; render(); scroll.post { scroll.scrollTo(0, 0) } }
-            for (point in reviewed) {
+            val heading = card("Survey dashboard · ${reviewed.name}")
+            text(heading, "${reviewed.points.size} captures · ${reviewed.completeCount} complete · ${reviewed.partialCount} partial\n${reviewed.lifecycle.uppercase()} · Created ${reviewed.createdUtc}", 14f, true)
+            text(heading, "Values are saved observations, not live. Compare the same technology, subscription, carrier, band and cell where exposed; different sources may not be directly comparable. Cell and location times can differ.", 12f)
+            button(heading, "Export survey report HTML…", externalEnabled) { prepareReportExport(reviewed) }
+            text(heading, "The report can contain cell identifiers and location. Export survey JSON separately to retain the original captures.", 12f)
+            button(heading, "Back to survey") { report = null; render(); scroll.post { scroll.scrollTo(0, 0) } }
+            if (reviewed.points.isEmpty()) text(heading, "No captures are saved in this survey.", 12f)
+            for (point in reviewed.points) {
                 val item = card("Point ${point.number} · ${point.outcome.uppercase()}")
                 text(item, "Captured ${point.createdUtc}\nCapture ${point.captureId}", 12f)
                 text(item, point.location, 12f, true)
+                reviewed.locations[point.number]?.let { text(item, "Last reported receiver coordinates: ${it.latitude}, ${it.longitude}", 12f) }
                 point.operatorNote?.let { text(item, "Operator observation · not a measured value\n$it", 12f) }
                 if (point.servingCells.isEmpty()) text(item, "No registered serving cell reported in the latest observations.", 12f)
                 for (cell in point.servingCells) {
@@ -201,11 +207,12 @@ class SurveyWorkspace(
                 activity.startActivity(Intent(context, GpsMapActivity::class.java).putExtra("mobile_survey_id", survey.getString("survey_id")))
             } catch (_: Exception) { message = "Unable to open the GPS view."; render() }
         }
-        button(summary, "Review point measurements", points.length() > 0) {
+        button(summary, "View survey dashboard & report") {
+            val snapshot = JSONObject(survey.toString())
             runJob({
                 val plan = try { JSONObject(context.assets.open("channel-bands.json").bufferedReader().use { it.readText() }) } catch (_: Exception) { null }
-                SurveyComparisonModel.build(survey, plan)
-            }) { comparison = it; message = ""; scroll.post { scroll.scrollTo(0, 0) } }
+                MobileSurveyReport.build(snapshot, plan)
+            }) { report = it; message = ""; scroll.post { scroll.scrollTo(0, 0) } }
         }
         button(summary, if (showMoreActions) "Fewer survey actions ▲" else "More survey actions ▾") {
             showMoreActions = !showMoreActions; render()
@@ -247,7 +254,8 @@ class SurveyWorkspace(
             val fixes = GpsSpatialModel.savedFixes(capture); val lastFix = fixes.lastOrNull()
             val location = if (lastFix == null) "No usable GPS fix" else {
                 val age = lastFix.ageAtReceiptMs?.let { "${it / 1000}s old at receipt" } ?: "age unavailable"
-                "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±${lastFix.accuracy} m · $age" + if (lastFix.mock) " · mock" else ""
+                val accuracy = String.format(java.util.Locale.US, "%.1f", lastFix.accuracy)
+                "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±$accuracy m · $age" + if (lastFix.mock) " · mock" else ""
             }
             text(pointPanel, "POINT ${i + 1}", 12f, true).apply { setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.06f }
             text(pointPanel, "${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)
@@ -395,7 +403,35 @@ class SurveyWorkspace(
         }
     }
 
+    private fun prepareReportExport(report: MobileSurveyReport.Report) {
+        if (!externalEnabled || busy) return
+        runJob({ MobileSurveyReport.html(report).toByteArray(Charsets.UTF_8) }) { bytes ->
+            if (!externalEnabled) { message = "Stop the active Desktop session or capture before exporting."; return@runJob }
+            pendingReportExport = bytes
+            try {
+                @Suppress("DEPRECATION")
+                activity.startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE); type = "text/html"
+                    putExtra(Intent.EXTRA_TITLE, "veilbreaker-mobile-survey-report.html")
+                }, REPORT_EXPORT_REQUEST)
+                message = "Choose where to save the survey report."
+            } catch (_: Exception) { pendingReportExport = null; message = "Could not open the document picker." }
+        }
+    }
+
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode == REPORT_EXPORT_REQUEST) {
+            val bytes = pendingReportExport; pendingReportExport = null
+            if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) {
+                message = "Report export cancelled; the survey is unchanged."; render(); return true
+            }
+            val uri = data.data!!
+            runJob({ activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
+                ?: throw IllegalArgumentException("Could not write the selected document.") }) {
+                message = "Survey report exported. Original captures remain in the survey JSON."
+            }
+            return true
+        }
         if (requestCode != EXPORT_REQUEST) return false
         val bytes = pendingExport; pendingExport = null
         if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) {
@@ -404,10 +440,10 @@ class SurveyWorkspace(
         val uri = data.data!!
         runJob({ activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
             ?: throw IllegalArgumentException("Could not write the selected document.") }) {
-            message = "Mobile survey JSON exported. Desktop survey import is not yet supported."
+            message = "Mobile survey JSON exported. Attach it to an open survey in Veilbreaker Desktop."
         }
         return true
     }
 
-    companion object { const val EXPORT_REQUEST = 72 }
+    companion object { const val EXPORT_REQUEST = 72; const val REPORT_EXPORT_REQUEST = 73 }
 }

@@ -1,6 +1,7 @@
 package com.veilbreaker.companion
 
 import org.json.JSONObject
+import java.util.Locale
 
 /** Read-only, per-point presentation; no aggregation, inferred identity or signal estimate. */
 object SurveyComparisonModel {
@@ -35,7 +36,8 @@ object SurveyComparisonModel {
             val source = location.optString("source").takeIf { it in setOf("phone", "external_receiver", "imported") } ?: "source not exposed"
             val provider = fix.provider?.take(120) ?: "provider not exposed"
             val age = fix.ageAtReceiptMs?.let { "$it ms old at receipt" } ?: "age not exposed"
-            return "Last valid reported location · $source · $provider · ±${fix.accuracy} m · $age" + if (fix.mock) " · mock location" else ""
+            val accuracy = String.format(Locale.US, "%.1f", fix.accuracy)
+            return "Last valid reported location · $source · $provider · ±$accuracy m · $age" + if (fix.mock) " · mock location" else ""
         }
         return "No valid reported location"
     }
