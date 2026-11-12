@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QFileDialog, QHBoxL
 from .background_dialog import JobDialog
 from .mobile_survey_import import load_mobile_survey
 from .mobile_survey_library import (import_mobile_survey, list_mobile_surveys, read_mobile_survey,
-                                    restore_mobile_survey, trash_mobile_survey)
+                                    delete_trashed_mobile_survey, restore_mobile_survey, trash_mobile_survey)
 from .mobile_survey_ui import MobileSurveyReviewDialog
 
 
@@ -33,10 +33,11 @@ class MobileSurveyLibraryDialog(JobDialog):
         self.import_button = QPushButton('Import mobile survey…'); self.import_button.clicked.connect(self.import_file); actions.addWidget(self.import_button)
         self.open_button = QPushButton('Open selected…'); self.open_button.clicked.connect(self.open_selected); actions.addWidget(self.open_button)
         self.manage_button = QPushButton('Move to Trash…'); self.manage_button.clicked.connect(self.manage_selected); actions.addWidget(self.manage_button)
+        self.delete_button = QPushButton('Delete permanently…'); self.delete_button.hide(); self.delete_button.clicked.connect(self.delete_selected); actions.addWidget(self.delete_button)
         self.refresh_button = QPushButton('Refresh'); self.refresh_button.clicked.connect(self.refresh); actions.addWidget(self.refresh_button)
         close = QPushButton('Close'); close.clicked.connect(self.reject); actions.addWidget(close)
         layout.addLayout(actions)
-        self.controls = [self.table, self.import_button, self.open_button, self.manage_button, self.refresh_button, self.trash_filter]
+        self.controls = [self.table, self.import_button, self.open_button, self.manage_button, self.delete_button, self.refresh_button, self.trash_filter]
         self.table.itemSelectionChanged.connect(self.update_selection)
         self.table.itemDoubleClicked.connect(lambda *_: self.open_selected())
         self.trash_filter.toggled.connect(self.refresh)
@@ -52,6 +53,8 @@ class MobileSurveyLibraryDialog(JobDialog):
         self.open_button.setEnabled(selected and not trashed)
         self.manage_button.setEnabled(selected)
         self.manage_button.setText('Restore selected' if trashed else 'Move to Trash…')
+        self.delete_button.setVisible(trashed)
+        self.delete_button.setEnabled(selected and trashed)
         self.import_button.setEnabled(self.worker is None and not trashed)
 
     def refresh(self):
@@ -92,6 +95,24 @@ class MobileSurveyLibraryDialog(JobDialog):
             self.mode = 'trash'; self.status.setText('Moving the local copy to Trash…')
             self.start_job(lambda cancelled, progress: trash_mobile_survey(self.config, digest))
 
+    def delete_selected(self):
+        index = self.table.currentRow()
+        if self.worker is not None or not self.trash_filter.isChecked() or not self.table.selectedItems() or not 0 <= index < len(self.rows): return
+        row = self.rows[index]; digest = row['sha256']
+        answer = QMessageBox.question(self, 'Permanently delete local copy?',
+            f"Permanently delete the local copy of {row['name']} (source hash {digest[:12]})? This cannot be undone. Original mobile files, exports, and Desktop survey sessions are not changed.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
+        if answer != QMessageBox.StandardButton.Yes: return
+        self.mode = 'delete'; self.status.setText('Permanently deleting the verified local copy…')
+        self.start_job(lambda cancelled, progress: delete_trashed_mobile_survey(self.config, digest))
+
+    @Slot()
+    def reject(self):
+        if self.worker is not None and self.mode == 'delete':
+            self.status.setText('Permanent deletion is in progress; wait for it to finish.')
+            return
+        super().reject()
+
     @Slot(object)
     def job_ready(self, value):
         if self.closing: return
@@ -114,8 +135,9 @@ class MobileSurveyLibraryDialog(JobDialog):
             self.refresh_after = True
         elif self.mode == 'open':
             self.pending_review = value
-        elif self.mode in ('trash', 'restore'):
-            self.notice = 'Moved to Trash; evidence was preserved.' if self.mode == 'trash' else 'Mobile survey restored.'
+        elif self.mode in ('trash', 'restore', 'delete'):
+            self.notice = {'trash': 'Moved to Trash; evidence was preserved.', 'restore': 'Mobile survey restored.',
+                           'delete': 'Local copy permanently deleted.'}[self.mode]
             self.refresh_after = True
 
     @Slot()

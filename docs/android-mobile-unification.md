@@ -52,6 +52,8 @@ reporting. Bring those capabilities forward in independently verified slices.
    Desktop's separate Imported mobile surveys library can retain exact source
    files under a content hash and reopen them offline. Its recoverable Trash
    hides copies without modifying the evidence and checks the hash on restore.
+   A separately confirmed permanent-delete action removes only an intact copy
+   already in that Trash; source files outside the library are unaffected.
    It does not convert the copies into native Desktop survey sessions.
    A read-only map preview shows recorded receiver locations and
    their quality, with notes kept as operator observations. It does not map cell

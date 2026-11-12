@@ -9,7 +9,7 @@ from unittest.mock import patch
 from veilbreaker.core import AppConfig
 from veilbreaker.mobile_survey_import import load_mobile_survey
 from veilbreaker.mobile_survey_library import (_link_or_reparse, import_mobile_survey, list_mobile_surveys,
-    read_mobile_survey, trash_mobile_survey, restore_mobile_survey)
+    read_mobile_survey, trash_mobile_survey, restore_mobile_survey, delete_trashed_mobile_survey)
 
 
 class MobileSurveyLibraryTests(unittest.TestCase):
@@ -113,3 +113,46 @@ class MobileSurveyLibraryTests(unittest.TestCase):
         self.assertEqual(list_mobile_surveys(self.config, trashed=True), ([], 1))
         with self.assertRaises(ValueError): restore_mobile_survey(self.config, self.preview['sha256'])
         self.assertEqual(marker.read_text(), '{broken'); self.assertEqual(path.read_bytes(), before)
+
+    def test_permanent_delete_requires_trash_and_preserves_original_source(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        original = self.source.read_bytes(); local = Path(saved['path'])
+        with self.assertRaises(ValueError): delete_trashed_mobile_survey(self.config, self.preview['sha256'])
+        self.assertTrue(local.exists())
+        trash_mobile_survey(self.config, self.preview['sha256'])
+        delete_trashed_mobile_survey(self.config, self.preview['sha256'])
+        self.assertFalse(local.parent.exists()); self.assertEqual(self.source.read_bytes(), original)
+        self.assertEqual(list_mobile_surveys(self.config, trashed=True), ([], 0))
+        self.assertTrue(import_mobile_survey(self.config, self.source, self.preview['sha256'])['imported'])
+
+    def test_delete_refuses_unexpected_files_or_changed_evidence(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        local = Path(saved['path']); trash_mobile_survey(self.config, self.preview['sha256'])
+        extra = local.parent / 'operator-data.txt'; extra.write_text('keep', encoding='utf-8')
+        with self.assertRaises(ValueError): delete_trashed_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(extra.read_text(), 'keep'); self.assertTrue(local.exists())
+        extra.unlink(); local.write_text('changed', encoding='utf-8')
+        with self.assertRaises(ValueError): delete_trashed_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(local.read_text(), 'changed'); self.assertTrue((local.parent / 'trash.json').exists())
+
+    def test_delete_failure_reports_incomplete_removal_without_touching_original(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        local = Path(saved['path']); original = self.source.read_bytes()
+        trash_mobile_survey(self.config, self.preview['sha256'])
+        unlink = Path.unlink
+        def fail_marker(path, *args, **kwargs):
+            if path.name == 'trash.json': raise OSError('denied')
+            return unlink(path, *args, **kwargs)
+        with patch.object(Path, 'unlink', fail_marker):
+            with self.assertRaisesRegex(OSError, 'could not finish'): delete_trashed_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(self.source.read_bytes(), original)
+        self.assertTrue((local.parent / 'trash.json').exists())
+
+    def test_delete_refuses_reparse_marked_evidence(self):
+        saved = import_mobile_survey(self.config, self.source, self.preview['sha256'])
+        local = Path(saved['path']); before = local.read_bytes()
+        trash_mobile_survey(self.config, self.preview['sha256'])
+        original_check = _link_or_reparse
+        with patch('veilbreaker.mobile_survey_library._link_or_reparse', side_effect=lambda path: path == local or original_check(path)):
+            with self.assertRaises(ValueError): delete_trashed_mobile_survey(self.config, self.preview['sha256'])
+        self.assertEqual(local.read_bytes(), before)

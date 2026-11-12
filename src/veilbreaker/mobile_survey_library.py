@@ -167,3 +167,24 @@ def restore_mobile_survey(config, digest):
         require(_trash_marker(folder, digest) is not None, 'Mobile survey is not in Trash.')
         read_mobile_survey(config, digest, include_trashed=True)
         (folder / 'trash.json').unlink()
+
+
+def delete_trashed_mobile_survey(config, digest):
+    """Permanently remove only an intact trashed library copy, never its original source."""
+    root = _root(config)
+    require(root.is_dir() and not _link_or_reparse(root / 'library.lock'), 'Mobile survey library is unavailable or unsafe.')
+    with session_lock(root / 'library.json'):
+        folder = _folder(config, digest)
+        require(not _link_or_reparse(folder) and folder.is_dir(), 'Saved mobile survey is missing or unsafe.')
+        require(folder.resolve(strict=True).parent == root.resolve(strict=True), 'Mobile survey path is outside the library.')
+        require(_trash_marker(folder, digest) is not None, 'Move the mobile survey to Trash before permanently deleting it.')
+        read_mobile_survey(config, digest, include_trashed=True)
+        source, marker = folder / 'source.json', folder / 'trash.json'
+        require({item.name for item in folder.iterdir()} == {'source.json', 'trash.json'},
+                'Unexpected files are present; the mobile survey was preserved.')
+        require(all(not _link_or_reparse(path) and path.is_file() and path.resolve(strict=True).parent == folder.resolve(strict=True)
+                    for path in (source, marker)), 'Mobile survey files are unsafe; the copy was preserved.')
+        try:
+            source.unlink(); marker.unlink(); folder.rmdir()
+        except OSError as exc:
+            raise OSError('Permanent removal could not finish; some library files may remain. The original mobile source and exports were not changed.') from exc

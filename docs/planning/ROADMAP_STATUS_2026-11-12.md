@@ -42,7 +42,8 @@ visually qualified on the phone in these passes.
 - [x] Desktop can review mobile-survey exports, preserve original files in a
   separate local library, preview recorded locations, extract captures and
   attach a selected capture as diagnostic input. The library supports recoverable
-  Trash without changing source bytes. No Desktop run is fabricated.
+  Trash without changing source bytes and a separately confirmed permanent
+  removal for intact trashed copies. No Desktop run is fabricated.
 - [ ] Complete native mobile-to-Desktop survey conversion/attachment and point
   associations. Current local copies are separate from Desktop survey sessions.
 - [ ] Finish the cellular vertical slice: interactive history, stronger event
