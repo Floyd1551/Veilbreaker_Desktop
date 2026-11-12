@@ -200,6 +200,22 @@ class MapUiTests(unittest.TestCase):
             self.assertFalse(window.open_button.isEnabled())
             window.open_diagnostic()
         finally:window.close()
+
+    def test_mobile_observation_detail_is_local_to_selected_fix(self):
+        model=build_map_data([dict(run_id='mobile-point-1',locations=[fix(),fix(longitude_deg=1)])])
+        model.update(run_metrics={},run_context={},cell_groups={})
+        model['rows'][0]['mobile_aligned']={'metrics':{'phone_lte_rsrp':-95}, 'context':{'phone_lte_rsrp':{'radio':'LTE',
+            'subscription':'sim-1','age_ms':1500,'fix_age_ms':1000,'location_after_modem_ms':500}}}
+        window=MapWindow(None,model,None,enable_web=False,restore_pack=False)
+        try:
+            window.run_filter.setCurrentIndex(1)
+            window.select_feature('p0')
+            self.assertIn('RSRP',window.details.text())
+            self.assertIn('-95',window.details.text())
+            self.assertIn('500 ms',window.details.text())
+            window.select_feature('p1')
+            self.assertNotIn('-95',window.details.text())
+        finally:window.close()
     def test_automatic_live_group_does_not_compare_two_runs(self):
         model=build_map_data([dict(run_id='a',locations=[fix()]),dict(run_id='b',locations=[fix(longitude_deg=1)])])
         model['run_metrics']={'a':{'live_phone_lte_rsrp':-95},'b':{'live_phone_lte_rsrp':-110}}

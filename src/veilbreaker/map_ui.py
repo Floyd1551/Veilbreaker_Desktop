@@ -260,7 +260,19 @@ class MapWindow(QDialog):
                 context=self.model.get('run_context',{}).get(row['run_id'],{}).get(metric_key,{}) if metric_key else {}
                 source_note='\n'+provenance_label(context) if metric_key else ''
                 mobile_note = ('\nCapture ' + row['mobile_capture_id'] + ('\nOperator observation (not measured): ' + row['operator_note'] if row.get('operator_note') else '')) if row.get('mobile_capture_id') else ''
-                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + mobile_note + metric_note + source_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
+                aligned=row.get('mobile_aligned') or {}
+                values=aligned.get('metrics', {})
+                contexts=aligned.get('context', {})
+                observation_note=''
+                if values:
+                    context=next(iter(contexts.values()), {})
+                    quantities=', '.join(f"{METRICS[key][0]} {value:g} {METRICS[key][1]}" for key,value in values.items() if key in METRICS)
+                    identity=context.get('cell_identity') or {}
+                    cell=', '.join(f'{k} {identity[k]}' for k in ('mcc','mnc','cell_id','pci','earfcn','nrarfcn') if k in identity) or 'not reported'
+                    observation_note=(f"\nSame-observation cellular: {quantities} · {context.get('radio','Unknown')} · SIM {context.get('subscription','unknown')} · cell {cell}"
+                        f"\nCell age {context.get('age_ms','?')} ms · fix age {context.get('fix_age_ms','?')} ms · reported difference {context.get('location_after_modem_ms','?')} ms."
+                        ' Reported times are close, but movement can separate the measurements; cell identity does not locate a tower.')
+                self.details.setText(f"{row['label']} · {row['observation_id']}\nLatitude {val('latitude_deg')} · Longitude {val('longitude_deg')} · Accuracy {val('horizontal_accuracy_m')} m · Age {val('fix_age_ms')} ms\n{row['quality']['label']} · {val('source')} / {val('provider')} · Fix {val('fix_utc')}" + mobile_note + observation_note + metric_note + source_note + ('\nPosition cannot be plotted in Web Mercator.' if not row['renderable'] else ''))
                 self.bridge.highlight.emit(feature_id);return
     def table_selected(self):
         i=self.table.currentRow()

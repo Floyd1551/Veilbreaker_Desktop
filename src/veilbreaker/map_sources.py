@@ -81,13 +81,15 @@ def load_survey_map_data(config,survey_path):
     store=core.VeilbreakerStore(config.db_path)
     try:
         runs=[_run(config,store,str(s['run_id']),s.get('label')) for s in steps]
-        metadata={}
+        metadata={}; aligned={}
         if path.resolve().parent == (config.root / 'surveys').resolve():
             from .survey_mobile_evidence import read_attached_mobile_surveys
+            from .mobile_survey_metrics import aligned_mobile_metrics
             for source in read_attached_mobile_surveys(config, path, session):
                 for index, point in enumerate(source['survey']['points'], 1):
                     capture=point['capture']
                     key='mobile-'+source['sha256']+'-'+str(index)
+                    aligned[key]=aligned_mobile_metrics(capture)
                     runs.append(dict(run_id=key, label=source['survey']['name']+' · Mobile point '+str(index),
                                      locations=location_rows(capture), metrics={}, context={}, cell_groups=[]))
                     metadata[key]=dict(source_kind='mobile_survey_capture', mobile_capture_id=capture['capture_id'],
@@ -96,8 +98,13 @@ def load_survey_map_data(config,survey_path):
         model=_build(runs)
         for row in model['rows']:
             row.update(metadata.get(row['run_id'], {}))
+            match=aligned.get(row['run_id'], {}).get(row['observation_id'])
+            if match: row['mobile_aligned']=match
         for feature in model['features']['features']:
             feature['properties'].update(metadata.get(feature['properties']['run_id'], {}))
+            props=feature['properties']
+            match=aligned.get(props['run_id'], {}).get(props['observation_id'])
+            if match: props['mobile_aligned']=match
         if metadata:
             model['warnings'].append('Mobile locations and cellular readings can have different timestamps; mobile cellular metrics are not assigned to locations.')
         from .survey_spatial import load_spatial, add_manual_features

@@ -52,8 +52,12 @@ visually qualified on the phone in these passes.
 - [x] Place attached mobile captures on the geographic map or an individual
   floor plan; retain operator placement separately from original GPS evidence,
   preserve source identity and include placements in survey exports.
-- [ ] Add qualified, time-aligned mobile metric visualization and qualify the
-  capture, transfer and placement workflow on devices.
+- [x] Show eligible mobile LTE/NR values in the exact GPS observation's map
+  details, with reported sample timing, SIM and cell context; no interpolation
+  or automatic assignment to operator placements. The current association is
+  limited to the independently inspected 0.8.25-dev collector.
+- [ ] Add cell-aware, observation-level metric filtering and visualization;
+  qualify capture, transfer and placement on physical devices.
 - [ ] Finish the cellular vertical slice: interactive history, stronger event
   handling, save/review continuity and accessibility/usability validation.
 - [ ] Complete a current-device screen-by-screen audit and competitor research;

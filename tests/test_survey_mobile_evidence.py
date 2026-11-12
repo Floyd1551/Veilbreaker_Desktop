@@ -108,3 +108,24 @@ class SurveyMobileEvidenceTests(unittest.TestCase):
             attach_mobile_survey(self.config, self.path, self.source)
         self.assertEqual(saved.read_bytes(), b'corrupt')
         self.assertFalse(read_session(self.config, self.path).get('mobile_sources'))
+
+    def test_aligned_mobile_value_is_scoped_to_its_observation(self):
+        import copy
+        survey = json.loads(self.source.read_text(encoding='utf-8'))
+        capture = survey['points'][0]['capture']
+        capture['device']['companion_version'] = '0.8.25-dev'
+        observation = capture['observations'][0]
+        observation['location'] = dict(status='available', source='phone', provider='gps',
+            fix_utc=capture['created_utc'], latitude_deg=35, longitude_deg=-86,
+            horizontal_accuracy_m=5, fix_age_ms=1000, mock=False)
+        second = copy.deepcopy(observation)
+        second['observation_id'] = 'another-fix'
+        second['location']['fix_age_ms'] = 9000
+        capture['observations'].append(second)
+        self.source.write_text(json.dumps(survey), encoding='utf-8')
+        attach_mobile_survey(self.config, self.path, self.source)
+        model = load_survey_map_data(self.config, self.path)
+        rows = {row['observation_id']: row for row in model['rows'] if row.get('mobile_capture_id')}
+        self.assertEqual(rows['snapshot-1']['mobile_aligned']['metrics']['phone_lte_rsrp'], -95)
+        self.assertNotIn('mobile_aligned', rows['another-fix'])
+        self.assertNotIn(rows['snapshot-1']['run_id'], model['run_metrics'])
