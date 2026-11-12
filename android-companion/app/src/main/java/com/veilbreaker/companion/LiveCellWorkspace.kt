@@ -74,7 +74,7 @@ class LiveCellWorkspace(
         button.apply { text = "Start live cellular"; styleFieldButton(primary = true); setOnClickListener { if (active) stop() else start() } }
         addView(button)
         status.apply { text = "Live monitor off. Choose a SIM and start when ready."; textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(5)) }
-        details.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); setPadding(0, dp(5), 0, dp(10)) }
+        details.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); setPadding(0, dp(5), 0, dp(10)); visibility = View.GONE }
         addView(status)
         metricPanel.visibility = View.GONE; addView(metricPanel)
         trendView.visibility = View.GONE; addView(trendView)
@@ -90,7 +90,7 @@ class LiveCellWorkspace(
         })
         captureButton.apply { text = "Take new snapshot"; styleFieldButton(); isEnabled = false; setOnClickListener { captureSnapshot() } }
         addView(captureButton)
-        captureReadiness.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")) }
+        captureReadiness.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE }
         addView(captureReadiness)
         captureStatus.apply { textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE }
         addView(captureStatus)
@@ -102,7 +102,7 @@ class LiveCellWorkspace(
     fun setSnapshotReady(ready: Boolean, reason: CharSequence) {
         captureButton.isEnabled = ready
         captureReadiness.text = if (ready) "" else reason
-        captureReadiness.visibility = if (ready) View.GONE else View.VISIBLE
+        captureReadiness.visibility = if (ready || reason.isBlank()) View.GONE else View.VISIBLE
     }
     fun setCaptureAvailable(available: Boolean) { reviewButton.isEnabled = available }
     fun showCaptureStatus(message: CharSequence?) {
@@ -114,6 +114,7 @@ class LiveCellWorkspace(
     private fun renderDetails() {
         val hasMore = fullDetails.contains("\n\n")
         details.text = if (detailsExpanded || !hasMore) fullDetails else fullDetails.substringBefore("\n\n")
+        details.visibility = if (details.text.isNullOrBlank()) View.GONE else View.VISIBLE
         detailsButton.visibility = if (hasMore) View.VISIBLE else View.GONE
         detailsButton.text = if (detailsExpanded) "Show fewer cell reports" else "Show more cell reports"
         detailsButton.contentDescription = detailsButton.text

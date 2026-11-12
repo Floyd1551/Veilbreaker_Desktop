@@ -177,6 +177,28 @@ class MainActivity : Activity() {
             backgroundTintList=buttonColors(if(primary) "#43d7e3" else "#233e51", "#1b2935")
             setTextColor(buttonColors(if(primary) "#06232a" else "#ffffff", "#8ca0ae"));elevation=0f;setOnClickListener { action() };parent.addView(this)
         }
+        // Allow labels to remain legible with large system text or a narrow window.
+        // Rows wrap instead of hiding tabs in a horizontally scrolling strip.
+        fun tabRows(tabs:List<TextView>):LinearLayout {
+            val width=resources.configuration.screenWidthDp
+            val scale=resources.configuration.fontScale.coerceAtLeast(1f)
+            val perRow=when {
+                width / scale < 260f -> 2
+                width < 360 || scale > 1.15f -> 3
+                else -> tabs.size
+            }
+            return LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                tabs.chunked(perRow).forEach { chunk ->
+                    val row=LinearLayout(this@MainActivity).apply { orientation=LinearLayout.HORIZONTAL }
+                    chunk.forEach { tab ->
+                        tab.setPadding(dp(3),dp(3),dp(3),dp(3))
+                        row.addView(tab,LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=dp(3); bottomMargin=dp(3) })
+                    }
+                    addView(row)
+                }
+            }
+        }
         val live=page("Live", "Captured measurements and field equipment at a glance.")
         captureButton=button(live,"Capture on phone",true) { takeSnapshot(null) }
         status=text(live,"").apply {
@@ -192,7 +214,6 @@ class MainActivity : Activity() {
         liveDashboard=LiveDashboard(this,::openWifi,::openGps);live.addView(liveDashboard)
 
         val diagnose=page("Diagnose", "Choose an area to configure or test.",false)
-        val segments=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(3),0,dp(3)) }
         val segmentNames=listOf("Cellular","Wi-Fi","Network","Desktop","USB")
         segmentNames.forEachIndexed { index, name ->
             val tab=TextView(this).apply {
@@ -200,9 +221,9 @@ class MainActivity : Activity() {
                 minimumHeight=dp(48);contentDescription="$name diagnostics"
                 setOnClickListener { showDiagnoseSection(index) }
             }
-            segments.addView(tab,LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=dp(3) });diagnoseTabs.add(tab)
+            diagnoseTabs.add(tab)
         }
-        diagnose.addView(segments)
+        diagnose.addView(tabRows(diagnoseTabs))
         diagnoseScroll=ScrollView(this).apply { isFillViewport=true }
         val sectionRoot=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         diagnoseScroll.addView(sectionRoot);diagnose.addView(diagnoseScroll,LinearLayout.LayoutParams(-1,0,1f))
@@ -291,11 +312,9 @@ class MainActivity : Activity() {
         captureArchive=CaptureArchiveWorkspace(this, { capture }, { channelPlan }, ::exportCaptureJson, ::exportCapturePdf)
         archiveCard.addView(captureArchive)
         val tools=page("Tools", "Calculators, field references, planning and optional online lookup.")
-        val toolsTabs=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(0,dp(4),0,dp(4)) }
         val names=listOf("Calculate", "References", "Planning", "Online")
         val tabs=names.map { name -> TextView(this).apply { text=name;textSize=12f;gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true;contentDescription="$name tools" } }
-        tabs.forEach { toolsTabs.addView(it,LinearLayout.LayoutParams(0,-2,1f)) }
-        tools.addView(toolsTabs)
+        tools.addView(tabRows(tabs))
         val calculatorWorkspace=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
             addView(EngineeringToolsWorkspace(this@MainActivity))
@@ -518,7 +537,8 @@ class MainActivity : Activity() {
         reportSummary.text=if(value==null) "No saved capture. Capture on the phone to create a report." else {
             val observations=value.getJSONArray("observations")
             val model=LiveOverviewModel.build(value,channelPlan)
-            val lines=mutableListOf("${observations.length()} observations · ${value.getJSONObject("collection").optString("outcome")}",
+            val count=observations.length()
+            val lines=mutableListOf("$count observation${if(count==1) "" else "s"} · ${value.getJSONObject("collection").optString("outcome")}",
                 "Captured ${value.optString("created_utc","Time unavailable")}")
             for(cell in model.cells.take(2)) {
                 val metrics=cell.values.joinToString(" · ") { metric ->

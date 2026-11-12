@@ -170,7 +170,7 @@ class SurveyWorkspace(
         if (capturing) {
             text(summary, "Capturing a new point. Keep Veilbreaker in the foreground. GPS acquisition may take up to 30 seconds; partial results will be identified.")
             summary.addView(Button(context).apply {
-                text = "Cancel capture"; isAllCaps = false; minHeight = dp(48)
+                text = "Cancel capture"; styleFieldButton()
                 setOnClickListener {
                     if (!capturing) return@setOnClickListener
                     captureGeneration++; capturing = false
@@ -219,7 +219,7 @@ class SurveyWorkspace(
                 runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.reopen(latest) } }) { current = it; message = "Survey reopened." }
             }
             button(summary, "Export mobile survey JSON…", externalEnabled) { prepareExport(survey) }
-            text(summary, "Export contains original phone captures and operator observations, and may include identifiers and location. Desktop survey import is not yet supported.", 12f)
+            text(summary, "Export contains original phone captures and operator observations, and may include identifiers and location. In Veilbreaker Desktop, open a survey and choose Attach mobile survey to add this file.", 12f)
             button(summary, "Delete survey…") {
                 val surveyId = survey.getString("survey_id")
                 AlertDialog.Builder(context).setTitle("Delete mobile survey?")
