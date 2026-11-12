@@ -22,7 +22,7 @@ class CellularReferencePanel(context: Context) : LinearLayout(context) {
                 }
         }
         addView(Button(context).apply {
-            text = "Explain cellular measurements"; isAllCaps = false; minHeight = dp(48)
+            text = "Explain cellular measurements"; styleFieldButton()
             setOnClickListener {
                 val opening = reference.visibility != View.VISIBLE
                 reference.visibility = if (opening) View.VISIBLE else View.GONE

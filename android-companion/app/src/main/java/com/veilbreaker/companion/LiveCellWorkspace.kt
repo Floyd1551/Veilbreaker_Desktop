@@ -71,7 +71,7 @@ class LiveCellWorkspace(
             text = "Foreground only · Android may return cached or incomplete readings. Stops after five minutes; readings are not saved."
             textSize = 13f; setTextColor(Color.parseColor("#b8cbd9"))
         })
-        button.apply { text = "Start live cellular"; isAllCaps = false; minHeight = dp(48); setOnClickListener { if (active) stop() else start() } }
+        button.apply { text = "Start live cellular"; styleFieldButton(primary = true); setOnClickListener { if (active) stop() else start() } }
         addView(button)
         status.apply { text = "Live monitor off. Choose a SIM and start when ready."; textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(5)) }
         details.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); setPadding(0, dp(5), 0, dp(10)) }
@@ -80,7 +80,7 @@ class LiveCellWorkspace(
         trendView.visibility = View.GONE; addView(trendView)
         addView(details)
         detailsButton.apply {
-            text = "Show more cell reports"; isAllCaps = false; minHeight = dp(48); visibility = View.GONE
+            text = "Show more cell reports"; styleFieldButton(); visibility = View.GONE
             setOnClickListener { detailsExpanded = !detailsExpanded; renderDetails() }
         }
         addView(detailsButton)
@@ -88,13 +88,13 @@ class LiveCellWorkspace(
             text = "A snapshot stops the live monitor and replaces the latest capture. Archive or export earlier evidence to keep it."
             textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(3))
         })
-        captureButton.apply { text = "Take new snapshot"; isAllCaps = false; minHeight = dp(48); isEnabled = false; setOnClickListener { captureSnapshot() } }
+        captureButton.apply { text = "Take new snapshot"; styleFieldButton(); isEnabled = false; setOnClickListener { captureSnapshot() } }
         addView(captureButton)
         captureReadiness.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")) }
         addView(captureReadiness)
         captureStatus.apply { textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE }
         addView(captureStatus)
-        reviewButton.apply { text = "Review latest saved capture"; isAllCaps = false; minHeight = dp(48); isEnabled = false; setOnClickListener { reviewCapture() } }
+        reviewButton.apply { text = "Review latest saved capture"; styleFieldButton(); isEnabled = false; setOnClickListener { reviewCapture() } }
         addView(reviewButton)
         addView(CellularReferencePanel(context))
     }

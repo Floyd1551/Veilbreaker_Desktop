@@ -28,7 +28,7 @@ class CellConnectionWorkspace(context: Context, private val selectedSubscription
             textSize = 13f; setTextColor(Color.parseColor("#b8cbd9"))
         })
         refreshButton = Button(context).apply {
-            text = "Refresh cellular connection"; isAllCaps = false; minHeight = dp(48); setOnClickListener { refresh() }
+            text = "Refresh cellular connection"; styleFieldButton(); setOnClickListener { refresh() }
         }
         addView(refreshButton)
         output.textSize = 13f; output.setTextColor(Color.parseColor("#e8f5fa")); output.setPadding(0, dp(8), 0, dp(8))
