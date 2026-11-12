@@ -11,7 +11,6 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -72,7 +71,7 @@ class WirelessToolsWorkspace(context: Context) : LinearLayout(context) {
         val section = card("Wi-Fi channel ↔ frequency")
         addText(section, "Select the band first: channel numbers overlap between bands.", 13f)
         val band = Spinner(context).apply {
-            adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, listOf("2.4 GHz", "5 GHz", "6 GHz"))
+            adapter = FieldSpinnerAdapter(context, listOf("2.4 GHz", "5 GHz", "6 GHz"))
             contentDescription = "Wi-Fi band"; section.addView(this)
         }
         val channel = input(section, "Channel number", false)

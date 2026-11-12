@@ -13,6 +13,9 @@ for remaining migration and reporting work.
 Live, Diagnose, Survey, Reports and Tools pages remain inside the same foreground
 workspace. Tools offers 38 searchable offline engineering calculators, two
 additional two-way converters, 53 reference entries and 10 field guides.
+Calculator input drafts are retained while switching tools or filtering during
+the current app session; they are not saved as measurement evidence and do not
+survive an app restart.
 Calculated worksheets can be copied with inputs, results and limitations.
 Selected calculators include schematic diagrams and a calculated input/output
 worksheet. Reference entries provide illustrated channel examples and quick
@@ -62,9 +65,10 @@ download is an estimate, not a sustained capacity test. Upload, jitter and
 packet loss are not measured. The app can group up to 20 explicitly added
 captures into a phone-only survey and export that survey as JSON; a new capture
 can also be collected and added directly from an open survey, with cancellation
-and partial results clearly indicated; Desktop
-survey import and migration from the older Mobile application are not yet
-supported. Reports can export the most recent phone capture as PDF or JSON.
+and partial results clearly indicated. Desktop can attach an exported mobile
+survey to an open Desktop survey while retaining the original source and point
+provenance. Migration from the older Mobile application is not yet supported.
+Reports can export the most recent phone capture as PDF or JSON.
 Reports also provides a separate explicit archive of up to 20 phone-capture copies.
 Archived copies can be reviewed in-app, exported as PDF or JSON, and deleted after
 confirmation without changing the latest capture or survey copies. The archive is

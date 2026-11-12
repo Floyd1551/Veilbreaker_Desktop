@@ -13,7 +13,6 @@ import android.text.InputType
 import android.text.TextWatcher
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -32,6 +31,9 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
     private lateinit var editor: LinearLayout
     private lateinit var count: TextView
     private var matches: List<EngineeringToolCatalog.Tool> = emptyList()
+    private val state = ToolWorkspaceState()
+    private var displayedToolId: String? = null
+    private var changingSelection = false
 
     init {
         orientation = VERTICAL
@@ -46,9 +48,15 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         selector = Spinner(context).apply { contentDescription = "Choose engineering calculator"; this@EngineeringToolsWorkspace.addView(this) }
         editor = LinearLayout(context).apply { orientation = VERTICAL; this@EngineeringToolsWorkspace.addView(this) }
         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) { editor.removeAllViews() }
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                if (matches.isEmpty()) { editor.removeAllViews(); displayedToolId = null }
+            }
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                matches.getOrNull(position)?.let(::showTool)
+                if (changingSelection) return
+                matches.getOrNull(position)?.let { tool ->
+                    state.select(tool.id)
+                    if (displayedToolId != tool.id) showTool(tool)
+                }
             }
         }
         search.addTextChangedListener(watcher { refresh(search.text.toString()) })
@@ -71,13 +79,18 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         matches = EngineeringToolCatalog.search(query)
         count.text = if (matches.isEmpty()) "No calculators match. Try another term." else "${matches.size} calculator${if (matches.size == 1) "" else "s"} available"
         selector.visibility = if (matches.isEmpty()) View.GONE else View.VISIBLE
-        editor.removeAllViews()
-        selector.adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, matches.map { "${it.category} · ${it.title}" })
-        matches.firstOrNull()?.let(::showTool)
+        val selectedIndex = state.indexFor(matches.map { it.id })
+        changingSelection = true
+        selector.adapter = FieldSpinnerAdapter(context, matches.map { "${it.category} · ${it.title}" })
+        if (selectedIndex >= 0) selector.setSelection(selectedIndex)
+        changingSelection = false
+        if (selectedIndex < 0) { editor.removeAllViews(); displayedToolId = null }
+        else if (displayedToolId != matches[selectedIndex].id) showTool(matches[selectedIndex])
     }
 
     private fun showTool(tool: EngineeringToolCatalog.Tool) {
         editor.removeAllViews()
+        displayedToolId = tool.id
         val card = LinearLayout(context).apply {
             orientation = VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(12))
             background = GradientDrawable().apply {
@@ -121,7 +134,10 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
                 }
             }
         }
+        val draft = state.draft(tool.id)
+        fields.forEachIndexed { index, field -> if (index < draft.size) field.setText(draft[index]) }
         fields.forEach { field -> field.addTextChangedListener(watcher {
+            state.saveDraft(tool.id, fields.map { it.text.toString() })
             result.text = "Inputs changed. Calculate again."
             calculatedInputs = null; worksheetText = null; copy.isEnabled = false
             worksheet.removeAllViews(); worksheet.visibility = View.GONE; visual?.clearCalculation()

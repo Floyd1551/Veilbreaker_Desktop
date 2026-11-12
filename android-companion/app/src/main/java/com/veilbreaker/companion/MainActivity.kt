@@ -72,6 +72,7 @@ class MainActivity : Activity() {
     private var diagnoseSection = 0
     private var currentPage = WorkspacePage.LIVE
     private var previewMode="summary"
+    private var reportOptionsOpen=false
     private val channelPlan by lazy { JSONObject(assets.open("channel-bands.json").bufferedReader().use { it.readText() }) }
     private val permissions=arrayOf(Manifest.permission.READ_PHONE_STATE,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION)
     private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
@@ -91,6 +92,7 @@ class MainActivity : Activity() {
             navLabels[index].setTextColor(Color.parseColor(if(selected) "#62e2ed" else "#a6bdcc"))
             navIcons[index].setColorFilter(Color.parseColor(if(selected) "#62e2ed" else "#a6bdcc"))
             item.isSelected=selected
+            item.contentDescription=navLabels[index].text.toString() + if(selected) ", selected" else ""
         }
         if(page==WorkspacePage.SURVEY) surveyWorkspace.refresh()
     }
@@ -106,6 +108,7 @@ class MainActivity : Activity() {
             tab.background=background(if(selected) "#2179ce" else "#1b3042")
             tab.setTextColor(Color.parseColor(if(selected) "#ffffff" else "#b3c7d5"))
             tab.isSelected=selected
+            tab.contentDescription=tab.text.toString()+" diagnostics"+if(selected) ", selected" else ""
         }
         if (::diagnoseScroll.isInitialized) diagnoseScroll.scrollTo(0,0)
     }
@@ -125,6 +128,8 @@ class MainActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putInt("workspace_page",currentPage.ordinal)
         outState.putInt("diagnose_section",diagnoseSection)
+        outState.putBoolean("report_options_open",reportOptionsOpen)
+        outState.putString("report_preview_mode",previewMode)
         outState.putBoolean("cellular_input",cellularChoice.isChecked)
         outState.putBoolean("location_input",locationChoice.isChecked)
         choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId?.let { outState.putInt("selected_subscription_id",it) }
@@ -144,7 +149,8 @@ class MainActivity : Activity() {
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
-        branding.addView(TextView(this).apply { text="MOBILE  /  0.8.25 DEV";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        val installedVersion=runCatching { packageManager.getPackageInfo(packageName,0).versionName }.getOrNull() ?: "unknown"
+        branding.addView(TextView(this).apply { text="MOBILE  /  $installedVersion";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
@@ -209,7 +215,7 @@ class MainActivity : Activity() {
         button(inputs,"Permissions and refresh SIMs") { if(allowed()) refresh() else requestPermissions(permissions,1) }
         subscriptions=Spinner(this);inputs.addView(subscriptions)
         cellularCaptureReadiness=text(inputs,"Checking phone inputs…",12f)
-        text(inputs,"A capture saves a new snapshot as the latest phone evidence. Export an earlier capture first if you need to keep it.",12f)
+        text(inputs,"A snapshot replaces the latest capture. Archive or export earlier evidence if you need to keep it.",12f)
         cellularCaptureButton=button(inputs,"Capture cellular evidence",true) { takeSnapshot(null) }
         cellularCaptureStatus=text(inputs,"")
         cellularReviewButton=button(inputs,"Review latest saved capture") { showPage(WorkspacePage.REPORTS) }
@@ -223,12 +229,12 @@ class MainActivity : Activity() {
             override fun afterTextChanged(s:Editable?) {}
         })
         cellularCaptureStatus.visibility=View.GONE
-        cellConnectionWorkspace=CellConnectionWorkspace(this) { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId }
-        cellularSection.addView(cellConnectionWorkspace)
         liveCellWorkspace=LiveCellWorkspace(this, { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId },
             { externalActionsEnabled() && cellularChoice.isChecked }, { channelPlan },
             { takeSnapshot(null) }, { showPage(WorkspacePage.REPORTS) })
         cellularSection.addView(liveCellWorkspace)
+        cellConnectionWorkspace=CellConnectionWorkspace(this) { choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId }
+        cellularSection.addView(cellConnectionWorkspace)
         val wifiSection=section()
         val wifi=card(wifiSection,"Wi-Fi environment")
         text(wifi,"Inspect connected and cached nearby networks. Stop a Desktop session before opening.")
@@ -251,6 +257,8 @@ class MainActivity : Activity() {
         survey.addView(surveyWorkspace,LinearLayout.LayoutParams(-1,0,1f))
 
         val reports=page("Reports", "Review and export the latest saved phone capture.")
+        reportOptionsOpen=state?.getBoolean("report_options_open",false) ?: false
+        previewMode=state?.getString("report_preview_mode")?.takeIf { it in setOf("summary","details","raw") } ?: "summary"
         val local=card(reports,"Captured evidence")
         reportSummary=text(local,"No saved capture.")
         lateinit var browseCells: Button
@@ -261,13 +269,25 @@ class MainActivity : Activity() {
         }
         cellInventory=CellInventoryWorkspace(this).apply { visibility=View.GONE };local.addView(cellInventory)
         pdfButton=button(local,"Export PDF…",true) { capture?.let(::exportCapturePdf) }
-        exportButton=button(local,"Export capture JSON…") { capture?.let(::exportCaptureJson) }
-        detailsButton=button(local,"Show cellular details") { previewMode=if(previewMode=="details") "summary" else "details";showCapture() }
-        rawButton=button(local,"Show raw JSON") { previewMode=if(previewMode=="raw") "summary" else "raw";showCapture() }
         reportStatus=text(local,"The last saved capture is kept on this phone.")
-        preview=text(local,"No saved capture.")
         cellularVisuals=CellularVisuals(this);local.addView(cellularVisuals)
+        val reportOptions=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
+        lateinit var reportOptionsButton:Button
+        reportOptionsButton=button(local,if(reportOptionsOpen) "Hide report options" else "More report options") {
+            reportOptionsOpen=!reportOptionsOpen
+            reportOptions.visibility=if(reportOptionsOpen) View.VISIBLE else View.GONE
+            reportOptionsButton.text=if(reportOptionsOpen) "Hide report options" else "More report options"
+            reportOptionsButton.isSelected=reportOptionsOpen
+        }
+        reportOptionsButton.isSelected=reportOptionsOpen
+        local.addView(reportOptions)
+        reportOptions.visibility=if(reportOptionsOpen) View.VISIBLE else View.GONE
+        exportButton=button(reportOptions,"Export capture JSON…") { capture?.let(::exportCaptureJson) }
+        detailsButton=button(reportOptions,"Show cellular details") { previewMode=if(previewMode=="details") "summary" else "details";showCapture() }
+        rawButton=button(reportOptions,"Show raw JSON") { previewMode=if(previewMode=="raw") "summary" else "raw";showCapture() }
+        preview=text(reportOptions,"No saved capture.")
         val archiveCard=card(reports,"Capture archive")
+        text(archiveCard,"Save a copy before taking another capture. Archived copies can be reviewed and exported later.",12f)
         captureArchive=CaptureArchiveWorkspace(this, { capture }, { channelPlan }, ::exportCaptureJson, ::exportCapturePdf)
         archiveCard.addView(captureArchive)
         val tools=page("Tools", "Calculators, field references, planning and optional online lookup.")
@@ -306,6 +326,7 @@ class MainActivity : Activity() {
             tabs.forEachIndexed { i, tab ->
                 tab.background=background(if(i==selected) "#2179ce" else "#1b3042")
                 tab.setTextColor(Color.WHITE);tab.isSelected=i==selected
+                tab.contentDescription=tab.text.toString()+" tools"+if(i==selected) ", selected" else ""
             }
         }
         tabs.forEachIndexed { i, tab -> tab.setOnClickListener { showTools(i) } };showTools(0)
