@@ -80,6 +80,10 @@ object WirelessReferenceLibrary {
     /** All search terms must match; category is an exact, stable display category. */
     fun search(category: String?, query: String): List<Entry> {
         val words = query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotEmpty() }
-        return entries.filter { (category.isNullOrBlank() || category == "All" || it.category == category) && words.all(it.searchableText::contains) }
+        return entries.filter { entry ->
+            val expanded = ReferenceReaderModel.expanded(entry).joinToString(" ") { (title, body) -> "$title $body" }.lowercase(Locale.ROOT)
+            val searchable = entry.searchableText + " " + expanded
+            (category.isNullOrBlank() || category == "All" || entry.category == category) && words.all(searchable::contains)
+        }
     }
 }

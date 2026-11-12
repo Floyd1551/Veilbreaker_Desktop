@@ -76,6 +76,7 @@ internal class ReferenceReaderDialog(context: Context, initial: WirelessReferenc
         GuideVisuals.create(context, entry.id)?.let { content.addView(it, LinearLayout.LayoutParams(-1, -2)) }
         ReferenceVisuals.addTo(content, entry.id)
         ReferenceReaderModel.valueReference(entry.id)?.let { section("Values and context", it) }
+        ReferenceReaderModel.expanded(entry).forEach { (title, body) -> section(title, body) }
         if (entry.id !in setOf("expanded-dbm-table", "expanded-db-ratio-table", "expanded-cidr-table")) {
             section(if (entry.category == "Guides") "Field workflow" else "How to use this in the field", entry.fieldUse)
         }

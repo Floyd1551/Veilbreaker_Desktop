@@ -4,6 +4,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ReferenceReaderModelTest {
+    @Test fun expandedDetailsAreAvailableAndSearchableAcrossAllReferences() {
+        for (entry in WirelessReferenceLibrary.entries) {
+            assertTrue("Missing in-depth details for ${entry.id}", ReferenceReaderModel.expanded(entry).isNotEmpty())
+        }
+        assertTrue(WirelessReferenceLibrary.search("Wi-Fi", "2437").any { it.id == "expanded-wifi-24" })
+    }
     @Test fun signalReferencesClearlySeparateRangesFromTargets() {
         val wifi = ReferenceReaderModel.valueReference("wifi-rssi")!!
         assertTrue(wifi.contains("−67 dBm")); assertTrue(wifi.contains("specific"))

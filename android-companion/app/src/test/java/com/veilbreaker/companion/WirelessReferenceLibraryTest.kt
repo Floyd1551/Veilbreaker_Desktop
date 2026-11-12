@@ -10,7 +10,7 @@ class WirelessReferenceLibraryTest {
     @Test fun searchMatchesTagsAndIgnoresCase() {
         val entries = WirelessReferenceLibrary.search(null, "  SINR  ")
         assertTrue(entries.any { it.category == "Cellular" })
-        assertTrue(entries.all { it.searchableText.contains("sinr") })
+        assertTrue(entries.all { it.searchableText.contains("sinr") || ReferenceReaderModel.expanded(it).any { section -> section.second.lowercase().contains("sinr") } })
         assertTrue(WirelessReferenceLibrary.search(null, "bSsId").isNotEmpty())
     }
     @Test fun searchRequiresAllTermsAndSelectedCategory() {

@@ -20,6 +20,9 @@ Calculated worksheets can be copied with inputs, results and limitations.
 Selected calculators include schematic diagrams and a calculated input/output
 worksheet. Reference entries provide illustrated channel examples and quick
 tables where applicable; guides have workflow figures and decision-cue tables.
+Every reference and guide also includes additional topic-specific field context,
+examples or worksheets, limitations, and source attribution. Reference search
+includes this expanded offline content.
 All illustrations and tabulated examples are offline reference material, not
 captured or calibrated measurements.
 The Planning tab includes an idealized Wi-Fi AP count and geometry schematic, a

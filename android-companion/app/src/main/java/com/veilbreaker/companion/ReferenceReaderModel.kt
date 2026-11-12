@@ -2,6 +2,13 @@ package com.veilbreaker.companion
 
 /** Derived navigation and field prompts; these never turn reference values into evidence. */
 internal object ReferenceReaderModel {
+    fun expanded(entry: WirelessReferenceLibrary.Entry): List<Pair<String, String>> = when (entry.category) {
+        "Wi-Fi" -> WifiReferenceDetails.sections(entry.id)
+        "Cellular", "RF" -> CellRfReferenceDetails.sections(entry.id)
+        "Networking", "Fiber & Power" -> NetworkReferenceDetails.details(entry.id)?.let { listOf("In-depth field reference" to it) } ?: emptyList()
+        "Guides" -> GuideReferenceDetails.sections(entry.id)
+        else -> emptyList()
+    }
     fun valueReference(id: String): String? = when (id) {
         "wifi-rssi" -> "Example design target: Cisco's deployment guidance for specific IP phones uses at least −67 dBm and 25 dB SNR. This is a device/workload-specific design example, not a universal pass/fail value. Verify client and service requirements.\nSource: Cisco IP Phone Multiplatform Wireless LAN Deployment Guide, section on RF coverage. https://spg.xgslb-v3.cisco.com/c/dam/en/us/td/docs/voice_ip_comm/cuipph/MPP/common/WIFI-Deployment-guide/MPP-wlan-dg.pdf"
         "cell-power" -> "Android API reporting ranges, not service targets:\nLTE RSRP: −140 to −43 dBm\nNR SS-RSRP: −156 to −31 dBm\nUnreported values remain unavailable. Device, network and deployment context govern interpretation.\nSources: https://developer.android.com/reference/android/telephony/CellSignalStrengthLte and https://developer.android.com/reference/android/telephony/CellSignalStrengthNr"
