@@ -104,9 +104,13 @@ class SurveyPage(QWidget):
         start_actions.addWidget(label("Pause mode lets you move to the next point before continuing.", "muted"), 1)
         layout.addLayout(start_actions)
         layout = self.landing_layout
-        layout.addWidget(button('New survey', self.new_survey, True))
-        layout.addWidget(button('Review mobile survey…', self.review_mobile_survey))
-        layout.addWidget(button('Trash / restore', self.window.open_trash))
+        landing_actions = FlowLayout()
+        for control in (button('New survey', self.new_survey, True),
+                        button('Review mobile survey…', self.review_mobile_survey),
+                        button('Imported mobile surveys…', self.open_mobile_survey_library),
+                        button('Trash / restore', self.window.open_trash)):
+            landing_actions.addWidget(control)
+        layout.addLayout(landing_actions)
         layout.addWidget(label("Saved surveys", "section"))
         self.session_search = QLineEdit()
         self.session_search.setAccessibleName("Search survey sessions")
@@ -420,13 +424,18 @@ class SurveyPage(QWidget):
         if not path: return
         try:
             loaded = load_mobile_survey(path)
-            def attach_input(capture_path):
-                attached = self.window.attach_android_capture(capture_path)
-                if attached: self.window.nav.setCurrentRow(1)
-                return attached
-            MobileSurveyReviewDialog(self, path, loaded, attach_input=attach_input).exec()
+            MobileSurveyReviewDialog(self, path, loaded, attach_input=self.attach_mobile_input).exec()
         except (OSError, ValueError) as exc:
             self.window.error(str(exc))
+
+    def attach_mobile_input(self, capture_path):
+        attached = self.window.attach_android_capture(capture_path)
+        if attached: self.window.nav.setCurrentRow(1)
+        return attached
+
+    def open_mobile_survey_library(self):
+        from .mobile_survey_library_ui import MobileSurveyLibraryDialog
+        MobileSurveyLibraryDialog(self, self.window.config, attach_input=self.attach_mobile_input).exec()
 
     def refresh(self):
         self.session_cache = list_sessions(self.window.config)
