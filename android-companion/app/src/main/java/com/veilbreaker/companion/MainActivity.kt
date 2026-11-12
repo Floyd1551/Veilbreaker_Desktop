@@ -349,7 +349,9 @@ class MainActivity : Activity() {
             }
         }
         tabs.forEachIndexed { i, tab -> tab.setOnClickListener { showTools(i) } };showTools(0)
-        val bar=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;setPadding(dp(4),dp(4),dp(4),dp(4));setBackgroundColor(Color.parseColor("#0a1b29")) }
+        val bar=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(4),dp(4),dp(4));setBackgroundColor(Color.parseColor("#0a1b29")) }
+        val navColumns=WorkspaceNavigation.bottomColumns(resources.configuration.screenWidthDp,resources.configuration.fontScale)
+        var navRow:LinearLayout?=null
         val labels=listOf("Live","Diagnose","Survey","Reports","Tools")
         val icons=listOf(R.drawable.ic_nav_live,R.drawable.ic_nav_diagnose,R.drawable.ic_nav_survey,R.drawable.ic_nav_reports,R.drawable.ic_nav_tools)
         WorkspacePage.entries.forEachIndexed { index, page ->
@@ -357,7 +359,11 @@ class MainActivity : Activity() {
             val icon=ImageView(this).apply { setImageResource(icons[index]);contentDescription=null }
             val caption=TextView(this).apply { text=labels[index];textSize=11f;gravity=Gravity.CENTER }
             item.addView(icon,LinearLayout.LayoutParams(dp(21),dp(21)));item.addView(caption)
-            bar.addView(item,LinearLayout.LayoutParams(0,-2,1f));navItems.add(item);navLabels.add(caption);navIcons.add(icon)
+            if (index % navColumns == 0) {
+                navRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+                bar.addView(navRow)
+            }
+            navRow!!.addView(item,LinearLayout.LayoutParams(0,-2,1f));navItems.add(item);navLabels.add(caption);navIcons.add(icon)
         }
         shell.addView(bar)
         if(state!=null) {

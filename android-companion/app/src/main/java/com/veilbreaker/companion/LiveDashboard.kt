@@ -33,7 +33,9 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     private var gpsButton: Button? = null
     private var navigationStatus: TextView? = null
     private var wifiSummary: TextView? = null
+    private var wifiChecked: TextView? = null
     private var wifiText = "Wi-Fi status not yet checked."
+    private var wifiCheckedText = ""
     private val wifiHandler = Handler(Looper.getMainLooper())
     private val wifiInfo = mutableMapOf<Network, WifiInfo>()
     private var wifiCallback: ConnectivityManager.NetworkCallback? = null
@@ -111,7 +113,7 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     }
 
     fun showCapture(capture: JSONObject?, plan: JSONObject?) {
-        removeAllViews(); wifiButton = null; gpsButton = null; navigationStatus = null; wifiSummary = null
+        removeAllViews(); wifiButton = null; gpsButton = null; navigationStatus = null; wifiSummary = null; wifiChecked = null
         val model = runCatching { LiveOverviewModel.build(capture, plan) }.getOrElse { LiveOverviewModel.Overview(null, emptyList(), null) }
         val overview = panel("CELLULAR  /  LATEST CAPTURE")
         text(overview, model.receivedUtc?.let { "Received $it · sample ages at receipt" }
@@ -132,7 +134,12 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
                 text(card, "Received ${cell.receivedUtc}", 11f, "#a8bfcd")
         }
         val wifi = panel("WI-FI  /  CURRENT STATUS")
-        wifiSummary = text(wifi, wifiText, 13f, "#e0edf5").apply { setPadding(0, dp(6), 0, dp(4)) }
+        wifiSummary = text(wifi, wifiText, 13f, "#e0edf5").apply {
+            setPadding(0, dp(6), 0, dp(4)); setLineSpacing(dp(2).toFloat(), 1f)
+        }
+        wifiChecked = text(wifi, wifiCheckedText, 11f, "#a8bfcd").apply {
+            visibility = if (wifiCheckedText.isEmpty()) View.GONE else View.VISIBLE
+        }
         wifiButton = action(wifi, "Open Wi-Fi", onWifi)
 
         val gps = panel("GPS  /  LATEST CAPTURE")
@@ -199,11 +206,14 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         if (existing != null) try { context.getSystemService(ConnectivityManager::class.java)?.unregisterNetworkCallback(existing) }
             catch (_: RuntimeException) { }
         wifiText = "Wi-Fi monitor inactive."
+        wifiCheckedText = ""
         wifiSummary?.text = wifiText
+        wifiChecked?.visibility = View.GONE
     }
 
     @Suppress("DEPRECATION")
     private fun updateWifiSummary() {
+        wifiCheckedText = ""
         val wifi = context.applicationContext.getSystemService(WifiManager::class.java)
         val manager = context.getSystemService(ConnectivityManager::class.java)
         if (wifi == null || manager == null) {
@@ -221,9 +231,10 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
                 // Combine only adjacent status/name lines; all source and age qualifiers remain visible.
                 val firstBreak = wifiText.indexOf('\n')
                 if (firstBreak >= 0) wifiText = wifiText.replaceRange(firstBreak, firstBreak + 1, " · ")
-                wifiText += " · Checked " + DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date())
+                wifiCheckedText = "Checked " + DateFormat.getTimeInstance(DateFormat.MEDIUM).format(Date())
             } catch (_: RuntimeException) { wifiText = "Android did not expose Wi-Fi connection information." }
         }
         wifiSummary?.text = wifiText
+        wifiChecked?.apply { text = wifiCheckedText; visibility = if (wifiCheckedText.isEmpty()) View.GONE else View.VISIBLE }
     }
 }
