@@ -44,8 +44,13 @@ visually qualified on the phone in these passes.
   attach a selected capture as diagnostic input. The library supports recoverable
   Trash without changing source bytes and a separately confirmed permanent
   removal for intact trashed copies. No Desktop run is fabricated.
-- [ ] Complete native mobile-to-Desktop survey conversion/attachment and point
-  associations. Current local copies are separate from Desktop survey sessions.
+- [x] Attach an exported mobile survey to an open Desktop survey as a separate
+  source, preserve its original bytes in the survey export, and display recorded
+  locations and capture notes without fabricating diagnostic runs or correlating
+  cellular measurements with differently timed GPS fixes. Up to 20 mobile
+  captures are supported in addition to the existing diagnostic test limit.
+- [ ] Extend mobile point associations to manual/floor-plan placement and
+  qualified, time-aligned metric visualization; qualify the transfer on devices.
 - [ ] Finish the cellular vertical slice: interactive history, stronger event
   handling, save/review continuity and accessibility/usability validation.
 - [ ] Complete a current-device screen-by-screen audit and competitor research;
@@ -58,9 +63,8 @@ visually qualified on the phone in these passes.
 
 1. Validate the current Android build and new transfer workflow on the phone and
    installed Desktop without disturbing saved captures or device credentials.
-2. Design and implement native Desktop survey attachment of mobile points,
-   preserving source bytes, timing, notes and location provenance; handle
-   duplicates, partial failure, recovery and existing evidence explicitly.
+2. Extend attached mobile points with manual placement and defensible metric
+   associations; validate interrupted transfers and real-device recovery.
 3. Return to the 1.0 field gates for terrain, tower candidates, LOS and offline
    regional data, including real-area qualification and installer refresh.
 4. Continue high-value toolbox and visual workflow improvements after core

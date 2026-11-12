@@ -248,7 +248,7 @@ class MapWindow(QDialog):
         for i,row in enumerate(self.visible_rows):
             if row['id']==feature_id:
                 self.table.blockSignals(True);self.table.selectRow(i);self.table.blockSignals(False)
-                self.selected=row;self.open_button.setEnabled(self.open_run_callback is not None)
+                self.selected=row;self.open_button.setEnabled(self.open_run_callback is not None and row.get('source_kind') != 'mobile_survey_capture')
                 def val(key):return str(row[key]) if row.get(key) is not None else 'Not exposed'
                 metric_key=self.metric_selector.currentData()
                 scale=metric_scale(self.model,metric_key) if metric_key else None
@@ -266,7 +266,7 @@ class MapWindow(QDialog):
         i=self.table.currentRow()
         if 0<=i<len(self.visible_rows):self.select_feature(self.visible_rows[i]['id'])
     def open_diagnostic(self):
-        if self.selected and self.open_run_callback is not None:self.open_run_callback(self.selected['run_id'])
+        if self.selected and self.selected.get('source_kind') != 'mobile_survey_capture' and self.open_run_callback is not None:self.open_run_callback(self.selected['run_id'])
     def load_pack(self,path,persist=True):
         pack=self.server.set_pack(Path(path))
         self.pack_status.setText(f"{pack['name']} · {pack['size']/1024/1024:.1f} MiB · {pack['attribution']}")

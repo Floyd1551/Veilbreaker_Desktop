@@ -95,7 +95,24 @@ def calculations_html(session):
     return '\n'.join(parts)
 
 
-def report_html(session, imagery=None, cell_context="", photos=None):
+def mobile_sources_html(session, mobiles=None):
+    sources = session.get('mobile_sources', [])
+    if not sources:
+        return ''
+    result = ('<h2>Attached mobile survey evidence</h2>'
+            '<p>Original mobile captures are retained separately from Desktop diagnostic runs. '
+            'Point notes are operator observations. Location and cellular observations can have different timestamps.</p>' +
+            table(['Source', 'Captures', 'Attached UTC', 'Original SHA-256'],
+                  [[s.get('name'), s.get('point_count'), s.get('attached_utc'), s.get('sha256')] for s in sources]))
+    for source in mobiles or []:
+        result += '<h3>'+text(source['survey']['name'])+' · saved captures</h3>'
+        result += table(['Capture', 'Captured UTC', 'Added on phone UTC', 'Operator note'],
+            [[p['capture']['capture_id'], p['capture']['created_utc'], p['attached_utc'], p.get('operator_note') or 'None recorded']
+             for p in source['survey']['points']])
+    return result
+
+
+def report_html(session, imagery=None, cell_context="", photos=None, mobiles=None):
     steps = session.get('steps', [])
     states = Counter(s.get('status', 'unknown') for s in steps)
     parts = ['<!doctype html><html><head><meta charset="utf-8"><title>Site survey report</title>',
@@ -105,7 +122,7 @@ def report_html(session, imagery=None, cell_context="", photos=None):
              '<h1>Site survey report</h1>', f'<h2>{text(session.get("name", "Survey"))}</h2>',
              table(['Site', 'Scenario', 'Created (UTC)', 'Survey ID', 'Session state'], [[session.get(k, 'Unknown') for k in ('site_id', 'scenario', 'created_utc', 'survey_id', 'status')]]),
              '<p>Operator lifecycle: ' + text(session.get('lifecycle', 'completed' if session.get('status')=='complete' else 'open')) + '. ' + text(session.get('notes','')) + '</p>',
-             imagery_html(imagery), cell_context, observations_html(session, photos), calculations_html(session),
+             imagery_html(imagery), cell_context, observations_html(session, photos), calculations_html(session), mobile_sources_html(session, mobiles),
              '<h2>Collection overview</h2>',
              f'<p>{states.get("complete", 0)} / {len(steps)} tests complete. ' + text(', '.join(f'{n} {s}' for s, n in sorted(states.items()))) + '.</p>',
              '<p>Collection completion is separate from service health. Missing measurements remain unknown. '

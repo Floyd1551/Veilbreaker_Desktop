@@ -418,7 +418,11 @@ def export_session(config, path, destination=None):
         imagery = report_context(config, path)
         from .survey_observation_photos import photo_context
         photos = photo_context(config, path, session, strict=True, export_dir=folder)
-        (folder / "survey_report.html").write_text(report_html(session, imagery, cell_html, photos), encoding="utf-8")
+        from .survey_mobile_evidence import read_attached_mobile_surveys
+        mobiles = read_attached_mobile_surveys(config, path, session)
+        for mobile in mobiles:
+            (folder / ('mobile-survey-' + mobile['sha256'] + '.json')).write_bytes(mobile['raw_bytes'])
+        (folder / "survey_report.html").write_text(report_html(session, imagery, cell_html, photos, mobiles), encoding="utf-8")
         if imagery and imagery.get('image'):
             for source, destination_name in (('source.image','survey-map-source.image'),
                                               ('overlay.png','survey-map.png'),

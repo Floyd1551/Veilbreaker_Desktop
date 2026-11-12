@@ -80,7 +80,26 @@ def load_survey_map_data(config,survey_path):
     if not isinstance(steps,list) or len(steps)>20:raise ValueError('Invalid survey steps.')
     store=core.VeilbreakerStore(config.db_path)
     try:
-        model=_build([_run(config,store,str(s['run_id']),s.get('label')) for s in steps])
+        runs=[_run(config,store,str(s['run_id']),s.get('label')) for s in steps]
+        metadata={}
+        if path.resolve().parent == (config.root / 'surveys').resolve():
+            from .survey_mobile_evidence import read_attached_mobile_surveys
+            for source in read_attached_mobile_surveys(config, path, session):
+                for index, point in enumerate(source['survey']['points'], 1):
+                    capture=point['capture']
+                    key='mobile-'+source['sha256']+'-'+str(index)
+                    runs.append(dict(run_id=key, label=source['survey']['name']+' · Mobile point '+str(index),
+                                     locations=location_rows(capture), metrics={}, context={}, cell_groups=[]))
+                    metadata[key]=dict(source_kind='mobile_survey_capture', mobile_capture_id=capture['capture_id'],
+                        mobile_survey_id=source['survey']['survey_id'], mobile_survey_sha256=source['sha256'],
+                        attached_utc=point['attached_utc'], operator_note=point.get('operator_note'))
+        model=_build(runs)
+        for row in model['rows']:
+            row.update(metadata.get(row['run_id'], {}))
+        for feature in model['features']['features']:
+            feature['properties'].update(metadata.get(feature['properties']['run_id'], {}))
+        if metadata:
+            model['warnings'].append('Mobile locations and cellular readings can have different timestamps; mobile cellular metrics are not assigned to locations.')
         from .survey_spatial import load_spatial, add_manual_features
         if path.resolve().parent == (config.root / 'surveys').resolve():
             add_manual_features(model, load_spatial(config, path), steps)

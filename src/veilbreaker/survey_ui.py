@@ -147,9 +147,10 @@ class SurveyPage(QWidget):
         self.configure_button = button('Configure / attributes', self.configure_session)
         self.add_tests_button = button('Add new tests', self.add_to_session)
         self.add_existing_button = button('Add existing diagnostics', self.add_existing)
+        self.add_mobile_button = button('Attach mobile survey…', self.add_mobile_survey)
         self.complete_button = button('Complete survey', self.toggle_complete)
         self.delete_survey_button = button('Delete survey', self.delete_session)
-        for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
+        for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.add_mobile_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
         layout.addLayout(detail_actions)
         self.attributes = label('', 'muted')
         layout.addWidget(self.attributes)
@@ -357,6 +358,17 @@ class SurveyPage(QWidget):
             self.refresh(); self.window.refresh_history()
         except (OSError, ValueError) as exc: self.window.error(str(exc))
 
+    def add_mobile_survey(self):
+        if not self.session or self.window.process is not None: return
+        source, _ = QFileDialog.getOpenFileName(self, 'Attach exported mobile survey', '', 'Mobile survey JSON (*.json)')
+        if not source: return
+        try:
+            from .survey_mobile_evidence import attach_mobile_survey
+            session = attach_mobile_survey(self.window.config, self.session_path, source)
+            self.show_session(session, self.session_path)
+            self.status.setText('Mobile evidence attached. Original captures remain separate from Desktop diagnostics.')
+        except (OSError, ValueError) as exc: self.window.error(str(exc))
+
     def open_listing(self, *_):
         index = self.session_list.currentRow()
         if 0 <= index < len(self.visible_sessions):
@@ -501,6 +513,7 @@ class SurveyPage(QWidget):
         self.complete_button.setText('Reopen survey' if completed else 'Complete survey')
         self.add_tests_button.setEnabled(not completed and len(session['steps'])<20)
         self.add_existing_button.setEnabled(not completed and len(session['steps'])<20)
+        self.add_mobile_button.setEnabled(not completed and self.window.process is None)
         self.configure_button.setEnabled(not completed)
         self.attributes.setText('Lifecycle: '+('Completed' if completed else 'Open')+' | Scenario: '+session.get('scenario','Not recorded')+' | '+session.get('notes',''))
         self.results.clearSelection()
@@ -514,7 +527,8 @@ class SurveyPage(QWidget):
         self.builder_toggle.setChecked(False)
         self.continue_button.setEnabled(self.window.process is None and self.can_continue())
         self.point_notes.clear()
-        self.status.setText(f"{session['name']} • Site {session['site_id']} • {session['status']} • {len(session['steps'])} tests")
+        mobile_count = sum(s.get('point_count', 0) for s in session.get('mobile_sources', []))
+        self.status.setText(f"{session['name']} • Site {session['site_id']} • {session['status']} • {len(session['steps'])} tests • {mobile_count} mobile captures")
         fill(self.results, [[i, s["label"], s["status"], s.get("assessment", s.get("error", "—")), s["run_id"]] for i, s in enumerate(session["steps"], 1)])
         QTimer.singleShot(0, lambda: self.window.pages.widget(5).ensureWidgetVisible(self.continue_button if self.can_continue() else self.comparison))
         self.select_point()
@@ -632,10 +646,11 @@ class SurveyPage(QWidget):
         from .survey_imagery import report_context
         from .cell_context import saved_context_html
         from .survey_observation_photos import photo_context
+        from .survey_mobile_evidence import read_attached_mobile_surveys
         try:
             session = read_session(self.window.config, self.session_path)
             self.report_viewer = ReportViewer(self.window, self.session_path,
-                reports=[('survey_report.html', report_html(session, report_context(self.window.config,self.session_path), saved_context_html(self.window.config,self.session_path), photo_context(self.window.config,self.session_path,session)).encode('utf-8'))])
+                reports=[('survey_report.html', report_html(session, report_context(self.window.config,self.session_path), saved_context_html(self.window.config,self.session_path), photo_context(self.window.config,self.session_path,session), read_attached_mobile_surveys(self.window.config,self.session_path,session)).encode('utf-8'))])
             self.report_viewer.showMaximized()
         except (OSError, ValueError, KeyError) as exc:
             self.window.error(str(exc))
