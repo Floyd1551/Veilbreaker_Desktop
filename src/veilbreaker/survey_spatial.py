@@ -52,7 +52,7 @@ def load_spatial(config, path):
     data = json.loads(target.read_text(encoding='utf-8'))
     if not isinstance(data, dict) or data.get('schema_version') != 1 or not isinstance(data.get('floors'), dict) or not isinstance(data.get('placements'), dict):
         raise ValueError('Invalid spatial metadata.')
-    if len(data['floors']) > 20 or len(data['placements']) > 20 or not isinstance(data.get('history'), list) or len(data['history']) > 1000:
+    if len(data['floors']) > 20 or len(data['placements']) > 40 or not isinstance(data.get('history'), list) or len(data['history']) > 1000:
         raise ValueError('Spatial metadata limits exceeded.')
     for key, floor in data['floors'].items():
         _floor_id(key)
@@ -82,10 +82,25 @@ def load_spatial(config, path):
     return data
 
 
+def mobile_point_steps(config, path, session):
+    """Expose stable references to verified captures; these are not diagnostic runs."""
+    from .survey_mobile_evidence import read_attached_mobile_surveys
+    result = []
+    for source in read_attached_mobile_surveys(config, path, session):
+        for index, point in enumerate(source['survey']['points'], 1):
+            capture = point['capture']
+            result.append(dict(run_id='mobile-'+source['sha256']+'-'+str(index),
+                label=source['survey']['name']+' · Mobile point '+str(index),
+                status='captured', metrics={}, source_kind='mobile_survey_capture',
+                mobile_capture_id=capture['capture_id'], mobile_survey_id=source['survey']['survey_id'],
+                mobile_survey_sha256=source['sha256'], operator_note=point.get('operator_note')))
+    return result
+
+
 def unplaced_measurements(steps, spatial, gps_run_ids):
     """Count collected runs only; planned points are not measurements."""
     return [step['run_id'] for step in steps
-            if step.get('evidence_zip') and step['run_id'] not in gps_run_ids
+            if (step.get('evidence_zip') or step.get('source_kind') == 'mobile_survey_capture') and step['run_id'] not in gps_run_ids
             and step['run_id'] not in spatial['placements']]
 
 
@@ -159,7 +174,8 @@ def save_placement(config, path, run_id, value):
     path = _session_path(config, path)
     with session_lock(path):
         session, data = _edit(config, path)
-        if run_id not in {step['run_id'] for step in session['steps']}:
+        points = session['steps'] + mobile_point_steps(config, path, session)
+        if run_id not in {step['run_id'] for step in points}:
             raise ValueError('Choose a point belonging to this survey.')
         clean = _placement(value, data['floors'])
         if clean['kind'] == 'floor':
@@ -208,15 +224,19 @@ def export_spatial(config, path, destination):
 
 
 def add_manual_features(model, spatial, steps):
-    labels = {s['run_id']: s.get('label') or s['run_id'] for s in steps}
+    labels = {s['run_id']: s for s in steps}
     count = 0
     for run_id, placement in spatial['placements'].items():
         if run_id not in labels or placement['kind'] != 'geographic':
             continue
-        row = dict(id='manual-' + str(count), run_id=run_id, label=labels[run_id], observation_id='Operator placement',
+        point = labels[run_id]
+        row = dict(id='manual-' + str(count), run_id=run_id, label=point.get('label') or run_id, observation_id='Operator placement',
                    quality=dict(qualified=False, label='Manual placement', reasons=['Operator supplied; not GPS evidence']),
                    manual=True, renderable=True, latitude_deg=placement['latitude'], longitude_deg=placement['longitude'],
                    source='operator', placed_utc=placement['placed_utc'])
+        for key in ('source_kind', 'mobile_capture_id', 'mobile_survey_id', 'mobile_survey_sha256', 'attached_utc', 'operator_note'):
+            if key in point:
+                row[key] = point[key]
         model['rows'].append(row)
         model['features']['features'].append(dict(type='Feature', id=row['id'],
             geometry=dict(type='Point', coordinates=[placement['longitude'], placement['latitude']]), properties=row))

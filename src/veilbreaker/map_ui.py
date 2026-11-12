@@ -233,7 +233,7 @@ class MapWindow(QDialog):
         self.cell_overlay=None;self.update_view()
     def cell_references(self):
         from .cell_reference_ui import CellReferenceDialog
-        self.reference_dialog=CellReferenceDialog(self,self.config,[r['run_id'] for r in self.model['rows']],self.model.get('survey_path'),self.show_cell_candidate)
+        self.reference_dialog=CellReferenceDialog(self,self.config,[r['run_id'] for r in self.model['rows'] if r.get('source_kind') != 'mobile_survey_capture'],self.model.get('survey_path'),self.show_cell_candidate)
         self.reference_dialog.show()
     def show_cell_candidate(self,row,candidate):
         location=row['location']

@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
+import uuid
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QImage, QColor
 from veilbreaker.core import AppConfig
@@ -111,3 +112,38 @@ class SpatialTests(unittest.TestCase):
         clear_placement(self.cfg, self.path, self.run)
         remove_floor(self.cfg, self.path, floor)
         self.assertNotIn(floor, load_spatial(self.cfg, self.path)['floors'])
+
+    def test_attached_mobile_placements_remain_operator_annotations(self):
+        from veilbreaker.survey_mobile_evidence import attach_mobile_survey
+        from veilbreaker.survey_spatial import mobile_point_steps, unplaced_measurements
+        from veilbreaker.map_sources import load_survey_map_data
+        capture = json.loads(Path('examples/android-cellular-v1.json').read_text(encoding='utf-8'))
+        mobile = dict(format='veilbreaker.mobile.survey', schema_version=1, survey_id=str(uuid.uuid4()),
+                      name='Mobile', created_utc=capture['created_utc'], lifecycle='open',
+                      points=[dict(capture=capture, attached_utc=capture['created_utc'], operator_note='Pillar')])
+        source = Path(self.temp.name) / 'mobile.json'
+        source.write_text(json.dumps(mobile), encoding='utf-8')
+        session = attach_mobile_survey(self.cfg, self.path, source)
+        point = mobile_point_steps(self.cfg, self.path, session)[0]
+        self.assertEqual(unplaced_measurements([point], load_spatial(self.cfg, self.path), set()), [point['run_id']])
+        floor = import_floor(self.cfg, self.path, self.image, 'Floor')
+        save_placement(self.cfg, self.path, point['run_id'], dict(kind='floor', floor_id=floor, x=.3, y=.7))
+        self.assertEqual(load_spatial(self.cfg, self.path)['placements'][point['run_id']]['source'], 'operator')
+        with self.assertRaises(ValueError): remove_floor(self.cfg, self.path, floor)
+        save_placement(self.cfg, self.path, point['run_id'], dict(kind='geographic', latitude=34.7, longitude=-86.6))
+        model = load_survey_map_data(self.cfg, self.path)
+        row = next(r for r in model['rows'] if r.get('manual') and r['run_id'] == point['run_id'])
+        self.assertEqual(row['source_kind'], 'mobile_survey_capture')
+        self.assertEqual(row['mobile_capture_id'], capture['capture_id'])
+        self.assertFalse(row['quality']['qualified'])
+        self.assertEqual(unplaced_measurements([point], load_spatial(self.cfg, self.path), set()), [])
+        with zipfile.ZipFile(export_session(self.cfg, self.path)) as bundle:
+            self.assertIn(point['run_id'], json.loads(bundle.read('spatial.json'))['placements'])
+        with self.assertRaises(ValueError):
+            save_placement(self.cfg, self.path, point['run_id']+'1', dict(kind='geographic', latitude=0, longitude=0))
+        from veilbreaker.survey_mobile_evidence import read_attached_mobile_surveys
+        attached = Path(read_attached_mobile_surveys(self.cfg, self.path, session)[0]['path'])
+        attached.write_text('{}', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'Unsupported|integrity'):
+            save_placement(self.cfg, self.path, point['run_id'], dict(kind='geographic', latitude=0, longitude=0))
+        self.assertEqual(load_spatial(self.cfg, self.path)['placements'][point['run_id']]['latitude'], 34.7)

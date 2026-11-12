@@ -72,11 +72,18 @@ def attach_mobile_survey(config, path, source):
         target = folder / (loaded['sha256'] + '.json')
         created = False
         try:
-            with target.open('xb') as stream:
-                created = True
-                stream.write(loaded['raw_bytes'])
-                stream.flush()
-                os.fsync(stream.fileno())
+            if target.exists() or _link_or_reparse(target):
+                if _link_or_reparse(target) or not target.is_file():
+                    raise ValueError('Existing mobile evidence copy is unsafe.')
+                existing_copy = load_mobile_survey(target)
+                if existing_copy['raw_bytes'] != loaded['raw_bytes']:
+                    raise ValueError('Existing mobile evidence copy does not match; data was preserved.')
+            else:
+                with target.open('xb') as stream:
+                    created = True
+                    stream.write(loaded['raw_bytes'])
+                    stream.flush()
+                    os.fsync(stream.fileno())
             session.setdefault('mobile_sources', []).append(dict(sha256=loaded['sha256'],
                 name=loaded['survey']['name'], point_count=len(points), attached_utc=utcnow_iso()))
             atomic_json(path, session)

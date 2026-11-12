@@ -69,3 +69,42 @@ class SurveyMobileEvidenceTests(unittest.TestCase):
         self.assertEqual(row['operator_note'], 'Near pillar')
         self.assertEqual(row['source_kind'], 'mobile_survey_capture')
         self.assertNotIn(row['run_id'], model['run_metrics'])
+
+    def test_map_includes_operator_mobile_position_without_calling_it_gps(self):
+        session = attach_mobile_survey(self.config, self.path, self.source)
+        digest = session['mobile_sources'][0]['sha256']
+        key = 'mobile-' + digest + '-1'
+        folder = Path(self.path).parent / 'spatial' / Path(self.path).stem
+        folder.mkdir(parents=True)
+        (folder / 'spatial.json').write_text(json.dumps(dict(schema_version=1, floors={}, history=[],
+            placements={key: dict(kind='geographic', latitude=34.7, longitude=-86.6,
+                                  source='operator', placed_utc='2026-11-12T12:00:00Z')})), encoding='utf-8')
+        model = load_survey_map_data(self.config, self.path)
+        row = next(r for r in model['rows'] if r.get('manual'))
+        self.assertEqual(row['source_kind'], 'mobile_survey_capture')
+        self.assertEqual(row['source'], 'operator')
+        self.assertFalse(row['quality']['qualified'])
+        self.assertEqual(row['operator_note'], 'Near pillar')
+        self.assertNotIn(key, model['run_metrics'])
+
+    def test_retry_reuses_verified_orphan_without_overwriting(self):
+        from veilbreaker.mobile_survey_import import load_mobile_survey
+        loaded = load_mobile_survey(self.source)
+        folder = Path(self.path).parent / 'mobile-evidence' / Path(self.path).stem
+        folder.mkdir(parents=True)
+        saved = folder / (loaded['sha256'] + '.json')
+        saved.write_bytes(loaded['raw_bytes'])
+        attach_mobile_survey(self.config, self.path, self.source)
+        self.assertEqual(saved.read_bytes(), loaded['raw_bytes'])
+
+    def test_retry_preserves_corrupt_orphan(self):
+        from veilbreaker.mobile_survey_import import load_mobile_survey
+        loaded = load_mobile_survey(self.source)
+        folder = Path(self.path).parent / 'mobile-evidence' / Path(self.path).stem
+        folder.mkdir(parents=True)
+        saved = folder / (loaded['sha256'] + '.json')
+        saved.write_bytes(b'corrupt')
+        with self.assertRaises(ValueError):
+            attach_mobile_survey(self.config, self.path, self.source)
+        self.assertEqual(saved.read_bytes(), b'corrupt')
+        self.assertFalse(read_session(self.config, self.path).get('mobile_sources'))

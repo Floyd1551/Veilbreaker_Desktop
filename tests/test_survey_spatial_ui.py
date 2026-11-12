@@ -2,6 +2,8 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 import tempfile
 import copy
+import json
+import uuid
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -19,6 +21,48 @@ class SpatialUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
+
+    def test_attached_mobile_point_is_selectable_and_placeable_on_floor(self):
+        from veilbreaker.survey_mobile_evidence import attach_mobile_survey
+        with tempfile.TemporaryDirectory() as folder:
+            cfg = AppConfig(data_dir=folder)
+            path = create_survey(cfg, 'Indoor', [{'label': 'Planned'}])['survey_path']
+            capture = json.loads(Path('examples/android-cellular-v1.json').read_text(encoding='utf-8'))
+            mobile = {'format': 'veilbreaker.mobile.survey', 'schema_version': 1,
+                      'survey_id': str(uuid.uuid4()), 'name': 'Phone', 'created_utc': capture['created_utc'],
+                      'lifecycle': 'open', 'points': [{'capture': capture, 'attached_utc': capture['created_utc']}]}
+            source = Path(folder) / 'mobile.json'
+            source.write_text(json.dumps(mobile), encoding='utf-8')
+            session = attach_mobile_survey(cfg, path, source)
+            key = 'mobile-' + session['mobile_sources'][0]['sha256'] + '-1'
+            image = QImage(200, 100, QImage.Format.Format_RGB32); image.fill(QColor('white'))
+            floor_source = Path(folder) / 'floor.png'; image.save(str(floor_source))
+            floor = import_floor(cfg, path, floor_source, 'Floor 1')
+            dialog = SpatialDialog(None, cfg, path)
+            try:
+                self.assertIn('Unplaced measurements: 1', dialog.placement_summary.text())
+                self.assertGreaterEqual(dialog.point.findData(key), 0)
+                dialog.point.setCurrentIndex(dialog.point.findData(key))
+                dialog.surface.setCurrentIndex(dialog.surface.findData(floor))
+                dialog.floor_picked(.25, .75); dialog.save()
+                self.assertEqual(load_spatial(cfg, path)['placements'][key]['source'], 'operator')
+                self.assertIn('Unplaced measurements: 0', dialog.placement_summary.text())
+                self.assertIn('mobile', dialog.measurement_detail.text().lower())
+                self.assertNotIn(key, dialog.map_model.get('run_metrics', {}))
+            finally:
+                dialog.close()
+            reopened = SpatialDialog(None, cfg, path)
+            try:
+                reopened.point.setCurrentIndex(reopened.point.findData(key))
+                self.assertEqual(reopened.surface.currentData(), floor)
+                self.assertIn('mobile', reopened.measurement_detail.text().lower())
+                reopened.surface.setCurrentIndex(reopened.surface.findData('geographic'))
+                reopened.latitude.setText('34.73'); reopened.longitude.setText('-86.59')
+                reopened.save()
+                self.assertEqual(load_spatial(cfg, path)['placements'][key]['kind'], 'geographic')
+                self.assertEqual(load_spatial(cfg, path)['placements'][key]['source'], 'operator')
+            finally:
+                reopened.close()
 
     def test_floor_click_conversion_after_zoom(self):
         image = QImage(200, 100, QImage.Format.Format_RGB32)

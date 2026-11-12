@@ -49,8 +49,11 @@ visually qualified on the phone in these passes.
   locations and capture notes without fabricating diagnostic runs or correlating
   cellular measurements with differently timed GPS fixes. Up to 20 mobile
   captures are supported in addition to the existing diagnostic test limit.
-- [ ] Extend mobile point associations to manual/floor-plan placement and
-  qualified, time-aligned metric visualization; qualify the transfer on devices.
+- [x] Place attached mobile captures on the geographic map or an individual
+  floor plan; retain operator placement separately from original GPS evidence,
+  preserve source identity and include placements in survey exports.
+- [ ] Add qualified, time-aligned mobile metric visualization and qualify the
+  capture, transfer and placement workflow on devices.
 - [ ] Finish the cellular vertical slice: interactive history, stronger event
   handling, save/review continuity and accessibility/usability validation.
 - [ ] Complete a current-device screen-by-screen audit and competitor research;
@@ -63,8 +66,8 @@ visually qualified on the phone in these passes.
 
 1. Validate the current Android build and new transfer workflow on the phone and
    installed Desktop without disturbing saved captures or device credentials.
-2. Extend attached mobile points with manual placement and defensible metric
-   associations; validate interrupted transfers and real-device recovery.
+2. Add defensible metric associations for attached mobile points and validate
+   interrupted transfers and real-device recovery.
 3. Return to the 1.0 field gates for terrain, tower candidates, LOS and offline
    regional data, including real-area qualification and installer refresh.
 4. Continue high-value toolbox and visual workflow improvements after core

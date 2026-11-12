@@ -101,6 +101,8 @@ class SpatialDialog(QDialog):
         super().__init__(parent)
         self.config, self.path = config, path
         self.session = read_session(config, path)
+        from .survey_spatial import mobile_point_steps
+        self.point_steps = self.session['steps'] + mobile_point_steps(config, path, self.session)
         self.pending = None
         self.calibration_points = None
         self.pick_map = None
@@ -114,7 +116,7 @@ class SpatialDialog(QDialog):
         self.placement_summary.setWordWrap(True)
         layout.addWidget(self.placement_summary)
         self.point = QComboBox()
-        for step in self.session['steps']:
+        for step in self.point_steps:
             self.point.addItem(step['label'] + ' · ' + step['status'], step['run_id'])
         self.point.setAccessibleName('Survey point or scan')
         layout.addWidget(self.point)
@@ -227,7 +229,7 @@ class SpatialDialog(QDialog):
         self.map_model=select_cell_group(self.base_map_model,self.cell_selector.currentData())
         self.update_metric_steps()
         gps_runs = {row['run_id'] for row in model['rows'] if row['id'] in model['representatives'] and row.get('renderable')}
-        unplaced = unplaced_measurements(self.session['steps'], self.data, gps_runs)
+        unplaced = unplaced_measurements(self.point_steps, self.data, gps_runs)
         self.placement_summary.setText(f'Unplaced measurements: {len(unplaced)} · Select a scan below to place it now or later.')
         selected = selected or self.surface.currentData()
         self.surface.blockSignals(True)
@@ -294,7 +296,7 @@ class SpatialDialog(QDialog):
 
     def update_metric_steps(self):
         self.metric_steps=[]
-        for step in self.session['steps']:
+        for step in self.point_steps:
             view_step=dict(step)
             base=clean_metrics(step.get('metrics'))
             if self.cell_selector.currentData() is not None or self.map_model.get('auto_live_suppressed'):
@@ -375,7 +377,12 @@ class SpatialDialog(QDialog):
                 placed = selected.get('placed_utc') or 'time unavailable'
                 context = self.map_model.get('run_context', {}).get(selected['run_id'], {}).get(key, {}) if key else {}
                 timing = ' ' + provenance_label(context) + '.' if key else ''
-                self.measurement_detail.setText(f"{selected['scan_label']} · scan {selected['number']} · Run {selected['run_id']} · operator floor-plan placement · Operator placed {placed}. {value}.{timing} Original diagnostic evidence is unchanged.")
+                mobile = next((step for step in self.point_steps if step['run_id'] == selected['run_id']
+                               and step.get('source_kind') == 'mobile_survey_capture'), None)
+                identity = 'Mobile capture' if mobile else 'Run'
+                original = 'Original mobile capture' if mobile else 'Original diagnostic evidence'
+                identifier = mobile['mobile_capture_id'] if mobile else selected['run_id']
+                self.measurement_detail.setText(f"{selected['scan_label']} · scan {selected['number']} · {identity} {identifier} · operator floor-plan placement · Operator placed {placed}. {value}.{timing} {original} is unchanged.")
             else:
                 self.measurement_detail.setText('The selected scan is not shown for this floor and source. Choose another scan, source or floor.')
             scale = self.data['floors'][floor].get('calibration', {}).get('meters_per_pixel')
@@ -418,7 +425,7 @@ class SpatialDialog(QDialog):
                 raise ValueError('Choose a floor-plan position first.')
             save_placement(self.config, self.path, self.point.currentData(), value)
             self.refresh()
-            self.status.setText('Placement saved. Original GPS and diagnostic evidence are unchanged.')
+            self.status.setText('Placement saved. Original GPS and capture evidence are unchanged.')
         except (OSError, ValueError) as exc:
             self.status.setText(str(exc))
 

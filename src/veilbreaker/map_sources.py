@@ -102,7 +102,9 @@ def load_survey_map_data(config,survey_path):
             model['warnings'].append('Mobile locations and cellular readings can have different timestamps; mobile cellular metrics are not assigned to locations.')
         from .survey_spatial import load_spatial, add_manual_features
         if path.resolve().parent == (config.root / 'surveys').resolve():
-            add_manual_features(model, load_spatial(config, path), steps)
+            mobile_steps=[dict(run_id=r['run_id'], label=r['label'], **metadata[r['run_id']])
+                          for r in runs if r['run_id'] in metadata]
+            add_manual_features(model, load_spatial(config, path), steps + mobile_steps)
         model['survey_path']=str(path)
         return model
     finally:store.close()
