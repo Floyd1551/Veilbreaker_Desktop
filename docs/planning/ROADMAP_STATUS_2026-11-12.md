@@ -3,8 +3,9 @@
 This is a source-code status snapshot, not a release certification. The Desktop
 source reports 0.67.0rc1 and the latest mobile debug build reports 0.8.25-dev.
 The available 0.67.0rc1 Windows installer predates the recent Desktop changes;
-it has not been rebuilt for them. The mobile builds after 0.8.13 have not been
-visually qualified on the phone in these passes.
+it has not been rebuilt for them. Recent mobile screens have been checked on
+the connected Samsung, including normal and enlarged text, but this is not a
+complete device, TalkBack, battery, or release qualification.
 
 ## Desktop field platform and 1.0 gates
 
@@ -52,6 +53,10 @@ visually qualified on the phone in these passes.
 - [x] Place attached mobile captures on the geographic map or an individual
   floor plan; retain operator placement separately from original GPS evidence,
   preserve source identity and include placements in survey exports.
+- [x] Show verified sources and an explicit warning if another attached mobile
+  source is unavailable. A missing source can be restored from the exact original
+  bytes; an existing damaged file is preserved and requires separate handling.
+  Export and spatial changes require all attached sources to validate.
 - [x] Show eligible mobile LTE/NR values in the exact GPS observation's map
   details, with reported sample timing, SIM and cell context; no interpolation
   or automatic assignment to operator placements. The current association is
@@ -65,6 +70,8 @@ visually qualified on the phone in these passes.
 - [ ] Qualify the current build on physical phones: permissions, multiple SIMs,
   cached data, interruption/recovery, large text, TalkBack and battery behavior.
 - [ ] Production signing, upgrade/migration strategy and release testing remain.
+- [x] In-app mobile survey dashboard and HTML report; GPS/satellite monitor and
+  expanded searchable offline reference pages have initial implementations.
 
 ## Next work
 

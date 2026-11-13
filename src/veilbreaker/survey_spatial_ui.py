@@ -101,8 +101,9 @@ class SpatialDialog(QDialog):
         super().__init__(parent)
         self.config, self.path = config, path
         self.session = read_session(config, path)
-        from .survey_spatial import mobile_point_steps
-        self.point_steps = self.session['steps'] + mobile_point_steps(config, path, self.session)
+        self.source_warnings = []
+        self.read_only = False
+        self.point_steps = self.session['steps']
         self.pending = None
         self.calibration_points = None
         self.pick_map = None
@@ -112,6 +113,10 @@ class SpatialDialog(QDialog):
         caption = QLabel('Place a survey point or scan on a map or floor plan. Purple pins are operator placement, not GPS evidence.')
         caption.setWordWrap(True)
         layout.addWidget(caption)
+        self.integrity_warning = QLabel()
+        self.integrity_warning.setWordWrap(True)
+        self.integrity_warning.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.integrity_warning)
         self.placement_summary = QLabel()
         self.placement_summary.setWordWrap(True)
         layout.addWidget(self.placement_summary)
@@ -158,9 +163,9 @@ class SpatialDialog(QDialog):
         self.measurement_detail.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.measurement_detail)
         actions = FlowLayout()
-        add = QPushButton('Import floor plan…')
-        add.clicked.connect(self.add_floor)
-        actions.addWidget(add)
+        self.add_floor_button = QPushButton('Import floor plan…')
+        self.add_floor_button.clicked.connect(self.add_floor)
+        actions.addWidget(self.add_floor_button)
         self.remove_button = QPushButton('Remove floor…')
         self.remove_button.clicked.connect(self.remove_selected_floor)
         actions.addWidget(self.remove_button)
@@ -190,12 +195,12 @@ class SpatialDialog(QDialog):
         self.status.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.status)
         buttons = QHBoxLayout()
-        save = QPushButton('Save placement')
-        save.clicked.connect(self.save)
-        buttons.addWidget(save)
-        clear = QPushButton('Clear saved placement…')
-        clear.clicked.connect(self.clear)
-        buttons.addWidget(clear)
+        self.save_button = QPushButton('Save placement')
+        self.save_button.clicked.connect(self.save)
+        buttons.addWidget(self.save_button)
+        self.clear_button = QPushButton('Clear saved placement…')
+        self.clear_button.clicked.connect(self.clear)
+        buttons.addWidget(self.clear_button)
         close = QPushButton('Close')
         close.clicked.connect(self.accept)
         buttons.addWidget(close)
@@ -207,11 +212,68 @@ class SpatialDialog(QDialog):
         self.source_filter.currentIndexChanged.connect(lambda _index: self.render_floor())
         self.refresh()
         self.change_point()
+        self._show_integrity_warning()
+
+    def _show_integrity_warning(self):
+        if self.read_only:
+            self.integrity_warning.setText('Mobile evidence unavailable or invalid. Spatial view is read-only; affected sources are excluded from point counts. For a missing source, use Restore missing mobile source in the survey, then reopen this window. Existing damaged copies are preserved and cannot be overwritten by that action. ' + ' '.join(self.source_warnings))
+        else:
+            self.integrity_warning.clear()
+        self.add_floor_button.setEnabled(not self.read_only)
+        self.save_button.setEnabled(not self.read_only)
+        self.clear_button.setEnabled(not self.read_only)
+        self.latitude.setReadOnly(self.read_only)
+        self.longitude.setReadOnly(self.read_only)
+        geographic = self.surface.currentData() == 'geographic'
+        self.pick_button.setEnabled(not self.read_only and geographic)
+        self.calibrate_button.setEnabled(not self.read_only and not geographic)
+        self.remove_button.setEnabled(not self.read_only and not geographic)
+
+    def _can_edit(self):
+        if not self.read_only:
+            try:
+                from .survey_mobile_evidence import read_attached_mobile_surveys
+                read_attached_mobile_surveys(self.config, self.path, read_session(self.config, self.path))
+            except (OSError, ValueError, KeyError, TypeError):
+                self.read_only = True
+                self.source_warnings = ['A source changed or is unavailable.']
+                # Remove stale markers as soon as an edit detects damage.
+                try:
+                    self.refresh()
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
+                self._show_integrity_warning()
+        if self.read_only:
+            self.status.setText('Spatial edits are unavailable until the mobile evidence is restored and this window is reopened.')
+            return False
+        return True
 
     def refresh(self, selected=None):
         self.data = load_spatial(self.config, self.path)
         from .map_sources import load_survey_map_data
         model = load_survey_map_data(self.config, self.path)
+        self.session = read_session(self.config, self.path)
+        self.source_warnings = model.get('mobile_evidence_warnings', [])
+        self.read_only = bool(self.source_warnings)
+        # The map model contains only currently verified mobile sources. Rebuild
+        # point choices from that same snapshot, never stale previously read data.
+        mobile_points = {}
+        for row in model.get('rows', []):
+            if row.get('source_kind') != 'mobile_survey_capture':
+                continue
+            key = row['run_id']
+            if key not in mobile_points:
+                mobile_points[key] = dict(run_id=key, label=row['label'], status='captured', metrics={},
+                    **{name: row.get(name) for name in ('source_kind', 'mobile_capture_id',
+                        'mobile_survey_id', 'mobile_survey_sha256', 'operator_note')})
+        self.point_steps = self.session['steps'] + list(mobile_points.values())
+        previous_point = self.point.currentData()
+        self.point.blockSignals(True)
+        self.point.clear()
+        for step in self.point_steps:
+            self.point.addItem(step['label'] + ' · ' + step['status'], step['run_id'])
+        self.point.setCurrentIndex(max(0, self.point.findData(previous_point)))
+        self.point.blockSignals(False)
         self.base_map_model = model
         self.map_model = model
         self.update_metric_steps()
@@ -230,7 +292,7 @@ class SpatialDialog(QDialog):
         self.update_metric_steps()
         gps_runs = {row['run_id'] for row in model['rows'] if row['id'] in model['representatives'] and row.get('renderable')}
         unplaced = unplaced_measurements(self.point_steps, self.data, gps_runs)
-        self.placement_summary.setText(f'Unplaced measurements: {len(unplaced)} · Select a scan below to place it now or later.')
+        self.placement_summary.setText(f'Unplaced measurements: {len(unplaced)}' + (' among available sources.' if self.read_only else ' · Select a scan below to place it now or later.'))
         selected = selected or self.surface.currentData()
         self.surface.blockSignals(True)
         self.surface.clear()
@@ -241,6 +303,7 @@ class SpatialDialog(QDialog):
         self.surface.setCurrentIndex(max(0, index))
         self.surface.blockSignals(False)
         self.change_surface()
+        self._show_integrity_warning()
 
     def change_point(self):
         placement = self.data['placements'].get(self.point.currentData())
@@ -268,10 +331,10 @@ class SpatialDialog(QDialog):
         self.source_filter.setVisible(not geographic)
         self.metric_legend.setVisible(not geographic)
         self.measurement_detail.setVisible(not geographic)
-        self.pick_button.setEnabled(geographic)
+        self.pick_button.setEnabled(geographic and not self.read_only)
         self.fit_button.setEnabled(not geographic)
-        self.calibrate_button.setEnabled(not geographic)
-        self.remove_button.setEnabled(not geographic)
+        self.calibrate_button.setEnabled(not geographic and not self.read_only)
+        self.remove_button.setEnabled(not geographic and not self.read_only)
         self.latitude.clear()
         self.longitude.clear()
         placement = self.data['placements'].get(self.point.currentData())
@@ -396,6 +459,7 @@ class SpatialDialog(QDialog):
             self.status.setText(str(exc))
 
     def floor_picked(self, x, y):
+        if not self._can_edit(): return
         if self.calibration_points is not None:
             self.calibration_points.append([x, y])
             if len(self.calibration_points) == 1:
@@ -416,6 +480,7 @@ class SpatialDialog(QDialog):
         self.status.setText(f'Unsaved placement: {x * 100:.1f}% across, {y * 100:.1f}% down. Choose Save placement to confirm.')
 
     def save(self):
+        if not self._can_edit(): return
         try:
             if self.surface.currentData() == 'geographic':
                 value = dict(kind='geographic', latitude=float(self.latitude.text()), longitude=float(self.longitude.text()))
@@ -430,6 +495,7 @@ class SpatialDialog(QDialog):
             self.status.setText(str(exc))
 
     def clear(self):
+        if not self._can_edit(): return
         if QMessageBox.question(self, 'Clear manual placement', 'Remove the selected point’s manual placement? Captured GPS and scan evidence will remain.') != QMessageBox.StandardButton.Yes:
             return
         try:
@@ -440,6 +506,7 @@ class SpatialDialog(QDialog):
             self.status.setText(str(exc))
 
     def add_floor(self):
+        if not self._can_edit(): return
         source, _ = QFileDialog.getOpenFileName(self, 'Import floor plan (up to 2048 × 2048 pixels)', '', 'Images (*.png *.jpg *.jpeg)')
         if not source:
             return
@@ -452,10 +519,12 @@ class SpatialDialog(QDialog):
                 self.status.setText(str(exc))
 
     def begin_calibration(self):
+        if not self._can_edit(): return
         self.calibration_points = []
         self.status.setText('Click the first end of a known distance, then the second. Use a top-down, undistorted floor plan.')
 
     def remove_selected_floor(self):
+        if not self._can_edit(): return
         if QMessageBox.question(self, 'Remove floor plan', 'Remove this floor from the survey? First clear or move any points assigned to it.') != QMessageBox.StandardButton.Yes:
             return
         try:
@@ -465,6 +534,7 @@ class SpatialDialog(QDialog):
             self.status.setText(str(exc))
 
     def pick_geographic(self):
+        if not self._can_edit(): return
         from .map_ui import MapWindow
         from .map_sources import load_survey_map_data
         try:

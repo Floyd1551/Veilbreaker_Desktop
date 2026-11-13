@@ -148,9 +148,10 @@ class SurveyPage(QWidget):
         self.add_tests_button = button('Add new tests', self.add_to_session)
         self.add_existing_button = button('Add existing diagnostics', self.add_existing)
         self.add_mobile_button = button('Attach mobile survey…', self.add_mobile_survey)
+        self.restore_mobile_button = button('Restore missing mobile source…', self.restore_mobile_source)
         self.complete_button = button('Complete survey', self.toggle_complete)
         self.delete_survey_button = button('Delete survey', self.delete_session)
-        for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.add_mobile_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
+        for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.add_mobile_button,self.restore_mobile_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
         layout.addLayout(detail_actions)
         self.attributes = label('', 'muted')
         layout.addWidget(self.attributes)
@@ -369,6 +370,17 @@ class SurveyPage(QWidget):
             self.status.setText('Mobile evidence attached. Original captures remain separate from Desktop diagnostics.')
         except (OSError, ValueError) as exc: self.window.error(str(exc))
 
+    def restore_mobile_source(self):
+        if not self.session or self.window.process is not None: return
+        source, _ = QFileDialog.getOpenFileName(self, 'Choose the original mobile survey JSON', '', 'Mobile survey JSON (*.json)')
+        if not source: return
+        try:
+            from .survey_mobile_recovery import restore_missing_mobile_source
+            digest = restore_missing_mobile_source(self.window.config, self.session_path, source)
+            self.show_session(read_session(self.window.config, self.session_path), self.session_path)
+            self.status.setText('Missing mobile source restored and verified (SHA-256 ' + digest[:12] + '…).')
+        except (OSError, ValueError) as exc: self.window.error(str(exc))
+
     def open_listing(self, *_):
         index = self.session_list.currentRow()
         if 0 <= index < len(self.visible_sessions):
@@ -514,6 +526,7 @@ class SurveyPage(QWidget):
         self.add_tests_button.setEnabled(not completed and len(session['steps'])<20)
         self.add_existing_button.setEnabled(not completed and len(session['steps'])<20)
         self.add_mobile_button.setEnabled(not completed and self.window.process is None)
+        self.restore_mobile_button.setEnabled(bool(session.get('mobile_sources')) and self.window.process is None)
         self.configure_button.setEnabled(not completed)
         self.attributes.setText('Lifecycle: '+('Completed' if completed else 'Open')+' | Scenario: '+session.get('scenario','Not recorded')+' | '+session.get('notes',''))
         self.results.clearSelection()

@@ -109,6 +109,71 @@ class SurveyMobileEvidenceTests(unittest.TestCase):
         self.assertEqual(saved.read_bytes(), b'corrupt')
         self.assertFalse(read_session(self.config, self.path).get('mobile_sources'))
 
+    def test_map_preserves_healthy_sources_when_one_mobile_copy_is_damaged(self):
+        import copy
+        first = attach_mobile_survey(self.config, self.path, self.source)
+        damaged_digest = first['mobile_sources'][0]['sha256']
+        second = copy.deepcopy(json.loads(self.source.read_text(encoding='utf-8')))
+        second['survey_id'] = str(uuid.uuid4())
+        second['name'] = 'Healthy source'
+        second['points'][0]['capture']['capture_id'] = str(uuid.uuid4())
+        second['points'][0]['operator_note'] = 'Valid observation'
+        self.source.write_text(json.dumps(second), encoding='utf-8')
+        session = attach_mobile_survey(self.config, self.path, self.source)
+        healthy_digest = session['mobile_sources'][1]['sha256']
+        folder = Path(self.path).parent / 'mobile-evidence' / Path(self.path).stem
+        bad = folder / (damaged_digest + '.json')
+        good = folder / (healthy_digest + '.json')
+        good_original = good.read_bytes()
+        bad.write_bytes(b'corrupt')
+        spatial = Path(self.path).parent / 'spatial' / Path(self.path).stem
+        spatial.mkdir(parents=True)
+        key = 'mobile-' + healthy_digest + '-1'
+        (spatial / 'spatial.json').write_text(json.dumps(dict(schema_version=1, floors={}, history=[],
+            placements={key: dict(kind='geographic', latitude=34.7, longitude=-86.6,
+                                  source='operator', placed_utc='2026-11-12T12:00:00Z')})), encoding='utf-8')
+        model = load_survey_map_data(self.config, self.path)
+        self.assertTrue(any('unavailable' in warning.lower() and damaged_digest[:12] in warning
+                            for warning in model['warnings']))
+        self.assertTrue(any(row.get('manual') and row.get('mobile_survey_sha256') == healthy_digest
+                            and row.get('operator_note') == 'Valid observation' for row in model['rows']))
+        self.assertTrue(any(row['run_id'] == session['steps'][0]['run_id'] for row in model['rows']))
+        self.assertFalse(any(row.get('mobile_survey_sha256') == damaged_digest for row in model['rows']))
+        self.assertEqual(bad.read_bytes(), b'corrupt')
+        self.assertEqual(good.read_bytes(), good_original)
+        with self.assertRaises(ValueError):
+            export_session(self.config, self.path)
+        with self.assertRaises(ValueError):
+            attach_mobile_survey(self.config, self.path, self.source)
+
+    def test_missing_and_invalid_mobile_records_warn_without_revealing_paths(self):
+        from veilbreaker.survey_mobile_evidence import read_attached_mobile_surveys_for_map
+        session = attach_mobile_survey(self.config, self.path, self.source)
+        digest = session['mobile_sources'][0]['sha256']
+        stored = Path(self.path).parent / 'mobile-evidence' / Path(self.path).stem / (digest + '.json')
+        stored.unlink()
+        result, warnings = read_attached_mobile_surveys_for_map(self.config, self.path, session)
+        self.assertEqual(result, [])
+        self.assertIn(digest[:12], warnings[0])
+        self.assertNotIn(str(self.root), warnings[0])
+        model = load_survey_map_data(self.config, self.path)
+        self.assertEqual(model['mobile_evidence_warnings'], warnings)
+        self.assertTrue(any(r['run_id'] == session['steps'][0]['run_id'] for r in model['rows']))
+        with self.assertRaises(ValueError): export_session(self.config, self.path)
+        invalid, errors = read_attached_mobile_surveys_for_map(self.config, self.path, {'mobile_sources': [{'sha256': '../../outside'}]})
+        self.assertEqual(invalid, [])
+        self.assertIn('record 1', errors[0])
+        self.assertNotIn('../../outside', errors[0])
+
+    def test_ambiguous_duplicate_records_never_produce_mobile_map_points(self):
+        from veilbreaker.survey_mobile_evidence import read_attached_mobile_surveys_for_map
+        session = attach_mobile_survey(self.config, self.path, self.source)
+        session['mobile_sources'].append(dict(session['mobile_sources'][0]))
+        sources, warnings = read_attached_mobile_surveys_for_map(self.config, self.path, session)
+        self.assertEqual(sources, [])
+        self.assertTrue(any('duplicat' in warning.lower() for warning in warnings))
+        with self.assertRaises(ValueError): read_attached_mobile_surveys(self.config, self.path, session)
+
     def test_aligned_mobile_value_is_scoped_to_its_observation(self):
         import copy
         survey = json.loads(self.source.read_text(encoding='utf-8'))

@@ -118,6 +118,6 @@ class MobileSurveyTest {
         assertEquals("one", fixes[0].captureId)
         assertEquals(34.7, fixes[0].fix.latitude, 0.00001)
         assertEquals(1500L, fixes[0].fix.ageAtReceiptMs)
-        assertTrue(fixes[0].fix.mock)
+        assertEquals(true, fixes[0].fix.mock)
     }
 }

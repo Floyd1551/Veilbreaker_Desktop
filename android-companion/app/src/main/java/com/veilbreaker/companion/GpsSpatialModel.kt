@@ -5,8 +5,14 @@ import org.json.JSONObject
 /** Plot-only data, never fed back into capture evidence. */
 object GpsSpatialModel {
     data class Fix(val latitude: Double, val longitude: Double, val accuracy: Double,
-                   val ageAtReceiptMs: Long?, val provider: String?, val mock: Boolean,
-                   val receivedUtc: String? = null)
+                   val ageAtReceiptMs: Long?, val provider: String?, val mock: Boolean?,
+                   val receivedUtc: String? = null) {
+        fun mockLabel(): String = when (mock) {
+            true -> "mock location"
+            false -> "not marked mock"
+            null -> "mock status unknown"
+        }
+    }
     data class Bounds(val west: Double, val south: Double, val east: Double, val north: Double)
     data class SurveyLocation(val pointNumber: Int, val captureId: String, val fix: Fix)
 
@@ -32,7 +38,7 @@ object GpsSpatialModel {
             lon !in -180.0..180.0 || accuracy !in 0.0..1e9) return null
         val age = (location.opt("fix_age_ms") as? Number)?.toLong()?.takeIf { it >= 0 }
         return Fix(lat, lon, accuracy, age, location.optString("provider").ifBlank { null },
-                   location.optBoolean("mock", false), receivedUtc)
+                   location.opt("mock") as? Boolean, receivedUtc)
     }
 
     fun savedFixes(capture: JSONObject?): List<Fix> {

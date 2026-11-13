@@ -40,5 +40,10 @@ class LocationEvidenceTest {
   assertTrue(LocationEvidence.describeCaptured(old).contains("Old fix at capture"))
   fix.put("fix_age_ms",org.json.JSONObject.NULL)
   assertTrue(LocationEvidence.describeCaptured(fix).contains("age unavailable at receipt"))
+  fix.remove("mock")
+  assertTrue(LocationEvidence.describeCaptured(fix).contains("mock status unknown"))
+  fix.put("mock", "true")
+  assertTrue(LocationEvidence.describeCaptured(fix).contains("mock status unknown"))
+  assertFalse(LocationEvidence.describeCaptured(fix).contains("Test location"))
  }
 }

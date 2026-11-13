@@ -81,11 +81,12 @@ def load_survey_map_data(config,survey_path):
     store=core.VeilbreakerStore(config.db_path)
     try:
         runs=[_run(config,store,str(s['run_id']),s.get('label')) for s in steps]
-        metadata={}; aligned={}
+        metadata={}; aligned={}; mobile_warnings=[]
         if path.resolve().parent == (config.root / 'surveys').resolve():
-            from .survey_mobile_evidence import read_attached_mobile_surveys
+            from .survey_mobile_evidence import read_attached_mobile_surveys_for_map
             from .mobile_survey_metrics import aligned_mobile_metrics
-            for source in read_attached_mobile_surveys(config, path, session):
+            sources, mobile_warnings = read_attached_mobile_surveys_for_map(config, path, session)
+            for source in sources:
                 for index, point in enumerate(source['survey']['points'], 1):
                     capture=point['capture']
                     key='mobile-'+source['sha256']+'-'+str(index)
@@ -96,6 +97,8 @@ def load_survey_map_data(config,survey_path):
                         mobile_survey_id=source['survey']['survey_id'], mobile_survey_sha256=source['sha256'],
                         attached_utc=point['attached_utc'], operator_note=point.get('operator_note'))
         model=_build(runs)
+        model['warnings'][:0] = mobile_warnings
+        model['mobile_evidence_warnings'] = mobile_warnings
         for row in model['rows']:
             row.update(metadata.get(row['run_id'], {}))
             match=aligned.get(row['run_id'], {}).get(row['observation_id'])
@@ -106,7 +109,7 @@ def load_survey_map_data(config,survey_path):
             match=aligned.get(props['run_id'], {}).get(props['observation_id'])
             if match: props['mobile_aligned']=match
         if metadata:
-            model['warnings'].append('Mobile locations and cellular readings can have different timestamps; mobile cellular metrics are not assigned to locations.')
+            model['warnings'].append('Mobile location and cellular times may differ; eligible same-observation readings appear in point details, not on manual placements or an estimated surface.')
         from .survey_spatial import load_spatial, add_manual_features
         if path.resolve().parent == (config.root / 'surveys').resolve():
             mobile_steps=[dict(run_id=r['run_id'], label=r['label'], **metadata[r['run_id']])

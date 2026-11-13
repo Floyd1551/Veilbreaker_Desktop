@@ -2,6 +2,7 @@
 import re
 import os
 import uuid
+from collections import Counter
 from pathlib import Path
 
 from .core import utcnow_iso
@@ -50,6 +51,37 @@ def read_attached_mobile_surveys(config, path, session):
             raise ValueError('Attached mobile survey metadata does not match its source.')
         result.append(dict(loaded, path=str(target)))
     return result
+
+
+def read_attached_mobile_surveys_for_map(config, path, session):
+    """Return verified sources and warnings for read-only display only.
+
+    Export and mutation must keep using the strict reader. A damaged source
+    cannot supply labels, notes, coordinates, or manual placements.
+    """
+    records = session.get('mobile_sources', [])
+    if not isinstance(records, list) or len(records) > 20:
+        return [], ['Mobile evidence list is invalid; attached mobile points are unavailable. Original evidence was preserved.']
+    counts = Counter(record.get('sha256') for record in records if isinstance(record, dict)
+                     and isinstance(record.get('sha256'), str) and _HASH.fullmatch(record['sha256']))
+    loaded, warnings, warned = [], [], set()
+    for index, record in enumerate(records, 1):
+        digest = record.get('sha256') if isinstance(record, dict) else None
+        valid = isinstance(digest, str) and _HASH.fullmatch(digest) is not None
+        label = digest[:12] if valid else f'record {index}'
+        if not valid:
+            warnings.append(f'Mobile source {label} is invalid or duplicated; its points are unavailable. Original evidence was preserved.')
+            continue
+        if counts[digest] > 1:
+            if digest not in warned:
+                warnings.append(f'Mobile source {label} is duplicated; its points are unavailable. Original evidence was preserved.')
+                warned.add(digest)
+            continue
+        try:
+            loaded.extend(read_attached_mobile_surveys(config, path, {'mobile_sources': [record]}))
+        except (OSError, ValueError, TypeError, KeyError):
+            warnings.append(f'Mobile source {label} is unavailable or failed integrity validation; its points are omitted. Original evidence was preserved.')
+    return loaded, warnings
 
 
 def attach_mobile_survey(config, path, source):

@@ -29,8 +29,25 @@ class GpsSpatialModelTest {
         assertEquals(34.7, result[0].latitude, 0.00001)
         assertEquals(8.0, result[0].accuracy, 0.00001)
         assertEquals(1200L, result[0].ageAtReceiptMs)
-        assertTrue(result[0].mock)
+        assertEquals(true, result[0].mock)
         assertEquals("2026-10-01T00:00:00Z", result[0].receivedUtc)
+    }
+
+    @Test fun mockStatusPreservesUnknownInsteadOfAssumingFalse() {
+        val location = JSONObject().put("status", "available").put("latitude_deg", 30.0)
+            .put("longitude_deg", -80.0).put("horizontal_accuracy_m", 5.0)
+        assertNull(GpsSpatialModel.fix(location)!!.mock)
+        assertEquals("mock status unknown", GpsSpatialModel.fix(location)!!.mockLabel())
+        location.put("mock", JSONObject.NULL)
+        assertNull(GpsSpatialModel.fix(location)!!.mock)
+        location.put("mock", "false")
+        assertNull(GpsSpatialModel.fix(location)!!.mock)
+        location.put("mock", false)
+        assertEquals(false, GpsSpatialModel.fix(location)!!.mock)
+        assertEquals("not marked mock", GpsSpatialModel.fix(location)!!.mockLabel())
+        location.put("mock", true)
+        assertEquals(true, GpsSpatialModel.fix(location)!!.mock)
+        assertEquals("mock location", GpsSpatialModel.fix(location)!!.mockLabel())
     }
 
     @Test fun unavailableOrMalformedAccuracyIsNeverInvented() {

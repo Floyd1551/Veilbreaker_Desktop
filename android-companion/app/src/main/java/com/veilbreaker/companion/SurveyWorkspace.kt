@@ -255,7 +255,7 @@ class SurveyWorkspace(
             val location = if (lastFix == null) "No usable GPS fix" else {
                 val age = lastFix.ageAtReceiptMs?.let { "${it / 1000}s old at receipt" } ?: "age unavailable"
                 val accuracy = String.format(java.util.Locale.US, "%.1f", lastFix.accuracy)
-                "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±$accuracy m · $age" + if (lastFix.mock) " · mock" else ""
+                "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±$accuracy m · $age · ${lastFix.mockLabel()}"
             }
             text(pointPanel, "POINT ${i + 1}", 12f, true).apply { setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.06f }
             text(pointPanel, "${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)

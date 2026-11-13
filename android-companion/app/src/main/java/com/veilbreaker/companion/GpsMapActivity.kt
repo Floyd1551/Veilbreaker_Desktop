@@ -376,8 +376,8 @@ class GpsMapActivity : Activity() {
     private fun liveDescription(fix: GpsSpatialModel.Fix) = "Live GPS · " + fixDescription(fix, true)
     private fun fixDescription(fix: GpsSpatialModel.Fix, isLive: Boolean): String {
         val whenAge = fix.ageAtReceiptMs?.let { "${it / 1000}s " + if (isLive) "old now" else "old at receipt" } ?: "age unavailable"
-        return String.format(Locale.US, "%.6f, %.6f · ±%.0f m · %s · %s%s", fix.latitude, fix.longitude, fix.accuracy,
-            fix.provider ?: "provider unknown", whenAge, if (fix.mock) " · mock location" else "")
+        return String.format(Locale.US, "%.6f, %.6f · ±%.0f m · %s · %s · %s", fix.latitude, fix.longitude, fix.accuracy,
+            fix.provider ?: "provider unknown", whenAge, fix.mockLabel())
     }
 }
 

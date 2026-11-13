@@ -40,14 +40,15 @@ object LocationEvidence {
         }
         val age = (fix.opt("fix_age_ms") as? Number)?.toLong()?.takeIf { it >= 0 }
         val accuracy = (fix.opt("horizontal_accuracy_m") as? Number)?.toDouble()?.takeIf { it.isFinite() && it >= 0 }
+        val mock = fix.opt("mock") as? Boolean
         val quality = when {
-            fix.optBoolean("mock") -> "Test location at capture"
+            mock == true -> "Test location at capture"
             age != null && age > 10000 -> "Old fix at capture"
             accuracy != null && accuracy > 25 -> "Low accuracy at capture"
             else -> "Captured fix"
         }
         val accuracyText = accuracy?.let { "±${it.toInt()} m" } ?: "accuracy unavailable"
         val ageText = age?.let { "${it / 1000}s old at receipt" } ?: "age unavailable at receipt"
-        return "$quality · $accuracyText · $ageText"
+        return "$quality · $accuracyText · $ageText" + if (mock == null) " · mock status unknown" else ""
     }
 }

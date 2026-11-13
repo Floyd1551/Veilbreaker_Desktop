@@ -108,6 +108,10 @@ def _edit(config, path):
     session = _editable_session(config, path)
     if session.get('lifecycle') == 'completed':
         raise ValueError('Reopen the survey before editing placements.')
+    # All spatial mutations must require intact attached evidence, including
+    # floor edits and clearing placements, while holding the survey lock.
+    from .survey_mobile_evidence import read_attached_mobile_surveys
+    read_attached_mobile_surveys(config, path, session)
     return session, load_spatial(config, path)
 
 

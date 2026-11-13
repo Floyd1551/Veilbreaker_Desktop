@@ -56,6 +56,20 @@ class MobileSurveyReportTest {
         assertTrue(MobileSurveyReport.html(report).contains("34.7, -86.6"))
     }
 
+    @Test fun unknownMockStatusIsVisibleInDashboardAndExport() {
+        val value = capture("one", "complete", -86)
+        val location = JSONObject().put("status", "available").put("source", "phone").put("provider", "gps")
+            .put("latitude_deg", 34.7).put("longitude_deg", -86.6).put("horizontal_accuracy_m", 10)
+            .put("fix_age_ms", 500)
+        value.getJSONArray("observations").getJSONObject(0).put("location", location)
+        val survey = MobileSurvey.addCapture(MobileSurvey.create("Site", stamp), value, stamp)
+        val original = survey.toString()
+        val report = MobileSurveyReport.build(survey, null)
+        assertTrue(report.points[0].location.contains("mock status unknown"))
+        assertTrue(MobileSurveyReport.html(report).contains("mock status unknown"))
+        assertEquals(original, survey.toString())
+    }
+
     @Test fun emptyAndFailedSurveysDoNotLookComplete() {
         val empty = MobileSurvey.create("Empty", stamp)
         val emptyReport = MobileSurveyReport.build(empty, null)

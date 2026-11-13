@@ -37,7 +37,7 @@ object SurveyComparisonModel {
             val provider = fix.provider?.take(120) ?: "provider not exposed"
             val age = fix.ageAtReceiptMs?.let { "$it ms old at receipt" } ?: "age not exposed"
             val accuracy = String.format(Locale.US, "%.1f", fix.accuracy)
-            return "Last valid reported location · $source · $provider · ±$accuracy m · $age" + if (fix.mock) " · mock location" else ""
+            return "Last valid reported location · $source · $provider · ±$accuracy m · $age · ${fix.mockLabel()}"
         }
         return "No valid reported location"
     }

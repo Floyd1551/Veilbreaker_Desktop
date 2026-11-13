@@ -22,6 +22,101 @@ class SpatialUITests(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_refresh_revalidates_sources_and_preserves_healthy_point_selection(self):
+        from veilbreaker.survey_mobile_evidence import attach_mobile_survey
+        with tempfile.TemporaryDirectory() as folder:
+            cfg = AppConfig(data_dir=folder)
+            path = create_survey(cfg, 'Indoor', [{'label': 'Desktop point'}])['survey_path']
+            capture = json.loads(Path('examples/android-cellular-v1.json').read_text(encoding='utf-8'))
+            keys = []
+            for index in range(2):
+                phone = copy.deepcopy(capture); phone['capture_id'] = str(uuid.uuid4())
+                mobile = {'format':'veilbreaker.mobile.survey', 'schema_version':1, 'survey_id':str(uuid.uuid4()),
+                          'name':f'Phone {index}', 'created_utc':phone['created_utc'], 'lifecycle':'open',
+                          'points':[{'capture':phone, 'attached_utc':phone['created_utc']}]}
+                source = Path(folder) / f'phone-{index}.json'
+                source.write_text(json.dumps(mobile), encoding='utf-8')
+                session = attach_mobile_survey(cfg, path, source)
+                keys.append('mobile-' + session['mobile_sources'][-1]['sha256'] + '-1')
+            image = QImage(200, 100, QImage.Format.Format_RGB32); image.fill(QColor('white'))
+            source = Path(folder) / 'floor.png'; image.save(str(source))
+            floor = import_floor(cfg, path, source, 'Floor 1')
+            for index, key in enumerate(keys):
+                save_placement(cfg, path, key, {'kind':'floor', 'floor_id':floor, 'x':.25 + index * .5, 'y':.5})
+            dialog = SpatialDialog(None, cfg, path)
+            try:
+                dialog.point.setCurrentIndex(dialog.point.findData(keys[0]))
+                self.assertEqual(dialog.surface.currentData(), floor)
+                self.assertFalse(dialog.read_only)
+                bad = Path(folder) / 'surveys' / 'mobile-evidence' / Path(path).stem / (session['mobile_sources'][1]['sha256'] + '.json')
+                original = bad.read_bytes()
+                bad.write_text('corrupt', encoding='utf-8')
+                dialog.refresh()
+                self.assertEqual(dialog.point.currentData(), keys[0])
+                self.assertEqual(dialog.surface.currentData(), floor)
+                self.assertEqual(dialog.point.findData(keys[1]), -1)
+                self.assertIn('read-only', dialog.integrity_warning.text().lower())
+                self.assertFalse(dialog.save_button.isEnabled())
+                self.assertFalse(any(marker[3] == keys[1] for marker in dialog.canvas.marker_positions))
+            finally:
+                dialog.close()
+            bad.write_bytes(original)
+            dialog = SpatialDialog(None, cfg, path)
+            try:
+                dialog.point.setCurrentIndex(dialog.point.findData(keys[1]))
+                bad.write_text('corrupt', encoding='utf-8')
+                dialog.refresh()
+                self.assertEqual(dialog.point.findData(keys[1]), -1)
+                self.assertNotEqual(dialog.point.currentData(), keys[1])
+                self.assertTrue(dialog.read_only)
+                self.assertFalse(dialog.save_button.isEnabled())
+            finally:
+                dialog.close()
+
+    def test_unavailable_mobile_source_keeps_other_points_visible_but_disables_edits(self):
+        from veilbreaker.survey_mobile_evidence import attach_mobile_survey
+        with tempfile.TemporaryDirectory() as folder:
+            cfg = AppConfig(data_dir=folder)
+            path = create_survey(cfg, 'Indoor', [{'label': 'Desktop point'}])['survey_path']
+            capture = json.loads(Path('examples/android-cellular-v1.json').read_text(encoding='utf-8'))
+            keys = []
+            for index in range(2):
+                phone = copy.deepcopy(capture); phone['capture_id'] = str(uuid.uuid4())
+                survey = {'format': 'veilbreaker.mobile.survey', 'schema_version': 1,
+                    'survey_id': str(uuid.uuid4()), 'name': f'Phone {index}',
+                    'created_utc': phone['created_utc'], 'lifecycle': 'open',
+                    'points': [{'capture': phone, 'attached_utc': phone['created_utc']}]}
+                source = Path(folder) / f'mobile-{index}.json'
+                source.write_text(json.dumps(survey), encoding='utf-8')
+                session = attach_mobile_survey(cfg, path, source)
+                keys.append('mobile-' + session['mobile_sources'][-1]['sha256'] + '-1')
+            image = QImage(200, 100, QImage.Format.Format_RGB32); image.fill(QColor('white'))
+            source = Path(folder) / 'floor.png'; image.save(str(source))
+            floor = import_floor(cfg, path, source, 'Floor 1')
+            save_placement(cfg, path, keys[0], {'kind': 'floor', 'floor_id': floor, 'x': .25, 'y': .75})
+            bad = Path(folder) / 'surveys' / 'mobile-evidence' / Path(path).stem / (session['mobile_sources'][1]['sha256'] + '.json')
+            bad.write_text('corrupt', encoding='utf-8')
+            from veilbreaker.survey_spatial import clear_placement
+            with self.assertRaises(ValueError):
+                clear_placement(cfg, path, keys[0])
+            self.assertIn(keys[0], load_spatial(cfg, path)['placements'])
+            dialog = SpatialDialog(None, cfg, path)
+            try:
+                self.assertGreaterEqual(dialog.point.findData(keys[0]), 0)
+                self.assertEqual(dialog.point.findData(keys[1]), -1)
+                self.assertIn('unavailable', dialog.integrity_warning.text().lower())
+                self.assertIn('read-only', dialog.integrity_warning.text().lower())
+                self.assertFalse(dialog.save_button.isEnabled())
+                self.assertFalse(dialog.add_floor_button.isEnabled())
+                dialog.point.setCurrentIndex(dialog.point.findData(keys[0]))
+                self.assertEqual(dialog.surface.currentData(), floor)
+                with patch('veilbreaker.survey_spatial_ui.save_placement') as save:
+                    dialog.save()
+                    save.assert_not_called()
+                self.assertEqual(load_spatial(cfg, path)['placements'][keys[0]]['source'], 'operator')
+            finally:
+                dialog.close()
+
     def test_attached_mobile_point_is_selectable_and_placeable_on_floor(self):
         from veilbreaker.survey_mobile_evidence import attach_mobile_survey
         with tempfile.TemporaryDirectory() as folder:

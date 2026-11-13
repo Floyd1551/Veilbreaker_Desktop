@@ -38,7 +38,7 @@ reporting. Bring those capabilities forward in independently verified slices.
    packet loss, or sustained capacity. Further diagnostic work must retain
    explicit endpoints, cancellation and data-quality limits.
 3. **Mobile surveys and migration.** Phone-only surveys can group up to 20
-   explicitly selected captures; their JSON is not a Desktop survey import.
+   explicitly selected captures and export the original survey as JSON.
    Desktop Surveys can review a mobile survey JSON, including operator notes,
    and save an individual capture as a new JSON file for the existing Android
    diagnostic-input workflow, or save and attach it through the existing cell
@@ -48,16 +48,24 @@ reporting. Bring those capabilities forward in independently verified slices.
    survey point notes stay in the original mobile survey file. Capture JSON is
    re-encoded during extraction, so the standalone file has its own hash; retain
    the original survey for source context. This review does
-   not create a Desktop survey or automatically attach its points.
+   does not create a Desktop survey or automatically attach its points.
    Desktop's separate Imported mobile surveys library can retain exact source
    files under a content hash and reopen them offline. Its recoverable Trash
    hides copies without modifying the evidence and checks the hash on restore.
    A separately confirmed permanent-delete action removes only an intact copy
    already in that Trash; source files outside the library are unaffected.
-   It does not convert the copies into native Desktop survey sessions.
+   Open Desktop surveys also support explicitly attaching an exported mobile
+   survey as a separate source, preserving its original bytes and point notes.
+   Desktop map and floor-plan placement remain operator annotations separate
+   from GPS. If one attachment is unavailable, unaffected evidence can still
+   be viewed with a warning. Use “Restore missing mobile source” and select an
+   exact original JSON to restore a missing copy; an existing damaged copy is
+   preserved and cannot be replaced by that action. Export and spatial edits
+   require all attached sources to pass integrity checks.
    A read-only map preview shows recorded receiver locations and
-   their quality, with notes kept as operator observations. It does not map cell
-   metrics to fixes or establish a tower location. GeoJSON exports retain mobile
+   their quality, with notes kept as operator observations. Eligible cellular
+   readings can appear in their time-checked observation's details; this does not
+   establish a tower location or assign readings to manual positions. GeoJSON exports retain mobile
    capture and survey identifiers and the source survey hash.
    Design versioned, user-controlled interchange for prior Mobile survey data
    and Desktop surveys. Preserve GPS
