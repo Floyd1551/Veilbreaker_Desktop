@@ -5,6 +5,7 @@ import uuid
 from collections import Counter
 from pathlib import Path
 
+from .android_capture import utc
 from .core import utcnow_iso
 from .mobile_survey_import import load_mobile_survey
 from .mobile_survey_library import _link_or_reparse
@@ -41,7 +42,15 @@ def read_attached_mobile_surveys(config, path, session):
         if not isinstance(digest, str) or not _HASH.fullmatch(digest) or digest in seen:
             raise ValueError('Invalid attached mobile survey identifier.')
         seen.add(digest)
-        target = folder / (digest + '.json')
+        recovery = record.get('recovery')
+        if 'recovery' in record:
+            if (not isinstance(recovery, dict) or set(recovery) != {'filename', 'sha256', 'restored_utc'}
+                    or recovery['filename'] != 'recovered-' + digest + '.json' or recovery['sha256'] != digest):
+                raise ValueError('Invalid mobile evidence recovery pointer.')
+            utc(recovery['restored_utc'])
+            target = folder / recovery['filename']
+        else:
+            target = folder / (digest + '.json')
         if _link_or_reparse(target) or not target.is_file():
             raise ValueError('Attached mobile survey is missing or unsafe.')
         loaded = load_mobile_survey(target)
@@ -49,7 +58,10 @@ def read_attached_mobile_surveys(config, path, session):
             raise ValueError('Attached mobile survey failed integrity validation.')
         if record.get('name') != loaded['survey']['name'] or record.get('point_count') != len(loaded['survey']['points']):
             raise ValueError('Attached mobile survey metadata does not match its source.')
-        result.append(dict(loaded, path=str(target)))
+        item = dict(loaded, path=str(target))
+        if recovery is not None:
+            item['recovery'] = dict(recovery)
+        result.append(item)
     return result
 
 

@@ -1,11 +1,11 @@
 # Veilbreaker roadmap status — November 12, 2026
 
 This is a source-code status snapshot, not a release certification. The Desktop
-source reports 0.67.0rc1 and the latest mobile debug build reports 0.8.25-dev.
+source reports 0.67.0rc1 and the latest mobile debug build reports 0.8.26-dev.
 The available 0.67.0rc1 Windows installer predates the recent Desktop changes;
-it has not been rebuilt for them. Recent mobile screens have been checked on
-the connected Samsung, including normal and enlarged text, but this is not a
-complete device, TalkBack, battery, or release qualification.
+it has not been rebuilt for them. Earlier mobile screens were checked on the
+Samsung, including normal and enlarged text; the latest debug build still needs
+device testing and complete TalkBack, battery, and release qualification.
 
 ## Desktop field platform and 1.0 gates
 
@@ -54,9 +54,11 @@ complete device, TalkBack, battery, or release qualification.
   floor plan; retain operator placement separately from original GPS evidence,
   preserve source identity and include placements in survey exports.
 - [x] Show verified sources and an explicit warning if another attached mobile
-  source is unavailable. A missing source can be restored from the exact original
-  bytes; an existing damaged file is preserved and requires separate handling.
-  Export and spatial changes require all attached sources to validate.
+  source is unavailable. Recover a missing or damaged source from the exact
+  original bytes. Damaged files remain untouched; verified recovery is recorded
+  and disclosed in survey reports and exports. Export and spatial changes require
+  all attached sources to validate. A subsequently damaged recovery copy still
+  requires separate handling.
 - [x] Show eligible mobile LTE/NR values in the exact GPS observation's map
   details, with reported sample timing, SIM and cell context; no interpolation
   or automatic assignment to operator placements. The current association is
@@ -76,6 +78,11 @@ complete device, TalkBack, battery, or release qualification.
 - [ ] Production signing, upgrade/migration strategy and release testing remain.
 - [x] In-app mobile survey dashboard and HTML report; GPS/satellite monitor and
   expanded searchable offline reference pages have initial implementations.
+- [x] Reopen a mobile survey after activity recreation with bounded, clearly
+  identified unsaved operator note drafts. Note saves in progress are reconciled
+  before the survey reloads. A draft is not measured evidence.
+- [ ] Qualify lifecycle handling for other in-flight survey operations and
+  document-picker exports; interruption can still require reopening or retrying.
 
 ## Next work
 

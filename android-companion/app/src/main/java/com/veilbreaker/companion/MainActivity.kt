@@ -132,6 +132,7 @@ class MainActivity : Activity() {
         outState.putString("report_preview_mode",previewMode)
         outState.putBoolean("cellular_input",cellularChoice.isChecked)
         outState.putBoolean("location_input",locationChoice.isChecked)
+        if (::surveyWorkspace.isInitialized) outState.putBundle("survey_workspace", surveyWorkspace.saveState())
         choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId?.let { outState.putInt("selected_subscription_id",it) }
         super.onSaveInstanceState(outState)
     }
@@ -274,7 +275,7 @@ class MainActivity : Activity() {
         val survey=page("Survey", "Organize field captures and inspect GPS positions.",false)
         gpsButton=button(survey,"Open GPS & map") { openGps() }
         surveyWorkspace=SurveyWorkspace(this, { capture }, { complete -> takeSnapshot(null, complete) },
-            { if(pending && connection==null) cancelPending() })
+            { if(pending && connection==null) cancelPending() }, state?.getBundle("survey_workspace"))
         survey.addView(surveyWorkspace,LinearLayout.LayoutParams(-1,0,1f))
 
         val reports=page("Reports", "Review and export the latest saved phone capture.")
@@ -460,7 +461,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.25-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.26-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }

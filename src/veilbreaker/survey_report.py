@@ -106,6 +106,11 @@ def mobile_sources_html(session, mobiles=None):
                   [[s.get('name'), s.get('point_count'), s.get('attached_utc'), s.get('sha256')] for s in sources]))
     for source in mobiles or []:
         result += '<h3>'+text(source['survey']['name'])+' · saved captures</h3>'
+        recovery = source.get('recovery')
+        if recovery:
+            result += ('<p>Recovered verified copy · ' + text(recovery['restored_utc']) +
+                       '. Its bytes match the original SHA-256. The damaged original was preserved locally during recovery; '
+                       'the recovery is not a new measurement.</p>')
         result += table(['Capture', 'Captured UTC', 'Added on phone UTC', 'Operator note'],
             [[p['capture']['capture_id'], p['capture']['created_utc'], p['attached_utc'], p.get('operator_note') or 'None recorded']
              for p in source['survey']['points']])

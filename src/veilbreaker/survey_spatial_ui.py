@@ -216,7 +216,7 @@ class SpatialDialog(QDialog):
 
     def _show_integrity_warning(self):
         if self.read_only:
-            self.integrity_warning.setText('Mobile evidence unavailable or invalid. Spatial view is read-only; affected sources are excluded from point counts. For a missing source, use Restore missing mobile source in the survey, then reopen this window. Existing damaged copies are preserved and cannot be overwritten by that action. ' + ' '.join(self.source_warnings))
+            self.integrity_warning.setText('Mobile evidence unavailable or invalid. Spatial view is read-only; affected sources are excluded from point counts. Use Recover mobile source in the survey with the original mobile export, then reopen this window. Damaged originals are preserved. ' + ' '.join(self.source_warnings))
         else:
             self.integrity_warning.clear()
         self.add_floor_button.setEnabled(not self.read_only)

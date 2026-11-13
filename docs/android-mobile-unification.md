@@ -58,10 +58,11 @@ reporting. Bring those capabilities forward in independently verified slices.
    survey as a separate source, preserving its original bytes and point notes.
    Desktop map and floor-plan placement remain operator annotations separate
    from GPS. If one attachment is unavailable, unaffected evidence can still
-   be viewed with a warning. Use “Restore missing mobile source” and select an
-   exact original JSON to restore a missing copy; an existing damaged copy is
-   preserved and cannot be replaced by that action. Export and spatial edits
-   require all attached sources to pass integrity checks.
+   be viewed with a warning. Use “Recover mobile source” and select the exact
+   original JSON. A missing copy can be restored; for a damaged copy, the
+   original remains untouched and a separate hash-verified copy is recorded.
+   Reports and bundles disclose recovery. Export and spatial edits require all
+   attached sources to pass integrity checks.
    A read-only map preview shows recorded receiver locations and
    their quality, with notes kept as operator observations. Eligible cellular
    readings can appear in their time-checked observation's details; this does not

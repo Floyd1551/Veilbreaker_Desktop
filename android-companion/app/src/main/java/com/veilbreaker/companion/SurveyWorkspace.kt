@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -26,7 +27,8 @@ class SurveyWorkspace(
     context: Context,
     private val captureProvider: () -> JSONObject?,
     private val requestCapture: ((Result<JSONObject>) -> Unit) -> Unit,
-    private val cancelCapture: () -> Unit
+    private val cancelCapture: () -> Unit,
+    private val restoredState: Bundle? = null
 ) : LinearLayout(context) {
     private val activity = context as Activity
     private val store = MobileSurveyStore(context)
@@ -49,6 +51,7 @@ class SurveyWorkspace(
     private var message = "Loading local surveys…"
     private var requestedName = ""
     private var creating = false
+    private var restoringSurveyId: String? = null
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     init {
@@ -57,10 +60,45 @@ class SurveyWorkspace(
         content.orientation = VERTICAL
         content.setPadding(0, dp(4), 0, dp(16))
         scroll.addView(content); addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-        render(); reloadList()
+        creating = restoredState?.getBoolean("creating") ?: false
+        requestedName = restoredState?.getString("name").orEmpty().take(80)
+        showMoreActions = restoredState?.getBoolean("more_actions") ?: false
+        showAllPoints = restoredState?.getBoolean("all_points") ?: false
+        restoringSurveyId = restoredState?.getString("survey_id")?.takeIf { Regex("[a-f0-9-]{36}").matches(it) }
+        val drafts = restoredState?.getBundle("note_drafts")
+        drafts?.keySet()?.take(MobileSurvey.MAX_POINTS)?.forEach { id ->
+            drafts.getString(id)?.takeIf { it.length <= 500 }?.let { noteDrafts[id] = it }
+        }
+        render()
+        val id = restoringSurveyId
+        if (id == null) reloadList() else restoreSurvey(id)
     }
 
     fun refresh() { render() }
+
+    /** Save only navigation and bounded unsaved text, never a second copy of captured evidence. */
+    fun saveState(): Bundle = Bundle().apply {
+        putString("survey_id", current?.optString("survey_id") ?: restoringSurveyId)
+        putBoolean("creating", creating); putString("name", requestedName)
+        putBoolean("more_actions", showMoreActions); putBoolean("all_points", showAllPoints)
+        putBundle("note_drafts", Bundle().apply { noteDrafts.forEach { (id, note) -> putString(id, note) } })
+    }
+
+    private fun restoreSurvey(id: String) {
+        runJob({ pendingWrites.await(id); store.load(id) }) { loaded ->
+            restoringSurveyId = null
+            current = loaded
+            val points = loaded.getJSONArray("points")
+            val savedNotes = (0 until points.length()).associate { index ->
+                val point = points.getJSONObject(index)
+                point.getJSONObject("capture").getString("capture_id") to (point.opt("operator_note") as? String)
+            }
+            val validDrafts = SurveyDraftState.reconcile(noteDrafts, savedNotes)
+            noteDrafts.clear(); noteDrafts.putAll(validDrafts)
+            if (noteDrafts.isNotEmpty()) showAllPoints = true
+            message = if (noteDrafts.isEmpty()) "Survey reopened." else "Survey reopened. Unsaved operator notes are available by editing their points."
+        }
+    }
 
     /** The host disables document pickers and capture attachment during a USB session or pending capture. */
     fun setExternalActionsEnabled(enabled: Boolean) {
@@ -105,6 +143,16 @@ class SurveyWorkspace(
         }
         val survey = current
         if (survey == null) {
+            val restoreId = restoringSurveyId
+            if (restoreId != null) {
+                val restore = card("Reopening survey")
+                text(restore, "Unsaved operator notes remain drafts until you choose Save. They are not measurements.", 12f)
+                button(restore, "Retry opening survey") { restoreSurvey(restoreId) }
+                button(restore, "Discard drafts and return to surveys") {
+                    restoringSurveyId = null; noteDrafts.clear(); message = "Choose a survey or create one."; reloadList()
+                }
+                return
+            }
             if (creating) {
                 val create = card("New survey")
                 text(create, "Group up to 20 captures. Capture a new point or add a previously saved phone capture.", 12f)
@@ -172,7 +220,17 @@ class SurveyWorkspace(
         val summary = card(survey.getString("name"))
         text(summary, "${state.uppercase()} · ${points.length()}/20 captures · Created ${survey.getString("created_utc")}")
         if (state != "open") text(summary, "This survey is complete. Open More survey actions to reopen it before adding points.", 12f)
-        button(summary, "All surveys") { current = null; showMoreActions = false; showAllPoints = false; message = "Choose a survey or create one."; reloadList(); scroll.post { scroll.scrollTo(0, 0) } }
+        button(summary, "All surveys") {
+            fun leave() {
+                current = null; noteDrafts.clear(); showMoreActions = false; showAllPoints = false
+                message = "Choose a survey or create one."; reloadList(); scroll.post { scroll.scrollTo(0, 0) }
+            }
+            if (noteDrafts.isEmpty()) leave() else AlertDialog.Builder(context)
+                .setTitle("Discard unsaved notes?")
+                .setMessage("Unsaved operator note drafts will be discarded. Saved survey data is unchanged.")
+                .setNegativeButton("Keep editing", null)
+                .setPositiveButton("Discard drafts") { _, _ -> leave() }.show()
+        }
         if (capturing) {
             text(summary, "Capturing a new point. Keep Veilbreaker in the foreground. GPS acquisition may take up to 30 seconds; partial results will be identified.")
             summary.addView(Button(context).apply {
@@ -219,7 +277,9 @@ class SurveyWorkspace(
         }.apply { contentDescription = if (showMoreActions) "Hide additional survey actions" else "Show additional survey actions" }
         if (showMoreActions) {
             if (state == "open") button(summary, "Complete survey") {
-                runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
+                if (noteDrafts.isNotEmpty()) {
+                    message = "Save or discard unsaved operator notes before completing the survey."; showAllPoints = true; render()
+                } else runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
                     current = it; message = "Survey completed. Reopen it to add captures."
                 }
             } else button(summary, "Reopen survey") {
@@ -230,11 +290,11 @@ class SurveyWorkspace(
             button(summary, "Delete survey…") {
                 val surveyId = survey.getString("survey_id")
                 AlertDialog.Builder(context).setTitle("Delete mobile survey?")
-                    .setMessage("Permanently delete this survey and its copied captures? The phone's last capture and other surveys are kept.")
+                    .setMessage("Permanently delete this survey, its copied captures, and any unsaved note drafts? The phone's last capture and other surveys are kept.")
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton("Delete") { _, _ ->
                         runJob({ store.delete(surveyId); runCatching { store.list() }.getOrNull() }) { updated ->
-                            current = null; showMoreActions = false; showAllPoints = false
+                            current = null; noteDrafts.clear(); showMoreActions = false; showAllPoints = false
                             listing = updated ?: listing.copy(surveys = listing.surveys.filterNot { it.id == surveyId })
                             message = "Mobile survey deleted. Other surveys and the last capture were kept."
                         }
@@ -265,8 +325,16 @@ class SurveyWorkspace(
             val operatorNote = (point.opt("operator_note") as? String)?.takeIf { it.length <= 500 && it.none { ch -> ch.isISOControl() && ch != '\n' } }
             if (!operatorNote.isNullOrBlank()) text(pointPanel, "Operator observation · not a measured value\n$operatorNote", 12f)
             else if (point.has("operator_note") && !point.isNull("operator_note") && operatorNote == null) text(pointPanel, "Operator observation unavailable or invalid; the saved survey is unchanged.", 12f)
+            if (capture.getString("capture_id") in noteDrafts) text(pointPanel, "Unsaved operator note draft · open the note to review and save it.", 12f, true)
             if (state == "open") button(pointPanel, if (operatorNote.isNullOrBlank()) "Add note to point ${i+1}…" else "Edit note for point ${i+1}…") {
                 editPointNote(survey.getString("survey_id"), capture.getString("capture_id"), operatorNote.orEmpty())
+            }
+            val pointId = capture.getString("capture_id")
+            if (pointId in noteDrafts) button(pointPanel, "Discard unsaved note…") {
+                AlertDialog.Builder(context).setTitle("Discard unsaved note?")
+                    .setMessage("The saved survey and its existing operator observation will remain unchanged.")
+                    .setNegativeButton("Keep draft", null)
+                    .setPositiveButton("Discard draft") { _, _ -> noteDrafts.remove(pointId); render() }.show()
             }
         }
     }
@@ -308,6 +376,7 @@ class SurveyWorkspace(
 
     private fun editPointNote(surveyId: String, captureId: String, existing: String) {
         if (busy || capturing) return
+        val previousDraft = noteDrafts[captureId]
         val entry = EditText(context).apply {
             hint = "Example: concrete pillar between antenna and test point"
             contentDescription = "Operator observation for survey point"
@@ -315,19 +384,42 @@ class SurveyWorkspace(
             setText(noteDrafts[captureId] ?: existing); minLines = 3
             inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             filters = arrayOf(android.text.InputFilter.LengthFilter(500))
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { noteDrafts[captureId] = s?.toString().orEmpty() }
+                override fun afterTextChanged(s: Editable?) { }
+            })
+        }
+        fun cancelEdit() {
+            if (previousDraft == null) noteDrafts.remove(captureId) else noteDrafts[captureId] = previousDraft
+            render()
         }
         AlertDialog.Builder(context).setTitle("Operator observation")
             .setMessage("Describe visible conditions. This note is operator-entered, is stored with the survey, and does not change the captured measurement. Clear the text to remove the note.")
-            .setView(entry).setNegativeButton("Cancel", null)
+            .setView(entry).setNegativeButton("Cancel") { _, _ -> cancelEdit() }
+            .setOnCancelListener { cancelEdit() }
             .setPositiveButton("Save") { _, _ ->
                 val note = entry.text.toString()
                 noteDrafts[captureId] = note
-                runJob({
-                    try { store.update(surveyId) { latest -> MobileSurvey.setPointNote(latest, captureId, note) } }
-                    catch (error: Exception) { throw IllegalArgumentException("Could not save the note; its draft remains available while this screen is open. ${error.message ?: "Try again."}") }
-                }) {
-                    noteDrafts.remove(captureId)
-                    current = it; message = if (note.isBlank()) "Operator observation removed." else "Operator observation saved with the survey point."
+                if (busy || capturing) {
+                    message = "The survey is busy; the note remains an unsaved draft."; render()
+                } else {
+                    val write = pendingWrites.register(surveyId)
+                    try {
+                        runJob({
+                            try { store.update(surveyId) { latest -> MobileSurvey.setPointNote(latest, captureId, note) } }
+                            catch (error: Exception) { throw IllegalArgumentException("Could not save the note; its draft remains available to review. ${error.message ?: "Try again."}") }
+                            finally { write.close() }
+                        }) {
+                            noteDrafts.remove(captureId)
+                            current = it; message = if (note.isBlank()) "Operator observation removed." else "Operator observation saved with the survey point."
+                        }
+                    } catch (error: Exception) {
+                        write.close()
+                        busy = false
+                        message = "Could not start saving the note; its draft remains available to review."
+                        render()
+                    }
                 }
             }.show()
     }
@@ -446,5 +538,9 @@ class SurveyWorkspace(
         return true
     }
 
-    companion object { const val EXPORT_REQUEST = 72; const val REPORT_EXPORT_REQUEST = 73 }
+    companion object {
+        const val EXPORT_REQUEST = 72
+        const val REPORT_EXPORT_REQUEST = 73
+        private val pendingWrites = SurveyPendingWrites()
+    }
 }

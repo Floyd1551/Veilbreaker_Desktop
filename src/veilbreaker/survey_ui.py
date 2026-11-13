@@ -148,7 +148,7 @@ class SurveyPage(QWidget):
         self.add_tests_button = button('Add new tests', self.add_to_session)
         self.add_existing_button = button('Add existing diagnostics', self.add_existing)
         self.add_mobile_button = button('Attach mobile survey…', self.add_mobile_survey)
-        self.restore_mobile_button = button('Restore missing mobile source…', self.restore_mobile_source)
+        self.restore_mobile_button = button('Recover mobile source…', self.restore_mobile_source)
         self.complete_button = button('Complete survey', self.toggle_complete)
         self.delete_survey_button = button('Delete survey', self.delete_session)
         for control in (self.configure_button,self.add_tests_button,self.add_existing_button,self.add_mobile_button,self.restore_mobile_button,self.complete_button,self.delete_survey_button): detail_actions.addWidget(control)
@@ -375,10 +375,14 @@ class SurveyPage(QWidget):
         source, _ = QFileDialog.getOpenFileName(self, 'Choose the original mobile survey JSON', '', 'Mobile survey JSON (*.json)')
         if not source: return
         try:
-            from .survey_mobile_recovery import restore_missing_mobile_source
-            digest = restore_missing_mobile_source(self.window.config, self.session_path, source)
+            from .survey_mobile_recovery import recover_mobile_source
+            result = recover_mobile_source(self.window.config, self.session_path, source)
             self.show_session(read_session(self.window.config, self.session_path), self.session_path)
-            self.status.setText('Missing mobile source restored and verified (SHA-256 ' + digest[:12] + '…).')
+            if result['status'] == 'damaged_recovered':
+                message = 'Verified copy recovered; damaged original preserved'
+            else:
+                message = 'Missing mobile source restored and verified'
+            self.status.setText(message + ' (SHA-256 ' + result['sha256'][:12] + '…).')
         except (OSError, ValueError) as exc: self.window.error(str(exc))
 
     def open_listing(self, *_):
