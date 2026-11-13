@@ -87,9 +87,10 @@ class CellInventoryWorkspace(context:Context): LinearLayout(context) {
     private fun render() {
         cards.removeAllViews()
         if(unavailable) { cards.addView(text("Cell inventory unavailable. The saved capture was not changed; raw JSON remains available."));return }
-        if(data.total==0) { cards.addView(text("No cells in the latest saved observations. Capture again if appropriate; Android may expose none.")); return }
+        if(data.observationsOmitted>0) cards.addView(text("${data.observationsOmitted} later observations exceed the review limit. Shown cells may not be the latest; inspect the original capture.",12f))
+        if(data.total==0) { cards.addView(text(if(data.observationsOmitted>0) "No cells in the reviewed observations." else "No cells in the latest saved observations. Capture again if appropriate; Android may expose none.")); return }
         val selected=CellInventoryModel.filter(data.cells,group,search.text?.toString().orEmpty())
-        cards.addView(text("${selected.size} matching shown candidates · ${data.total} cells in latest observations" +
+        cards.addView(text("${selected.size} matching shown candidates · ${data.total} cells in " + (if(data.observationsOmitted>0) "reviewed observations" else "latest observations") +
             if(data.omitted>0) " · ${data.omitted} omitted from this inventory" else "",12f))
         if(selected.isEmpty()) { cards.addView(text("No matching cells in the displayed inventory."));return }
         val visible=selected.take(30)

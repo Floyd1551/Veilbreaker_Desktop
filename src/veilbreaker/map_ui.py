@@ -8,6 +8,10 @@ from .map_server import MapServer
 from .survey_metrics import (METRICS, UNATTRIBUTED, available_metrics, clean_metrics,
     metric_scale, point_metric, provenance_label, source_options, source_matches, cell_group_options, select_cell_group)
 from .display_labels import source_label
+from .mobile_observation_metrics import (available_observation_metrics, observation_cell_groups,
+    observation_metric_series)
+
+MOBILE_OBSERVATION_PREFIX = 'mobile_observation:'
 
 class MapBridge(QObject):
     refresh=Signal()
@@ -80,6 +84,14 @@ class MapWindow(QDialog):
         for key in available_metrics(model):
             title,unit=METRICS[key]
             self.metric_selector.addItem(f'{title} ({unit})',key)
+        mobile_keys=set()
+        for run_id in {row['run_id'] for row in model['rows'] if row.get('source_kind') == 'mobile_survey_capture'}:
+            mobile_keys.update(available_observation_metrics(model,run_id))
+        self.mobile_unfilterable = any(row.get('mobile_aligned') for row in model['rows']) and not mobile_keys
+        for key in METRICS:
+            if key in mobile_keys:
+                title,unit=METRICS[key]
+                self.metric_selector.addItem(f'Mobile observation · {title} ({unit})',MOBILE_OBSERVATION_PREFIX+key)
         metric_row.addWidget(self.metric_selector,1)
         outer.addLayout(metric_row)
         self.cell_row=QWidget();cell_layout=QHBoxLayout(self.cell_row);cell_layout.setContentsMargins(0,0,0,0)
@@ -96,7 +108,7 @@ class MapWindow(QDialog):
         source_row.addWidget(self.source_filter,1)
         outer.addLayout(source_row)
         if model.get('mobile_survey_preview'):
-            self.metric_selector.setEnabled(False); self.source_filter.setEnabled(False)
+            self.metric_selector.setEnabled(bool(mobile_keys)); self.source_filter.setEnabled(False)
         self.metric_legend=QLabel()
         self.metric_legend.setWordWrap(True)
         self.metric_legend.setTextFormat(Qt.TextFormat.PlainText)
@@ -147,28 +159,33 @@ class MapWindow(QDialog):
     def visible_features(self):
         run=self.run_filter.currentData();questionable=self.questionable.isChecked()
         key=self.metric_selector.currentData();source=self.source_filter.currentData()
+        mobile=isinstance(key,str) and key.startswith(MOBILE_OBSERVATION_PREFIX)
         return [f for f in self.model['features']['features'] if (run is None or f['properties']['run_id']==run) and
-                (source is None or (key in clean_metrics(self.model.get('run_metrics',{}).get(f['properties']['run_id'],{})) and
+                (mobile or source is None or (key in clean_metrics(self.model.get('run_metrics',{}).get(f['properties']['run_id'],{})) and
                                     source_matches(self.model,f['properties']['run_id'],key,source))) and
                 (f['properties'].get('manual') or (f['properties']['quality']['qualified'] and (run is not None or f['id'] in self.model['representatives'])) or (questionable and not f['properties']['quality']['qualified']))]
     def change_metric(self):
         key=self.metric_selector.currentData()
+        mobile=isinstance(key,str) and key.startswith(MOBILE_OBSERVATION_PREFIX)
         selected_cell=self.cell_selector.currentData()
-        choices=cell_group_options(self.base_model,key)
+        choices=(observation_cell_groups(self.base_model,self.run_filter.currentData(),key[len(MOBILE_OBSERVATION_PREFIX):])
+                 if mobile else cell_group_options(self.base_model,key))
         self.cell_selector.blockSignals(True);self.cell_selector.clear()
-        self.cell_selector.addItem('Automatic · single group only',None)
+        self.cell_selector.addItem('Select reported cell' if mobile else 'Automatic · single group only',None)
         for cell_key,label in choices:self.cell_selector.addItem(label,cell_key)
         self.cell_selector.setCurrentIndex(max(0,self.cell_selector.findData(selected_cell)))
-        self.cell_selector.blockSignals(False);self.cell_row.setVisible(bool(choices))
+        self.cell_selector.blockSignals(False);self.cell_row.setVisible(bool(choices) or mobile)
+        self.source_filter.setEnabled(not mobile and not self.base_model.get('mobile_survey_preview'))
         self.change_cell()
     def change_cell(self):
         key=self.metric_selector.currentData()
-        self.model=select_cell_group(self.base_model,self.cell_selector.currentData())
+        mobile=isinstance(key,str) and key.startswith(MOBILE_OBSERVATION_PREFIX)
+        self.model=self.base_model if mobile else select_cell_group(self.base_model,self.cell_selector.currentData())
         selected=self.source_filter.currentData()
         self.source_filter.blockSignals(True)
         self.source_filter.clear()
         self.source_filter.addItem('All recorded sources',None)
-        for source in source_options(self.model,key) if key else []:
+        for source in source_options(self.model,key) if key and not mobile else []:
             self.source_filter.addItem('Source unrecorded' if source==UNATTRIBUTED else source_label(source),source)
         index=self.source_filter.findData(selected)
         self.source_filter.setCurrentIndex(max(0,index))
@@ -177,10 +194,13 @@ class MapWindow(QDialog):
     def update_view(self):
         features=self.visible_features();ids={f['id'] for f in features};run=self.run_filter.currentData()
         metric_key=self.metric_selector.currentData()
+        mobile=isinstance(metric_key,str) and metric_key.startswith(MOBILE_OBSERVATION_PREFIX)
         source=self.source_filter.currentData()
         metric_model=dict(self.model,run_metrics={run_id:values for run_id,values in self.model.get('run_metrics',{}).items()
             if source_matches(self.model,run_id,metric_key,source)})
-        scale=metric_scale(metric_model,metric_key) if metric_key else None
+        series=(observation_metric_series(self.model,run,metric_key[len(MOBILE_OBSERVATION_PREFIX):],
+                 self.cell_selector.currentData(),visible_ids=ids) if mobile else None)
+        scale=series['scale'] if mobile else (metric_scale(metric_model,metric_key) if metric_key else None)
         self.metric_ramp.setVisible(bool(scale))
         if scale:
             single=scale['minimum']==scale['maximum']
@@ -188,20 +208,25 @@ class MapWindow(QDialog):
                 'background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #4877ca,stop:1 #f5bf5d); border-radius: 4px;')
             range_text=(f"single value {scale['minimum']:g} {scale['unit']}" if single else
                         f"{scale['minimum']:g} to {scale['maximum']:g} {scale['unit']}")
-            count_text=f"{scale['count']} saved {'run' if scale['count']==1 else 'runs'}"
-            self.metric_legend.setText(f"{scale['label']} · {range_text} across {count_text}. Colors show relative measured values, not a quality verdict. Run metrics are not per-fix readings. Purple outline = operator placement; teal = qualified GPS; amber = questionable GPS; gray fill = value unavailable.")
+            count_text=f"{scale['count']} observations" if mobile else f"{scale['count']} saved {'run' if scale['count']==1 else 'runs'}"
+            suffix=('One capture and reported cell; each colored fix has a time-checked sample. No interpolation; different times or movement can affect comparison.' if mobile else 'Run metrics are not per-fix readings.')
+            self.metric_legend.setText(f"{scale['label']} · {range_text} across {count_text}. Colors show relative measured values, not a quality verdict. {suffix} Purple outline = operator placement; teal = qualified GPS; amber = questionable GPS; gray fill = value unavailable.")
+        elif mobile:
+            self.metric_legend.setText('Select one mobile capture and a reported cell to show its eligible observations. Other captures and operator placements are not colored.')
         elif metric_key and metric_key.startswith('live_phone_') and self.model.get('auto_live_suppressed'):
             action = 'Select a reported cell group to view one run.' if self.cell_selector.count()>1 else 'No complete cell groups are selectable; review the Cellular report.'
             self.metric_legend.setText(action+' Automatic comparison is unavailable because receiver identity is not verified across runs.')
         elif metric_key and metric_key.startswith('live_phone_') and self.cell_selector.count()>1:
             self.metric_legend.setText('Select a reported cell group to view one run. Each value summarizes fresh samples from that run, not an individual position.')
         else:
-            self.metric_legend.setText('Mobile survey preview · teal = qualified recorded location; amber = questionable location. Cellular metrics are not assigned to locations in this preview.' if self.model.get('mobile_survey_preview') else 'Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
+            self.metric_legend.setText('Mobile survey preview · teal = qualified recorded location; amber = questionable location. Select an observation metric, capture and cell for eligible values.' if self.model.get('mobile_survey_preview') else 'Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
+            if self.mobile_unfilterable:
+                self.metric_legend.setText(self.metric_legend.text() + ' Mobile readings remain in point details; coloring needs a qualified fix and complete reported cell identity and channel.')
         coordinate_ids={f['id'] for f in self.model['features']['features']}
         self.visible_rows=[r for r in self.model['rows'] if (run is None or r['run_id']==run) and (r['id'] in ids or r['id'] not in coordinate_ids)]
         self.table.blockSignals(True);self.table.clearContents();self.table.setRowCount(len(self.visible_rows))
         for i,row in enumerate(self.visible_rows):
-            metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
+            metric=series['points'].get(row['id']) if mobile else (point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None)
             metric_text=f"{metric['label']} {metric['value']:g} {metric['unit']}" if metric else '—'
             for j,value in enumerate([row['label'],row['observation_id'],row['quality']['label'],row.get('horizontal_accuracy_m'),row.get('fix_age_ms'),metric_text]):
                 self.table.setItem(i,j,QTableWidgetItem('Not exposed' if value is None else str(value)))
@@ -221,8 +246,8 @@ class MapWindow(QDialog):
             if not feature['properties']['renderable']:
                 continue
             properties=dict(feature['properties'])
-            if metric_key and (properties.get('manual') or feature['id'] in self.model['representatives']):
-                metric=point_metric(self.model,properties['run_id'],metric_key,scale)
+            if metric_key and (mobile or properties.get('manual') or feature['id'] in self.model['representatives']):
+                metric=series['points'].get(feature['id']) if mobile else point_metric(self.model,properties['run_id'],metric_key,scale)
                 if metric:
                     properties['metric_color']=metric['color']
                     properties['metric_value']=metric['value']
@@ -230,7 +255,10 @@ class MapWindow(QDialog):
         self.server.set_model(dict(features=dict(type='FeatureCollection',features=rendered),metric_mode=bool(metric_key),bounds=self.cell_overlay['bounds'] if self.cell_overlay else map_bounds(features),cell_overlay=self.cell_overlay,pack={k:pack[k] for k in ('name','attribution','minzoom','maxzoom','resource')} if pack else None))
         self.bridge.refresh.emit()
     def change_run(self):
-        self.cell_overlay=None;self.update_view()
+        self.cell_overlay=None
+        key=self.metric_selector.currentData()
+        if isinstance(key,str) and key.startswith(MOBILE_OBSERVATION_PREFIX):self.change_metric()
+        else:self.update_view()
     def cell_references(self):
         from .cell_reference_ui import CellReferenceDialog
         self.reference_dialog=CellReferenceDialog(self,self.config,[r['run_id'] for r in self.model['rows'] if r.get('source_kind') != 'mobile_survey_capture'],self.model.get('survey_path'),self.show_cell_candidate)
@@ -251,14 +279,20 @@ class MapWindow(QDialog):
                 self.selected=row;self.open_button.setEnabled(self.open_run_callback is not None and row.get('source_kind') != 'mobile_survey_capture')
                 def val(key):return str(row[key]) if row.get(key) is not None else 'Not exposed'
                 metric_key=self.metric_selector.currentData()
-                scale=metric_scale(self.model,metric_key) if metric_key else None
-                metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
+                mobile=isinstance(metric_key,str) and metric_key.startswith(MOBILE_OBSERVATION_PREFIX)
+                if mobile:
+                    visible={f['id'] for f in self.visible_features()}
+                    series=observation_metric_series(self.model,self.run_filter.currentData(),metric_key[len(MOBILE_OBSERVATION_PREFIX):],self.cell_selector.currentData(),visible_ids=visible)
+                    metric=series['points'].get(row['id'])
+                else:
+                    scale=metric_scale(self.model,metric_key) if metric_key else None
+                    metric=point_metric(self.model,row['run_id'],metric_key,scale) if metric_key else None
                 metric_note=(f"\n{metric['label']} {metric['value']:g} {metric['unit']} · "
-                             + ('derived live-session value' if metric_key.startswith('live_phone_') else 'saved run metric')
-                             + ', not an individual fix reading.'
+                             + ('time-checked observation' if mobile else ('derived live-session value' if metric_key.startswith('live_phone_') else 'saved run metric'))
+                             + ('.' if mobile else ', not an individual fix reading.')
                              if metric else ('\nSelected run metric unavailable.' if metric_key else ''))
                 context=self.model.get('run_context',{}).get(row['run_id'],{}).get(metric_key,{}) if metric_key else {}
-                source_note='\n'+provenance_label(context) if metric_key else ''
+                source_note='\n'+provenance_label(context) if metric_key and not mobile else ''
                 mobile_note = ('\nCapture ' + row['mobile_capture_id'] + ('\nOperator observation (not measured): ' + row['operator_note'] if row.get('operator_note') else '')) if row.get('mobile_capture_id') else ''
                 aligned=row.get('mobile_aligned') or {}
                 values=aligned.get('metrics', {})

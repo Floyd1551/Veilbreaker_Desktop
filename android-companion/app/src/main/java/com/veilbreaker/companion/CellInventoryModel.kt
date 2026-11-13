@@ -12,7 +12,7 @@ object CellInventoryModel {
         fun searchText(): String = (listOf(radio, role, subscription, carrier, band, received, age) + identity + metrics)
             .joinToString(" ").lowercase(Locale.ROOT)
     }
-    data class Inventory(val cells: List<Cell>, val total: Int, val omitted: Int)
+    data class Inventory(val cells: List<Cell>, val total: Int, val omitted: Int, val observationsOmitted: Int = 0)
     private const val LIMIT = 128
     private fun text(value: Any?): String? = when (value) {
         null, JSONObject.NULL -> null
@@ -69,7 +69,7 @@ object CellInventoryModel {
     fun build(capture:JSONObject?, plan:JSONObject?): Inventory {
         val observations=capture?.optJSONArray("observations") ?: return Inventory(emptyList(),0,0)
         val latest=linkedMapOf<String,JSONObject>()
-        for (i in 0 until minOf(observations.length(),1000)) {
+        for (i in 0 until minOf(observations.length(),4096)) {
             val obs=observations.optJSONObject(i) ?: continue
             val sub=item(obs,"subscription_key") ?: continue
             val elapsed=(obs.opt("elapsed_realtime_ms") as? Number)?.toLong()?.takeIf { it>=0 } ?: continue
@@ -97,7 +97,7 @@ object CellInventoryModel {
             }
         }
         val rows=Group.entries.flatMap { buckets.getValue(it) }.take(LIMIT)
-        return Inventory(rows,total,(total-rows.size).coerceAtLeast(0))
+        return Inventory(rows,total,(total-rows.size).coerceAtLeast(0), (observations.length()-4096).coerceAtLeast(0))
     }
     fun filter(cells:List<Cell>, group:Group?, query:String): List<Cell> {
         val words=query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotEmpty() }

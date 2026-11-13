@@ -165,7 +165,7 @@ class SurveyWorkspace(
                     text(item, cell.metrics.joinToString(" · "), 12f)
                 }
                 if (point.omittedServing > 0) text(item, "${point.omittedServing} additional serving cell(s) not displayed.", 12f)
-                if (point.inventoryIncomplete) text(item, "Additional cell records are outside the review limit; inspect the original capture for full details.", 12f)
+                if (point.inventoryIncomplete) text(item, "Some cell or observation data exceeds the review limit. Shown cells may not be latest; inspect the original capture.", 12f)
             }
             return
         }
@@ -255,7 +255,8 @@ class SurveyWorkspace(
             val location = if (lastFix == null) "No usable GPS fix" else {
                 val age = lastFix.ageAtReceiptMs?.let { "${it / 1000}s old at receipt" } ?: "age unavailable"
                 val accuracy = String.format(java.util.Locale.US, "%.1f", lastFix.accuracy)
-                "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±$accuracy m · $age · ${lastFix.mockLabel()}"
+                "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±$accuracy m · $age · ${lastFix.mockLabel()}\n" +
+                    "Location observation received ${lastFix.receivedUtc ?: "not exposed"} · Fix time ${lastFix.fixUtc ?: "not exposed"}"
             }
             text(pointPanel, "POINT ${i + 1}", 12f, true).apply { setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.06f }
             text(pointPanel, "${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)

@@ -61,8 +61,12 @@ complete device, TalkBack, battery, or release qualification.
   details, with reported sample timing, SIM and cell context; no interpolation
   or automatic assignment to operator placements. The current association is
   limited to the independently inspected 0.8.25-dev collector.
-- [ ] Add cell-aware, observation-level metric filtering and visualization;
-  qualify capture, transfer and placement on physical devices.
+- [x] Initial cell-aware, observation-level metric coloring is scoped to one
+  selected mobile capture and complete reported cell; only eligible exact GPS
+  observations are colored. Manual placements and other captures remain
+  separate, and this is not an interpolated coverage map.
+- [ ] Establish defensible receiver comparability before cross-capture metric
+  comparisons; qualify capture, transfer and placement on physical devices.
 - [ ] Finish the cellular vertical slice: interactive history, stronger event
   handling, save/review continuity and accessibility/usability validation.
 - [ ] Complete a current-device screen-by-screen audit and competitor research;

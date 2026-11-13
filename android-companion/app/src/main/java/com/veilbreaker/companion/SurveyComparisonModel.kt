@@ -22,7 +22,7 @@ object SurveyComparisonModel {
             Point(index + 1, capture.getString("capture_id"),
                 capture.optString("created_utc").ifBlank { "Capture time not exposed" },
                 capture.getJSONObject("collection").optString("outcome", "unknown"),
-                location(capture), serving.take(4), (serving.size - 4).coerceAtLeast(0), inventory.omitted > 0,
+                location(capture), serving.take(4), (serving.size - 4).coerceAtLeast(0), inventory.omitted > 0 || inventory.observationsOmitted > 0,
                 (point.opt("operator_note") as? String)?.takeIf { it.isNotBlank() && it.length <= 500 && it.none { ch -> ch.isISOControl() && ch != '\n' } })
         }
     }
@@ -32,12 +32,13 @@ object SurveyComparisonModel {
         for (i in (minOf(observations.length(), 4096) - 1) downTo 0) {
             val observation = observations.optJSONObject(i) ?: continue
             val location = observation.optJSONObject("location") ?: continue
-            val fix = GpsSpatialModel.fix(location) ?: continue
+            val fix = GpsSpatialModel.fix(location, observation.optString("received_utc").ifBlank { null }) ?: continue
             val source = location.optString("source").takeIf { it in setOf("phone", "external_receiver", "imported") } ?: "source not exposed"
             val provider = fix.provider?.take(120) ?: "provider not exposed"
             val age = fix.ageAtReceiptMs?.let { "$it ms old at receipt" } ?: "age not exposed"
             val accuracy = String.format(Locale.US, "%.1f", fix.accuracy)
-            return "Last valid reported location · $source · $provider · ±$accuracy m · $age · ${fix.mockLabel()}"
+            return "Last valid reported location · $source · $provider · ±$accuracy m · $age · ${fix.mockLabel()}\n" +
+                "Location observation received ${fix.receivedUtc ?: "not exposed"} · Fix time ${fix.fixUtc ?: "not exposed"}"
         }
         return "No valid reported location"
     }

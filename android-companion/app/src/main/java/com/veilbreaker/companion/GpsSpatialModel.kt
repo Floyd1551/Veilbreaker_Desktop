@@ -6,7 +6,7 @@ import org.json.JSONObject
 object GpsSpatialModel {
     data class Fix(val latitude: Double, val longitude: Double, val accuracy: Double,
                    val ageAtReceiptMs: Long?, val provider: String?, val mock: Boolean?,
-                   val receivedUtc: String? = null) {
+                   val receivedUtc: String? = null, val fixUtc: String? = null) {
         fun mockLabel(): String = when (mock) {
             true -> "mock location"
             false -> "not marked mock"
@@ -37,8 +37,12 @@ object GpsSpatialModel {
         if (!lat.isFinite() || !lon.isFinite() || !accuracy.isFinite() || lat !in -90.0..90.0 ||
             lon !in -180.0..180.0 || accuracy !in 0.0..1e9) return null
         val age = (location.opt("fix_age_ms") as? Number)?.toLong()?.takeIf { it >= 0 }
+        fun timestamp(value: Any?): String? = (value as? String)?.takeIf {
+            it.isNotBlank() && it != "null" && it.length <= 64 && it.none(Char::isISOControl) &&
+                runCatching { java.time.Instant.parse(it) }.isSuccess
+        }
         return Fix(lat, lon, accuracy, age, location.optString("provider").ifBlank { null },
-                   location.opt("mock") as? Boolean, receivedUtc)
+                   location.opt("mock") as? Boolean, timestamp(receivedUtc), timestamp(location.opt("fix_utc")))
     }
 
     fun savedFixes(capture: JSONObject?): List<Fix> {

@@ -33,5 +33,5 @@ def build_mobile_survey_map(loaded):
         match = aligned[props['run_id']].get(props['observation_id'])
         if match: props['mobile_aligned'] = match
     model.update(mobile_survey_preview=True, run_metrics={}, run_context={}, cell_groups={})
-    model['warnings'].append('Mobile survey preview only: no Desktop diagnostic runs were created. GPS and cellular samples can have different times; cellular metrics are not mapped here.')
+    model['warnings'].append('Mobile survey preview only: no Desktop diagnostic runs were created. GPS and cellular times can differ; eligible observation values require selecting one capture and reported cell.')
     return model

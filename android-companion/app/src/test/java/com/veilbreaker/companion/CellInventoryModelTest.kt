@@ -6,6 +6,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CellInventoryModelTest {
+    @Test fun newestServingObservationAfterOneThousandIsNotIgnored() {
+        val observations = JSONArray()
+        repeat(1001) { observations.put(observation(it.toLong(), JSONArray().put(row("LTE",true,"primary")))) }
+        observations.put(observation(1001, JSONArray().put(row("NR",true,"primary"))))
+        val inventory = CellInventoryModel.build(JSONObject().put("observations", observations), plan)
+        assertEquals("NR", inventory.cells.single().radio)
+        assertEquals(0, inventory.observationsOmitted)
+    }
+    @Test fun observationsBeyondSafeBoundAreDisclosed() {
+        val observations = JSONArray()
+        repeat(4097) { observations.put(observation(it.toLong(), JSONArray())) }
+        val inventory = CellInventoryModel.build(JSONObject().put("observations", observations), plan)
+        assertEquals(1, inventory.observationsOmitted)
+    }
     private fun row(radio:String, registered:Any, role:String, identity:JSONObject = JSONObject(), signal:JSONObject = JSONObject()) =
         JSONObject().put("radio",radio).put("registered",registered).put("connection_status",role)
             .put("age_ms",5).put("identity",identity).put("signal",signal)

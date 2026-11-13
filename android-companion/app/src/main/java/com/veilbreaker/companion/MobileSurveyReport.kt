@@ -48,7 +48,7 @@ object MobileSurveyReport {
                 para(cell.identity.joinToString(" · "))
                 para(cell.metrics.joinToString(" · "))
             }
-            if (point.omittedServing > 0 || point.inventoryIncomplete) para("Additional cell records are not shown; inspect the original capture.")
+            if (point.omittedServing > 0 || point.inventoryIncomplete) para("Some cell or observation data is not shown. Shown cells may not be latest; inspect the original capture.")
             append("</section>")
         }
         para("Original captures remain in the survey JSON. This report is a readable snapshot, not a replacement for original evidence.")

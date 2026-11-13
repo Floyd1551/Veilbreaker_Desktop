@@ -213,8 +213,35 @@ class MapUiTests(unittest.TestCase):
             self.assertIn('RSRP',window.details.text())
             self.assertIn('-95',window.details.text())
             self.assertIn('500 ms',window.details.text())
+            self.assertIn('complete reported cell identity',window.metric_legend.text())
             window.select_feature('p1')
             self.assertNotIn('-95',window.details.text())
+        finally:window.close()
+
+    def test_mobile_metric_requires_capture_and_cell_and_colors_only_matching_fixes(self):
+        model=build_map_data([dict(run_id='mobile-one', locations=[fix(),fix(longitude_deg=1)])])
+        model.update(run_metrics={},run_context={},cell_groups={})
+        for i,row in enumerate(model['rows']):
+            row.update(source_kind='mobile_survey_capture',mobile_capture_id='capture-one',mock=False,
+                       observation_id=f'obs-{i}', received_utc='2026-11-13T12:00:00Z',fix_age_ms=1000)
+            context=dict(observation_id=f'obs-{i}',companion_version='0.8.25-dev', radio='LTE',
+                subscription='sim-1',age_ms=1500,fix_age_ms=1000,location_after_modem_ms=500,
+                received_utc=row['received_utc'],cell_identity=dict(mcc='311',mnc='480',cell_id='123',earfcn=5230))
+            row['mobile_aligned']={'metrics':{'phone_lte_rsrp':-95+i*10},'context':{'phone_lte_rsrp':context}}
+            model['features']['features'][i]['properties'].update(row)
+        window=MapWindow(None,model,None,enable_web=False,restore_pack=False)
+        try:
+            index=window.metric_selector.findData('mobile_observation:phone_lte_rsrp')
+            self.assertGreater(index,0)
+            window.metric_selector.setCurrentIndex(index)
+            self.assertIn('capture',window.metric_legend.text().lower())
+            window.run_filter.setCurrentIndex(1)
+            self.assertGreater(window.cell_selector.count(),1)
+            self.assertIsNone(window.cell_selector.currentData())
+            window.cell_selector.setCurrentIndex(1)
+            self.assertEqual(window.table.item(0,5).text(), 'Phone LTE RSRP -95 dBm')
+            self.assertEqual(window.table.item(1,5).text(), 'Phone LTE RSRP -85 dBm')
+            self.assertIn('observations',window.metric_legend.text())
         finally:window.close()
     def test_automatic_live_group_does_not_compare_two_runs(self):
         model=build_map_data([dict(run_id='a',locations=[fix()]),dict(run_id='b',locations=[fix(longitude_deg=1)])])

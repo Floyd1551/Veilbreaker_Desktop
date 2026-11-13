@@ -6,6 +6,24 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MobileSurveyReportTest {
+    @Test fun reportSeparatesLocationAndCellObservationTimes() {
+        val value = capture("one", "complete", -86)
+        val old = value.getJSONArray("observations").getJSONObject(0)
+        old.put("location", JSONObject().put("status", "available").put("source", "phone").put("provider", "gps")
+            .put("latitude_deg", 34.7).put("longitude_deg", -86.6).put("horizontal_accuracy_m", 10)
+            .put("fix_age_ms", 500).put("fix_utc", "2026-11-05T11:59:59Z").put("mock", false))
+        val next = JSONObject(old.toString()); next.remove("location")
+        next.put("elapsed_realtime_ms", 200).put("received_utc", "2026-11-05T12:00:05Z")
+        value.getJSONArray("observations").put(next)
+        val survey = MobileSurvey.addCapture(MobileSurvey.create("Site", stamp), value, stamp)
+        val before = survey.toString()
+        val report = MobileSurveyReport.build(survey, null)
+        val html = MobileSurveyReport.html(report)
+        assertTrue(report.points.single().location.contains("Location observation received 2026-11-05T12:00:00Z"))
+        assertTrue(html.contains("Fix time 2026-11-05T11:59:59Z"))
+        assertTrue(html.contains("observation assembled 2026-11-05T12:00:05Z"))
+        assertEquals(before, survey.toString())
+    }
     private val stamp = "2026-11-05T12:00:00Z"
     private fun capture(id: String, outcome: String, power: Int): JSONObject {
         val cell = JSONObject().put("radio", "LTE").put("registered", true).put("connection_status", "primary")
@@ -54,6 +72,7 @@ class MobileSurveyReportTest {
         val report = MobileSurveyReport.build(survey, null)
         assertEquals(34.7, report.locations[1]!!.latitude, 0.0)
         assertTrue(MobileSurveyReport.html(report).contains("34.7, -86.6"))
+        assertTrue(report.points[0].location.contains("Fix time not exposed"))
     }
 
     @Test fun unknownMockStatusIsVisibleInDashboardAndExport() {
