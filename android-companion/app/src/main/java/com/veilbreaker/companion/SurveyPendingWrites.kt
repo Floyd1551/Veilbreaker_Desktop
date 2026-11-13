@@ -1,6 +1,6 @@
 package com.veilbreaker.companion
 
-/** Coordinates note writes registered before a workspace starts its background worker. */
+/** Coordinates survey writes registered before a workspace starts its background worker. */
 class SurveyPendingWrites {
     private val monitor = java.lang.Object()
     private val pending = mutableMapOf<String, Int>()
@@ -23,6 +23,12 @@ class SurveyPendingWrites {
     fun await(surveyId: String) {
         synchronized(monitor) {
             while ((pending[surveyId] ?: 0) > 0) monitor.wait()
+        }
+    }
+
+    fun awaitAll() {
+        synchronized(monitor) {
+            while (pending.isNotEmpty()) monitor.wait()
         }
     }
 }

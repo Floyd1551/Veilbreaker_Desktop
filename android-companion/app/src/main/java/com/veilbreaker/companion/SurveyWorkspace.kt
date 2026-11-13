@@ -42,8 +42,11 @@ class SurveyWorkspace(
     private var capturing = false
     private var captureGeneration = 0
     private var externalEnabled = true
-    private var pendingExport: ByteArray? = null
-    private var pendingReportExport: ByteArray? = null
+    private val exportStore = PendingSurveyExportStore(java.io.File(context.filesDir, "pending-survey-exports"))
+    private var pendingDocument: PendingSurveyExportStore.Reference? = null
+    private var exportMonitorToken: String? = null
+    private var exportMessage = ""
+    private var preparingExport = false
     private var report: MobileSurveyReport.Report? = null
     private var showMoreActions = false
     private var showAllPoints = false
@@ -52,6 +55,10 @@ class SurveyWorkspace(
     private var requestedName = ""
     private var creating = false
     private var restoringSurveyId: String? = null
+    private var creatingSurveyId: String? = null
+    private var deletingSurveyId: String? = null
+    private var restorePendingDeletion = false
+    private var restoreInterruptedCapture = false
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
 
     init {
@@ -64,7 +71,15 @@ class SurveyWorkspace(
         requestedName = restoredState?.getString("name").orEmpty().take(80)
         showMoreActions = restoredState?.getBoolean("more_actions") ?: false
         showAllPoints = restoredState?.getBoolean("all_points") ?: false
+        pendingDocument = PendingSurveyExportStore.reference(
+            restoredState?.getString("export_token"), restoredState?.getString("export_sha256"),
+            restoredState?.getString("export_kind"))
+        exportMessage = restoredState?.getString("export_message").orEmpty().take(500)
+        if (restoredState?.getBoolean("export_preparing") == true && pendingDocument == null)
+            exportMessage = "Export preparation was interrupted. Choose Export again; the saved survey is unchanged."
         restoringSurveyId = restoredState?.getString("survey_id")?.takeIf { Regex("[a-f0-9-]{36}").matches(it) }
+        restorePendingDeletion = restoredState?.getBoolean("survey_deleting") ?: false
+        restoreInterruptedCapture = restoredState?.getBoolean("capture_interrupted") ?: false
         val drafts = restoredState?.getBundle("note_drafts")
         drafts?.keySet()?.take(MobileSurvey.MAX_POINTS)?.forEach { id ->
             drafts.getString(id)?.takeIf { it.length <= 500 }?.let { noteDrafts[id] = it }
@@ -72,22 +87,47 @@ class SurveyWorkspace(
         render()
         val id = restoringSurveyId
         if (id == null) reloadList() else restoreSurvey(id)
+        monitorPendingExport()
     }
 
     fun refresh() { render() }
 
     /** Save only navigation and bounded unsaved text, never a second copy of captured evidence. */
     fun saveState(): Bundle = Bundle().apply {
-        putString("survey_id", current?.optString("survey_id") ?: restoringSurveyId)
+        putString("survey_id", current?.optString("survey_id") ?: restoringSurveyId ?: creatingSurveyId)
         putBoolean("creating", creating); putString("name", requestedName)
+        putBoolean("survey_deleting", deletingSurveyId != null || restorePendingDeletion)
+        putBoolean("capture_interrupted", capturing || restoreInterruptedCapture)
         putBoolean("more_actions", showMoreActions); putBoolean("all_points", showAllPoints)
+        pendingDocument?.let { putString("export_token", it.token); putString("export_sha256", it.sha256); putString("export_kind", it.kind) }
+        putString("export_message", exportMessage.take(500))
+        putBoolean("export_preparing", preparingExport)
         putBundle("note_drafts", Bundle().apply { noteDrafts.forEach { (id, note) -> putString(id, note) } })
     }
 
     private fun restoreSurvey(id: String) {
-        runJob({ pendingWrites.await(id); store.load(id) }) { loaded ->
+        runJob({ pendingWrites.await(id); if (store.exists(id)) store.load(id) else null }) { loaded ->
+            if (loaded == null) {
+                if (restorePendingDeletion || creating) {
+                    restoringSurveyId = null
+                    if (restorePendingDeletion) {
+                        noteDrafts.clear(); creating = false
+                        message = "Survey is no longer available. Other surveys and the last capture were kept."
+                        runJob({ pendingWrites.awaitAll(); store.list() }) { listing = it }
+                    } else {
+                        message = "Survey creation did not finish. Check the name and try again."
+                    }
+                    restorePendingDeletion = false
+                } else {
+                    message = "The survey is unavailable. Drafts are retained; retry or return to surveys."
+                }
+                return@runJob
+            }
             restoringSurveyId = null
             current = loaded
+            val deletionWasPending = restorePendingDeletion
+            val creationWasPending = creating
+            creating = false; requestedName = ""; restorePendingDeletion = false
             val points = loaded.getJSONArray("points")
             val savedNotes = (0 until points.length()).associate { index ->
                 val point = points.getJSONObject(index)
@@ -96,7 +136,17 @@ class SurveyWorkspace(
             val validDrafts = SurveyDraftState.reconcile(noteDrafts, savedNotes)
             noteDrafts.clear(); noteDrafts.putAll(validDrafts)
             if (noteDrafts.isNotEmpty()) showAllPoints = true
-            message = if (noteDrafts.isEmpty()) "Survey reopened." else "Survey reopened. Unsaved operator notes are available by editing their points."
+            message = when {
+                deletionWasPending -> "Deletion may not have completed. The survey is still present; check it before trying again."
+                creationWasPending -> "Survey creation completed; the saved survey is open."
+                noteDrafts.isNotEmpty() -> "Survey view restored. Unsaved operator notes are available by editing their points."
+                else -> "Survey view restored."
+            }
+            if (deletionWasPending && noteDrafts.isNotEmpty()) message += " Unsaved note drafts are still available."
+            if (restoreInterruptedCapture) {
+                message += " Capture may have been interrupted. Check the survey and the last saved capture before retrying."
+                restoreInterruptedCapture = false
+            }
         }
     }
 
@@ -141,6 +191,20 @@ class SurveyWorkspace(
             setPadding(dp(10), dp(8), dp(10), dp(8))
             background = GradientDrawable().apply { setColor(Color.parseColor("#102a3a")); cornerRadius = dp(7).toFloat(); setStroke(dp(1), Color.parseColor("#284657")) }
         }
+        if (exportMessage.isNotBlank()) text(content, exportMessage, 12f).apply {
+            setPadding(dp(10), dp(8), dp(10), dp(8))
+            background = GradientDrawable().apply { setColor(Color.parseColor("#102a3a")); cornerRadius = dp(7).toFloat(); setStroke(dp(1), Color.parseColor("#284657")) }
+        }
+        pendingDocument?.let { pending ->
+            val export = card("Pending survey export")
+            val writing = exportOperations.status(pending.token)?.running == true
+            text(export, if (writing) "Saving the verified snapshot…" else "The original export snapshot is retained. If a previous save was interrupted, check its destination before retrying.", 12f)
+            button(export, "Choose destination again…", externalEnabled && !writing) { openDocument(pending) }
+            button(export, "Discard pending export", !writing) {
+                try { exportStore.remove(pending) } catch (_: Exception) { }
+                pendingDocument = null; exportMessage = "Pending export discarded; the saved survey is unchanged."; render()
+            }
+        }
         val survey = current
         if (survey == null) {
             val restoreId = restoringSurveyId
@@ -171,10 +235,17 @@ class SurveyWorkspace(
                 button(create, "Create survey", primary = true) {
                     val nameToCreate = name.text.toString()
                     requestedName = nameToCreate
-                    runJob({
-                        val made = MobileSurvey.create(nameToCreate, Instant.now().toString())
-                        store.save(made); made
-                    }) { made -> current = made; showMoreActions = false; showAllPoints = false; creating = false; requestedName = ""; message = "Survey created on this phone." }
+                    val made = try { MobileSurvey.create(nameToCreate, Instant.now().toString()) }
+                        catch (error: Exception) { message = error.message ?: "Invalid survey name."; render(); return@button }
+                    val id = made.getString("survey_id")
+                    creatingSurveyId = id
+                    if (!runSurveyMutation(id, { runCatching { store.save(made); made } }) { result ->
+                        creatingSurveyId = null
+                        result.fold({ saved ->
+                            current = saved; showMoreActions = false; showAllPoints = false
+                            creating = false; requestedName = ""; message = "Survey created on this phone."
+                        }, { error -> message = error.message ?: "Survey could not be created." })
+                    }) creatingSurveyId = null
                 }
                 button(create, "Cancel") { creating = false; message = ""; render() }
             } else {
@@ -194,7 +265,7 @@ class SurveyWorkspace(
             val heading = card("Survey dashboard · ${reviewed.name}")
             text(heading, "${reviewed.points.size} captures · ${reviewed.completeCount} complete · ${reviewed.partialCount} partial\n${reviewed.lifecycle.uppercase()} · Created ${reviewed.createdUtc}", 14f, true)
             text(heading, "Values are saved observations, not live. Compare the same technology, subscription, carrier, band and cell where exposed; different sources may not be directly comparable. Cell and location times can differ.", 12f)
-            button(heading, "Export survey report HTML…", externalEnabled) { prepareReportExport(reviewed) }
+            button(heading, "Export survey report HTML…", externalEnabled && pendingDocument == null) { prepareReportExport(reviewed) }
             text(heading, "The report can contain cell identifiers and location. Export survey JSON separately to retain the original captures.", 12f)
             button(heading, "Back to survey") { report = null; render(); scroll.post { scroll.scrollTo(0, 0) } }
             if (reviewed.points.isEmpty()) text(heading, "No captures are saved in this survey.", 12f)
@@ -250,7 +321,7 @@ class SurveyWorkspace(
         button(summary, "Add last phone capture", externalEnabled && state == "open" && points.length() < MobileSurvey.MAX_POINTS) {
             val selected = captureProvider()
             if (selected == null) { message = "Capture on the phone first, then return here to add it."; render() }
-            else runJob({
+            else runSurveyMutation(survey.getString("survey_id"), {
                 store.update(survey.getString("survey_id")) { latest -> MobileSurvey.addCapture(latest, selected, Instant.now().toString()) }
             }) { updated -> current = updated; message = "Capture added as a separate survey point." }
         }
@@ -279,13 +350,13 @@ class SurveyWorkspace(
             if (state == "open") button(summary, "Complete survey") {
                 if (noteDrafts.isNotEmpty()) {
                     message = "Save or discard unsaved operator notes before completing the survey."; showAllPoints = true; render()
-                } else runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
+                } else runSurveyMutation(survey.getString("survey_id"), { store.update(survey.getString("survey_id")) { latest -> MobileSurvey.complete(latest, Instant.now().toString()) } }) {
                     current = it; message = "Survey completed. Reopen it to add captures."
                 }
             } else button(summary, "Reopen survey") {
-                runJob({ store.update(survey.getString("survey_id")) { latest -> MobileSurvey.reopen(latest) } }) { current = it; message = "Survey reopened." }
+                runSurveyMutation(survey.getString("survey_id"), { store.update(survey.getString("survey_id")) { latest -> MobileSurvey.reopen(latest) } }) { current = it; message = "Survey reopened." }
             }
-            button(summary, "Export mobile survey JSON…", externalEnabled) { prepareExport(survey) }
+            button(summary, "Export mobile survey JSON…", externalEnabled && pendingDocument == null) { prepareExport(survey) }
             text(summary, "Export contains original phone captures and operator observations, and may include identifiers and location. In Veilbreaker Desktop, open a survey and choose Attach mobile survey to add this file.", 12f)
             button(summary, "Delete survey…") {
                 val surveyId = survey.getString("survey_id")
@@ -293,11 +364,15 @@ class SurveyWorkspace(
                     .setMessage("Permanently delete this survey, its copied captures, and any unsaved note drafts? The phone's last capture and other surveys are kept.")
                     .setNegativeButton("Cancel", null)
                     .setPositiveButton("Delete") { _, _ ->
-                        runJob({ store.delete(surveyId); runCatching { store.list() }.getOrNull() }) { updated ->
-                            current = null; noteDrafts.clear(); showMoreActions = false; showAllPoints = false
-                            listing = updated ?: listing.copy(surveys = listing.surveys.filterNot { it.id == surveyId })
-                            message = "Mobile survey deleted. Other surveys and the last capture were kept."
-                        }
+                        deletingSurveyId = surveyId
+                        if (!runSurveyMutation(surveyId, { runCatching { store.delete(surveyId); runCatching { store.list() }.getOrNull() } }) { result ->
+                            deletingSurveyId = null
+                            result.fold({ updated ->
+                                current = null; noteDrafts.clear(); showMoreActions = false; showAllPoints = false
+                                listing = updated ?: listing.copy(surveys = listing.surveys.filterNot { it.id == surveyId })
+                                message = "Mobile survey deleted. Other surveys and the last capture were kept."
+                            }, { error -> message = error.message ?: "Survey could not be deleted." })
+                        }) deletingSurveyId = null
                     }.show()
             }
         }
@@ -366,7 +441,7 @@ class SurveyWorkspace(
                         message = "Survey or collection state changed. Choose the capture again."; render()
                     } else {
                         val id = choices[index].getString("capture_id")
-                        runJob({ archiveStore.addToSurvey(store, surveyId, id) }) { updated ->
+                        runSurveyMutation(surveyId, { archiveStore.addToSurvey(store, surveyId, id) }) { updated ->
                             current = updated; message = "Archived capture added as a separate survey point."
                         }
                     }
@@ -443,7 +518,7 @@ class SurveyWorkspace(
                     render(); return@post
                 }
                 val outcome = capture.optJSONObject("collection")?.optString("outcome")
-                runJob({
+                runSurveyMutation(surveyId, {
                     try {
                         store.update(surveyId) { latest -> MobileSurvey.addNewCapture(latest, capture, Instant.now().toString()) }
                     } catch (error: Exception) {
@@ -476,71 +551,128 @@ class SurveyWorkspace(
         }.apply { name = "Veilbreaker mobile survey"; start() }
     }
 
+    /** Register before starting the worker so a recreated workspace cannot load stale data. */
+    private fun <T> runSurveyMutation(surveyId: String, work: () -> T, done: (T) -> Unit): Boolean {
+        if (busy) return false
+        val write = pendingWrites.register(surveyId)
+        try {
+            runJob({ try { work() } finally { write.close() } }, done)
+            return true
+        } catch (_: Exception) {
+            write.close(); busy = false
+            message = "Could not start the survey operation. Check the survey before retrying."
+            render()
+            return false
+        }
+    }
+
     private fun reloadList() {
-        runJob({ store.list() }) { result -> listing = result; message = "" }
+        runJob({ pendingWrites.awaitAll(); store.list() }) { result -> listing = result; message = "" }
     }
 
     private fun prepareExport(survey: JSONObject) {
-        if (!externalEnabled || busy) return
-        runJob({ MobileSurvey.validate(survey).toString().toByteArray(Charsets.UTF_8) }) { bytes ->
-            if (!externalEnabled) { message = "Stop the active Desktop session or capture before exporting."; return@runJob }
-            pendingExport = bytes
-            try {
-                @Suppress("DEPRECATION")
-                activity.startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE); type = "application/json"
-                    putExtra(Intent.EXTRA_TITLE, "veilbreaker-mobile-survey.json")
-                }, EXPORT_REQUEST)
-                message = "Choose where to save the mobile survey JSON."
-            } catch (_: Exception) { pendingExport = null; message = "Could not open the document picker." }
-        }
+        prepareExportSnapshot("survey") { MobileSurvey.validate(survey).toString().toByteArray(Charsets.UTF_8) }
     }
 
     private fun prepareReportExport(report: MobileSurveyReport.Report) {
-        if (!externalEnabled || busy) return
-        runJob({ MobileSurveyReport.html(report).toByteArray(Charsets.UTF_8) }) { bytes ->
-            if (!externalEnabled) { message = "Stop the active Desktop session or capture before exporting."; return@runJob }
-            pendingReportExport = bytes
-            try {
-                @Suppress("DEPRECATION")
-                activity.startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE); type = "text/html"
-                    putExtra(Intent.EXTRA_TITLE, "veilbreaker-mobile-survey-report.html")
-                }, REPORT_EXPORT_REQUEST)
-                message = "Choose where to save the survey report."
-            } catch (_: Exception) { pendingReportExport = null; message = "Could not open the document picker." }
-        }
+        prepareExportSnapshot("report") { MobileSurveyReport.html(report).toByteArray(Charsets.UTF_8) }
+    }
+
+    private fun prepareExportSnapshot(kind: String, encode: () -> ByteArray) {
+        if (!externalEnabled || busy || pendingDocument != null) return
+        busy = true; preparingExport = true; exportMessage = "Preparing a private export snapshot…"; render()
+        try { Thread {
+            val result = runCatching { exportStore.stage(kind, encode()) }
+            handler.post {
+                if (activity.isFinishing || activity.isDestroyed || activity.isChangingConfigurations) {
+                    result.getOrNull()?.let { try { exportStore.remove(it) } catch (_: Exception) { } }
+                    return@post
+                }
+                busy = false; preparingExport = false
+                result.fold({ ref ->
+                    pendingDocument = ref
+                    if (externalEnabled) openDocument(ref)
+                    else exportMessage = "Stop the active Desktop session or capture, then choose a destination."
+                }, { error -> exportMessage = "Could not prepare export: ${error.message ?: "Please try again."}" })
+                render()
+            }
+        }.apply { name = "Veilbreaker prepare survey export"; start() } }
+        catch (_: Exception) { busy = false; preparingExport = false; exportMessage = "Could not prepare export. The saved survey is unchanged."; render() }
+    }
+
+    private fun openDocument(ref: PendingSurveyExportStore.Reference) {
+        if (!externalEnabled || exportOperations.status(ref.token)?.running == true) return
+        try {
+            @Suppress("DEPRECATION")
+            activity.startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = if (ref.kind == "survey") "application/json" else "text/html"
+                putExtra(Intent.EXTRA_TITLE, if (ref.kind == "survey") "veilbreaker-mobile-survey.json" else "veilbreaker-mobile-survey-report.html")
+            }, if (ref.kind == "survey") EXPORT_REQUEST else REPORT_EXPORT_REQUEST)
+            exportMessage = "Choose where to save the ${if (ref.kind == "survey") "mobile survey JSON" else "survey report"}."
+        } catch (_: Exception) { exportMessage = "Could not open the document picker. The export snapshot is available to retry." }
     }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
-        if (requestCode == REPORT_EXPORT_REQUEST) {
-            val bytes = pendingReportExport; pendingReportExport = null
-            if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) {
-                message = "Report export cancelled; the survey is unchanged."; render(); return true
+        if (requestCode != EXPORT_REQUEST && requestCode != REPORT_EXPORT_REQUEST) return false
+        val ref = pendingDocument
+        if (resultCode != Activity.RESULT_OK || data?.data == null) {
+            if (ref != null && exportOperations.status(ref.token)?.running == true) {
+                exportMessage = "The previous export is still saving."; monitorPendingExport(); render(); return true
             }
-            val uri = data.data!!
-            runJob({ activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-                ?: throw IllegalArgumentException("Could not write the selected document.") }) {
-                message = "Survey report exported. Original captures remain in the survey JSON."
-            }
-            return true
+            ref?.let { try { exportStore.remove(it) } catch (_: Exception) { } }
+            pendingDocument = null; exportMessage = "Export cancelled; the saved survey is unchanged."; render(); return true
         }
-        if (requestCode != EXPORT_REQUEST) return false
-        val bytes = pendingExport; pendingExport = null
-        if (resultCode != Activity.RESULT_OK || data?.data == null || bytes == null) {
-            message = "Survey export cancelled; the saved survey is unchanged."; render(); return true
+        val expectedKind = if (requestCode == EXPORT_REQUEST) "survey" else "report"
+        if (ref == null || ref.kind != expectedKind) {
+            exportMessage = "Export could not continue because its snapshot is unavailable. The selected document may be empty; the saved survey is unchanged."
+            render(); return true
         }
         val uri = data.data!!
-        runJob({ activity.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-            ?: throw IllegalArgumentException("Could not write the selected document.") }) {
-            message = "Mobile survey JSON exported. Attach it to an open survey in Veilbreaker Desktop."
-        }
+        if (!exportOperations.begin(ref.token)) { monitorPendingExport(); render(); return true }
+        exportMessage = "Saving verified export snapshot…"; render()
+        try { Thread {
+            val outcome = runCatching {
+                // Read and verify before opening a destination that may be truncated.
+                exportStore.writeVerified(ref) {
+                    activity.contentResolver.openOutputStream(uri, "wt")
+                        ?: throw IllegalArgumentException("Could not write the selected document.")
+                }
+            }
+            exportOperations.finish(ref.token, outcome.exceptionOrNull()?.message ?: if (outcome.isFailure) "Could not write the document." else null)
+            handler.post { monitorPendingExport() }
+        }.apply { name = "Veilbreaker survey export"; start() } }
+        catch (_: Exception) { exportOperations.finish(ref.token, "Could not start export.") }
+        monitorPendingExport()
         return true
+    }
+
+    private fun monitorPendingExport() {
+        if (activity.isFinishing || activity.isDestroyed) return
+        val ref = pendingDocument ?: return
+        val state = exportOperations.status(ref.token) ?: return
+        if (state.running) {
+            if (exportMonitorToken != ref.token) {
+                exportMonitorToken = ref.token
+                handler.postDelayed({ exportMonitorToken = null; monitorPendingExport() }, 400)
+            }
+            return
+        }
+        if (state.error == null) {
+            try { exportStore.remove(ref) } catch (_: Exception) { }
+            pendingDocument = null
+            exportMessage = if (ref.kind == "survey") "Mobile survey JSON exported. Attach it to an open survey in Veilbreaker Desktop."
+                      else "Survey report exported. Original captures remain in the survey JSON."
+        } else {
+            exportMessage = "Export failed: ${state.error} The saved survey is unchanged; the selected document may be incomplete."
+        }
+        render()
     }
 
     companion object {
         const val EXPORT_REQUEST = 72
         const val REPORT_EXPORT_REQUEST = 73
         private val pendingWrites = SurveyPendingWrites()
+        private val exportOperations = SurveyExportOperations()
     }
 }

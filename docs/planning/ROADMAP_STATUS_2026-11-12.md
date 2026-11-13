@@ -1,11 +1,13 @@
 # Veilbreaker roadmap status — November 12, 2026
 
 This is a source-code status snapshot, not a release certification. The Desktop
-source reports 0.67.0rc1 and the latest mobile debug build reports 0.8.26-dev.
-The available 0.67.0rc1 Windows installer predates the recent Desktop changes;
-it has not been rebuilt for them. Earlier mobile screens were checked on the
-Samsung, including normal and enlarged text; the latest debug build still needs
-device testing and complete TalkBack, battery, and release qualification.
+source reports 0.67.0rc1 and the mobile development source reports 0.8.27-dev.
+The Windows 0.67.0rc1 installer was rebuilt and installed on November 13 with
+the recent Desktop survey recovery changes. Its source tests were split into
+two processes after a Qt test-order stall; 620 tests and packaged GUI, offline
+map, CLI and terrain smoke checks passed. Earlier mobile screens were checked
+on the Samsung, including normal and enlarged text; the latest debug build
+still needs device testing and complete TalkBack, battery, and release qualification.
 
 ## Desktop field platform and 1.0 gates
 
@@ -81,8 +83,13 @@ device testing and complete TalkBack, battery, and release qualification.
 - [x] Reopen a mobile survey after activity recreation with bounded, clearly
   identified unsaved operator note drafts. Note saves in progress are reconciled
   before the survey reloads. A draft is not measured evidence.
-- [ ] Qualify lifecycle handling for other in-flight survey operations and
-  document-picker exports; interruption can still require reopening or retrying.
+- [x] Coordinate in-flight survey updates with activity recreation and retain
+  bounded, hash-verified survey/report export snapshots while the Android
+  document picker is open. A Samsung rotation check reopened an existing survey
+  and exported matching JSON after rotating the picker.
+- [ ] Qualify abrupt process death and interruption during document writes;
+  an interrupted destination may be incomplete and require a retry. Validate
+  other devices and report-HTML picker rotation separately.
 
 ## Next work
 
