@@ -1,4 +1,4 @@
-# Veilbreaker Mobile 0.8.27 development build
+# Veilbreaker Mobile 0.8.29 development build
 
 Android 10/API 29 or newer. Public LTE/NR and, when reported, GSM/WCDMA/TD-SCDMA/CDMA cell snapshots and bounded foreground USB sessions, with explicit SIM selection and user permissions. Optional phone location capture; no raw modem feed. Desktop analysis currently accepts only LTE/NR serving cells; legacy cells remain reference evidence.
 
@@ -86,6 +86,10 @@ finish the selected export or offer retry/discard; an interrupted destination
 write may be incomplete, so check the file before retrying. The original survey
 is unchanged. Abandoned private snapshots are bounded and are cleaned up when
 a later export is prepared after seven days.
+The same snapshot and retry protection applies to JSON and PDF exports of the
+latest or an archived capture. A pending export shows its captured ID when available.
+Survey dashboards reopen after screen recreation using the saved survey; an
+already prepared export keeps its original snapshot.
 Reports also provides a separate explicit archive of up to 20 phone-capture copies.
 Archived copies can be reviewed in-app, exported as PDF or JSON, and deleted after
 confirmation without changing the latest capture or survey copies. The archive is

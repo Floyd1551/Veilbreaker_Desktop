@@ -21,7 +21,7 @@ class PendingSurveyExportStore(private val directory: File) {
 
         fun reference(token: String?, sha256: String?, kind: String?): Reference? {
             if (token == null || sha256 == null || kind == null || !tokenPattern.matches(token) ||
-                !hashPattern.matches(sha256) || kind !in setOf("survey", "report")) return null
+                !hashPattern.matches(sha256) || kind !in setOf("survey", "report", "capture", "capture_pdf")) return null
             return Reference(token, sha256, kind)
         }
 
@@ -39,7 +39,7 @@ class PendingSurveyExportStore(private val directory: File) {
     }
 
     @Synchronized fun stage(kind: String, bytes: ByteArray): Reference {
-        require(kind in setOf("survey", "report") && bytes.isNotEmpty() && bytes.size <= MAX_BYTES) { "Export snapshot exceeds its size limit or is empty." }
+        require(kind in setOf("survey", "report", "capture", "capture_pdf") && bytes.isNotEmpty() && bytes.size <= MAX_BYTES) { "Export snapshot exceeds its size limit or is empty." }
         require(!Files.isSymbolicLink(directory.toPath()) && (directory.isDirectory || directory.mkdirs())) { "Cannot create private export storage." }
         val now = System.currentTimeMillis()
         val files = directory.listFiles() ?: throw IllegalArgumentException("Cannot read private export storage.")
@@ -47,7 +47,7 @@ class PendingSurveyExportStore(private val directory: File) {
             if ((file.name.matches(Regex("[a-f0-9]{32}\\.(snapshot|pending)"))) &&
                 !Files.isSymbolicLink(file.toPath()) && now - file.lastModified() > MAX_AGE_MS) file.delete()
         }
-        require((directory.listFiles()?.size ?: MAX_FILES) < MAX_FILES) { "Too many pending survey exports; try again after cleanup." }
+        require((directory.listFiles()?.size ?: MAX_FILES) < MAX_FILES) { "Too many pending exports; try again after cleanup." }
         val token = UUID.randomUUID().toString().replace("-", "")
         val ref = Reference(token, hash(bytes), kind)
         val dest = target(ref)

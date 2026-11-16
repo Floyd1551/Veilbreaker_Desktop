@@ -1,13 +1,14 @@
 # Veilbreaker roadmap status — November 12, 2026
 
 This is a source-code status snapshot, not a release certification. The Desktop
-source reports 0.67.0rc1 and the mobile development source reports 0.8.27-dev.
+source reports 0.67.0rc1 and the mobile development source reports 0.8.29-dev.
 The Windows 0.67.0rc1 installer was rebuilt and installed on November 13 with
 the recent Desktop survey recovery changes. Its source tests were split into
 two processes after a Qt test-order stall; 620 tests and packaged GUI, offline
 map, CLI and terrain smoke checks passed. Earlier mobile screens were checked
-on the Samsung, including normal and enlarged text; the latest debug build
-still needs device testing and complete TalkBack, battery, and release qualification.
+on the Samsung, including normal and enlarged text. The latest debug build has
+targeted report, export and reference checks; complete device, TalkBack, battery,
+and release qualification remain outstanding.
 
 ## Desktop field platform and 1.0 gates
 
@@ -35,7 +36,7 @@ still needs device testing and complete TalkBack, battery, and release qualifica
 
 - [x] Unified Android application, public-API cellular capture, explicit SIM
   choice, GPS, cached Wi-Fi inspection, local reports and Desktop USB protocol.
-- [x] Offline toolbox baseline: 38 calculators, two converters, 53 references,
+- [x] Offline toolbox baseline: 38 calculators, two converters, 57 references,
   10 guides, and initial Wi-Fi, FWA and topology planning aids. Models are not
   validated coverage predictions or measured evidence.
 - [x] Initial cellular workflow: readable live metrics, sample/response timing,
@@ -87,9 +88,14 @@ still needs device testing and complete TalkBack, battery, and release qualifica
   bounded, hash-verified survey/report export snapshots while the Android
   document picker is open. A Samsung rotation check reopened an existing survey
   and exported matching JSON after rotating the picker.
+- [x] Retain latest and archived capture JSON and PDF export snapshots across activity
+  recreation and identify the pending capture for retry. Restore the survey
+  dashboard from the saved survey without replacing any staged report snapshot.
+  A Samsung check reopened the dashboard after rotation and produced readable
+  survey HTML and capture PDF after rotating each document picker.
 - [ ] Qualify abrupt process death and interruption during document writes;
   an interrupted destination may be incomplete and require a retry. Validate
-  other devices and report-HTML picker rotation separately.
+  the same workflows on other devices.
 
 ## Next work
 

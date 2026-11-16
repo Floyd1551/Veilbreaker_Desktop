@@ -48,6 +48,10 @@ class MainActivity : Activity() {
     private lateinit var exportButton: Button
     private lateinit var pdfButton: Button
     private lateinit var reportStatus: TextView
+    private lateinit var captureExportStatus: TextView
+    private lateinit var captureExportRetry: Button
+    private lateinit var captureExportDiscard: Button
+    private lateinit var captureDocumentExport: CaptureDocumentExport
     private lateinit var reportSummary: TextView
     private lateinit var wifiButton: Button
     private lateinit var gpsButton: Button
@@ -59,9 +63,6 @@ class MainActivity : Activity() {
     private var connection: UsbConnection?=null
     private var endpoint: LoopbackEndpoint?=null
     private var capture: JSONObject?=null
-    private var exportText: String?=null
-    private var exportPdfText: String?=null
-    private var pdfExporting=false
     private val pages = mutableListOf<View>()
     private val navItems = mutableListOf<LinearLayout>()
     private val navLabels = mutableListOf<TextView>()
@@ -121,8 +122,27 @@ class MainActivity : Activity() {
         wifiButton.isEnabled=enabled;gpsButton.isEnabled=enabled
         if(::liveCellWorkspace.isInitialized) liveCellWorkspace.setCollectionBlocked(!enabled || !cellularChoice.isChecked)
         liveDashboard.setNavigationEnabled(enabled);surveyWorkspace.setExternalActionsEnabled(enabled)
-        if (::captureArchive.isInitialized) captureArchive.setExternalEnabled(enabled && !pdfExporting)
-        exportButton.isEnabled=enabled && capture!=null && !pdfExporting;pdfButton.isEnabled=enabled && capture!=null && !pdfExporting
+        val exportAvailable = !::captureDocumentExport.isInitialized || (!captureDocumentExport.busy && !captureDocumentExport.hasPending)
+        if (::captureArchive.isInitialized) captureArchive.setExternalEnabled(enabled && exportAvailable)
+        exportButton.isEnabled=enabled && capture!=null && exportAvailable;pdfButton.isEnabled=enabled && capture!=null && exportAvailable
+        updateCaptureExportControls()
+    }
+
+    private fun updateCaptureExportControls() {
+        if (!::captureDocumentExport.isInitialized || !::captureExportStatus.isInitialized || !::captureExportRetry.isInitialized || !::captureExportDiscard.isInitialized) return
+        captureExportStatus.text = if (captureDocumentExport.hasPending)
+            listOf(captureDocumentExport.message, captureDocumentExport.pendingDescription).filter { it.isNotBlank() }.joinToString("\n")
+        else captureDocumentExport.message
+        captureExportStatus.visibility = if (captureExportStatus.text.isBlank()) View.GONE else View.VISIBLE
+        captureExportRetry.visibility = if (captureDocumentExport.hasPending) View.VISIBLE else View.GONE
+        captureExportRetry.text = "Choose ${captureDocumentExport.pendingFormat} export destination…"
+        captureExportDiscard.visibility = if (captureDocumentExport.hasPending) View.VISIBLE else View.GONE
+        captureExportRetry.isEnabled = externalActionsEnabled() && !captureDocumentExport.busy
+        captureExportDiscard.isEnabled = !captureDocumentExport.busy
+        val canStart = externalActionsEnabled() && !captureDocumentExport.busy && !captureDocumentExport.hasPending
+        if (::exportButton.isInitialized) exportButton.isEnabled = canStart && capture != null
+        if (::pdfButton.isInitialized) pdfButton.isEnabled = canStart && capture != null
+        if (::captureArchive.isInitialized) captureArchive.setExternalEnabled(canStart)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -132,6 +152,7 @@ class MainActivity : Activity() {
         outState.putString("report_preview_mode",previewMode)
         outState.putBoolean("cellular_input",cellularChoice.isChecked)
         outState.putBoolean("location_input",locationChoice.isChecked)
+        if (::captureDocumentExport.isInitialized) captureDocumentExport.saveState(outState)
         if (::surveyWorkspace.isInitialized) outState.putBundle("survey_workspace", surveyWorkspace.saveState())
         choices.getOrNull(subscriptions.selectedItemPosition-1)?.subscriptionId?.let { outState.putInt("selected_subscription_id",it) }
         super.onSaveInstanceState(outState)
@@ -292,6 +313,9 @@ class MainActivity : Activity() {
         cellInventory=CellInventoryWorkspace(this).apply { visibility=View.GONE };local.addView(cellInventory)
         pdfButton=button(local,"Export PDF…",true) { capture?.let(::exportCapturePdf) }
         reportStatus=text(local,"The last saved capture is kept on this phone.")
+        captureExportStatus=text(local,"")
+        captureExportRetry=button(local,"Choose capture export destination…") { captureDocumentExport.openPicker() }
+        captureExportDiscard=button(local,"Discard pending capture export") { captureDocumentExport.discard() }
         cellularVisuals=CellularVisuals(this);local.addView(cellularVisuals)
         val reportOptions=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
         lateinit var reportOptionsButton:Button
@@ -312,6 +336,7 @@ class MainActivity : Activity() {
         text(archiveCard,"Save a copy before taking another capture. Archived copies can be reviewed and exported later.",12f)
         captureArchive=CaptureArchiveWorkspace(this, { capture }, { channelPlan }, ::exportCaptureJson, ::exportCapturePdf)
         archiveCard.addView(captureArchive)
+        captureDocumentExport=CaptureDocumentExport(this,state,{ externalActionsEnabled() },::updateCaptureExportControls)
         val tools=page("Tools", "Calculators, field references, planning and optional online lookup.")
         val names=listOf("Calculate", "References", "Planning", "Online")
         val tabs=names.map { name -> TextView(this).apply { text=name;textSize=12f;gravity=Gravity.CENTER;minimumHeight=dp(48);isClickable=true;isFocusable=true;contentDescription="$name tools" } }
@@ -384,22 +409,18 @@ class MainActivity : Activity() {
             updateCaptureReadiness()
         }
         showDiagnoseSection((state?.getInt("diagnose_section",0) ?: 0).coerceIn(0,4));showPage(WorkspaceNavigation.restore(state?.getInt("workspace_page",0) ?: 0))
+        captureDocumentExport.activate()
     }
     private fun allowed() = (!cellularChoice.isChecked || (checkSelfPermission(Manifest.permission.READ_PHONE_STATE)==PackageManager.PERMISSION_GRANTED && checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)) &&
         (!locationChoice.isChecked || checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
     private fun exportCapturePdf(value:JSONObject) {
-        if (!externalActionsEnabled() || pdfExporting) return
-        exportPdfText=value.toString()
-        try { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE);type="application/pdf";putExtra(Intent.EXTRA_TITLE,"veilbreaker-field-report.pdf")
-        },3) } catch (_:Exception) { exportPdfText=null;reportStatus.text="Could not open the document picker." }
+        if (!externalActionsEnabled()) return
+        try { captureDocumentExport.startPdf(value,channelPlan) }
+        catch (_:Exception) { reportStatus.text="Could not prepare the field report. The saved capture is unchanged." }
     }
     private fun exportCaptureJson(value:JSONObject) {
-        if (!externalActionsEnabled() || pdfExporting) return
-        exportText=value.toString(2)
-        try { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-            addCategory(Intent.CATEGORY_OPENABLE);type="application/json";putExtra(Intent.EXTRA_TITLE,"veilbreaker-"+value.getString("capture_id")+".json")
-        },2) } catch (_:Exception) { exportText=null;reportStatus.text="Could not open the document picker." }
+        if (!externalActionsEnabled()) return
+        captureDocumentExport.startJson(value)
     }
     private fun refresh() {
         if(connection!=null) return
@@ -461,7 +482,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.27-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.29-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }
@@ -613,32 +634,8 @@ class MainActivity : Activity() {
     override fun onActivityResult(request:Int,result:Int,data:Intent?) {
         super.onActivityResult(request,result,data)
         if(surveyWorkspace.onActivityResult(request,result,data)) return
-        if(request==2 && result==RESULT_OK && data?.data!=null) try {
-            contentResolver.openOutputStream(data.data!!,"wt")?.use { it.write((exportText ?: error("No export")).toByteArray(Charsets.UTF_8)) } ?: error("Cannot export")
-            reportStatus.text="Capture exported."
-        } catch(_:Exception) { reportStatus.text="Export failed. Saved capture remains available." }
-        if(request==2) exportText=null
-        if(request==3) {
-            val saved=exportPdfText;exportPdfText=null
-            val uri=data?.data
-            if(result==RESULT_OK && uri!=null && saved!=null) {
-                val plan=channelPlan.toString()
-                val resolver=applicationContext.contentResolver
-                pdfExporting=true;syncExternalActions();reportStatus.text="Preparing PDF…"
-                Thread {
-                    val resultPdf=runCatching {
-                        resolver.openOutputStream(uri,"wt")?.use { output ->
-                            CaptureReportPdf.write(JSONObject(saved),JSONObject(plan),output)
-                        } ?: error("Cannot open destination")
-                    }
-                    handler.post {
-                        if(!isFinishing && !isDestroyed) {
-                            pdfExporting=false;syncExternalActions()
-                            reportStatus.text=if(resultPdf.isSuccess) "PDF report exported." else "PDF export failed. Saved capture remains available."
-                        }
-                    }
-                }.apply { name="Veilbreaker PDF export";start() }
-            } else if(result==RESULT_OK) reportStatus.text="PDF export unavailable. Try again from the saved capture."
+        if(request==CaptureDocumentExport.JSON_REQUEST || request==CaptureDocumentExport.PDF_REQUEST) {
+            captureDocumentExport.onResult(request,result,data); return
         }
     }
 }

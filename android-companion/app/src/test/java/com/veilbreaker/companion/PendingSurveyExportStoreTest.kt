@@ -5,6 +5,40 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class PendingSurveyExportStoreTest {
+    @Test fun capturePdfSnapshotIsExactAndTamperingCannotOpenDestination() {
+        val dir = Files.createTempDirectory("capture-pdf-export-test").toFile()
+        try {
+            val store = PendingSurveyExportStore(dir)
+            val bytes = "%PDF-1.4\nexample\n%%EOF".toByteArray()
+            val reference = store.stage("capture_pdf", bytes)
+            val restored = PendingSurveyExportStore.reference(reference.token, reference.sha256, "capture_pdf")!!
+            assertArrayEquals(bytes, PendingSurveyExportStore(dir).read(restored))
+            java.io.File(dir, reference.token + ".snapshot").writeText("changed")
+            var opened = false
+            assertThrows(IllegalArgumentException::class.java) {
+                store.writeVerified(restored) { opened = true; java.io.ByteArrayOutputStream() }
+            }
+            assertFalse(opened)
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun captureSnapshotRestoresExactBytesAndRejectsTamperingBeforeOpeningDestination() {
+        val dir = Files.createTempDirectory("capture-export-test").toFile()
+        try {
+            val store = PendingSurveyExportStore(dir)
+            val bytes = "{\"capture_id\":\"unchanged\"}".toByteArray()
+            val reference = store.stage("capture", bytes)
+            val restored = PendingSurveyExportStore.reference(reference.token, reference.sha256, "capture")!!
+            assertArrayEquals(bytes, PendingSurveyExportStore(dir).read(restored))
+            java.io.File(dir, reference.token + ".snapshot").writeText("changed")
+            var opened = false
+            assertThrows(IllegalArgumentException::class.java) {
+                store.writeVerified(restored) { opened = true; java.io.ByteArrayOutputStream() }
+            }
+            assertFalse(opened)
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun snapshotSurvivesRecreationAndRetainsExactBytes() {
         val dir = Files.createTempDirectory("survey-export-test").toFile()
         try {

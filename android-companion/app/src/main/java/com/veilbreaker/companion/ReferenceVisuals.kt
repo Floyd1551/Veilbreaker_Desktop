@@ -38,6 +38,29 @@ internal object ReferenceVisualData {
         "LTE and NR are distinct reference signals. Values can be unavailable or cached; no universal quality threshold is implied. Source: Android CellSignalStrength LTE/NR APIs.")
     private val privateRanges = t("Private IPv4 blocks", "Prefix", "Inclusive range", listOf("10.0.0.0/8" to "10.0.0.0–10.255.255.255", "172.16.0.0/12" to "172.16.0.0–172.31.255.255", "192.168.0.0/16" to "192.168.0.0–192.168.255.255"),
         "RFC 1918. Private addressing is not a security control and does not describe every special-use address range.")
+    private val location = t("Location field interpretation", "Reported field", "What it means", listOf(
+        "Horizontal accuracy" to "Estimated radius at 68% confidence, not a guaranteed boundary",
+        "Fix time / age" to "When the position was estimated and how old it was at receipt",
+        "Altitude" to "WGS84 ellipsoid height when provided; not automatically height above ground",
+        "Mock indicator" to "Whether Android marks the fix as simulated; absence does not prove accuracy"),
+        "Android Location API. Missing fields remain unavailable; an operator placement is not GPS evidence.")
+    private val satellites = t("GNSS field interpretation", "Reported field", "What it means", listOf(
+        "Reported satellites" to "Satellites in the receiver's status report, not a guarantee of a fix",
+        "Used in fix" to "Reported contribution to the most recent position solution",
+        "C/N₀ (dB-Hz)" to "Satellite carrier-to-noise density, not Wi-Fi RSSI or cellular SINR"),
+        "Android GnssStatus API. Status and fix times may differ; counts and signal alone do not establish accuracy.")
+    private val wifiCounters = t("Example AP counter definitions", "WAP571/E field", "What it counts", listOf(
+        "Transmit retry" to "Successful MSDUs after one or more retries",
+        "Failed transmit" to "MSDUs not successfully transmitted after exceeding a retry limit",
+        "FCS error" to "Errors in received MPDU frames",
+        "ACK failure" to "Acknowledgments not received when expected"),
+        "Cisco WAP571/E radio statistics help v1.0.0.14. Definitions are device-specific; counters are not interchangeable packet-loss rates.")
+    private val wifiBusy = t("Wi-Fi observations", "Source", "What it tells you", listOf(
+        "AP radio busy time" to "A time-based observation under that radio's measurement method",
+        "Nearby Wi-Fi scan" to "Reported or cached networks, not measured channel utilization",
+        "Client link rate" to "Reported current radio rate, not application throughput",
+        "Service test" to "Observed performance for its selected path, target and interval"),
+        "Sources: Cisco Wi-Fi throughput monitoring guide (2026); Android WifiInfo and ScanResult APIs. These observations are not interchangeable.")
 
     fun table(id: String): Table? = when (id) {
         "rf-power", "expanded-dbm-table" -> dbm
@@ -50,6 +73,10 @@ internal object ReferenceVisualData {
         "expanded-reflection" -> mismatch
         "cell-power", "cell-quality", "expanded-cell-rsrp", "expanded-cell-nr" -> cell
         "expanded-ipv4-private" -> privateRanges
+        "rf-location-quality" -> location
+        "rf-gnss-satellites" -> satellites
+        "wifi-retry-counters" -> wifiCounters
+        "wifi-busy-time" -> wifiBusy
         else -> null
     }
 

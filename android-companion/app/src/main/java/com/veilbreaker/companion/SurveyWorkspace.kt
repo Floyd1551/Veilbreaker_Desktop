@@ -48,6 +48,8 @@ class SurveyWorkspace(
     private var exportMessage = ""
     private var preparingExport = false
     private var report: MobileSurveyReport.Report? = null
+    private var restoreReport = false
+    private var buildingReport = false
     private var showMoreActions = false
     private var showAllPoints = false
     private val noteDrafts = mutableMapOf<String, String>()
@@ -71,6 +73,7 @@ class SurveyWorkspace(
         requestedName = restoredState?.getString("name").orEmpty().take(80)
         showMoreActions = restoredState?.getBoolean("more_actions") ?: false
         showAllPoints = restoredState?.getBoolean("all_points") ?: false
+        restoreReport = restoredState?.getBoolean("survey_report_open") ?: false
         pendingDocument = PendingSurveyExportStore.reference(
             restoredState?.getString("export_token"), restoredState?.getString("export_sha256"),
             restoredState?.getString("export_kind"))
@@ -99,6 +102,7 @@ class SurveyWorkspace(
         putBoolean("survey_deleting", deletingSurveyId != null || restorePendingDeletion)
         putBoolean("capture_interrupted", capturing || restoreInterruptedCapture)
         putBoolean("more_actions", showMoreActions); putBoolean("all_points", showAllPoints)
+        putBoolean("survey_report_open", report != null || restoreReport || buildingReport)
         pendingDocument?.let { putString("export_token", it.token); putString("export_sha256", it.sha256); putString("export_kind", it.kind) }
         putString("export_message", exportMessage.take(500))
         putBoolean("export_preparing", preparingExport)
@@ -111,7 +115,7 @@ class SurveyWorkspace(
                 if (restorePendingDeletion || creating) {
                     restoringSurveyId = null
                     if (restorePendingDeletion) {
-                        noteDrafts.clear(); creating = false
+                        noteDrafts.clear(); creating = false; restoreReport = false
                         message = "Survey is no longer available. Other surveys and the last capture were kept."
                         runJob({ pendingWrites.awaitAll(); store.list() }) { listing = it }
                     } else {
@@ -147,6 +151,7 @@ class SurveyWorkspace(
                 message += " Capture may have been interrupted. Check the survey and the last saved capture before retrying."
                 restoreInterruptedCapture = false
             }
+            if (restoreReport) openSurveyReport(loaded, restoring = true)
         }
     }
 
@@ -213,7 +218,7 @@ class SurveyWorkspace(
                 text(restore, "Unsaved operator notes remain drafts until you choose Save. They are not measurements.", 12f)
                 button(restore, "Retry opening survey") { restoreSurvey(restoreId) }
                 button(restore, "Discard drafts and return to surveys") {
-                    restoringSurveyId = null; noteDrafts.clear(); message = "Choose a survey or create one."; reloadList()
+                    restoringSurveyId = null; restoreReport = false; noteDrafts.clear(); message = "Choose a survey or create one."; reloadList()
                 }
                 return
             }
@@ -267,7 +272,7 @@ class SurveyWorkspace(
             text(heading, "Values are saved observations, not live. Compare the same technology, subscription, carrier, band and cell where exposed; different sources may not be directly comparable. Cell and location times can differ.", 12f)
             button(heading, "Export survey report HTML…", externalEnabled && pendingDocument == null) { prepareReportExport(reviewed) }
             text(heading, "The report can contain cell identifiers and location. Export survey JSON separately to retain the original captures.", 12f)
-            button(heading, "Back to survey") { report = null; render(); scroll.post { scroll.scrollTo(0, 0) } }
+            button(heading, "Back to survey") { report = null; restoreReport = false; render(); scroll.post { scroll.scrollTo(0, 0) } }
             if (reviewed.points.isEmpty()) text(heading, "No captures are saved in this survey.", 12f)
             for (point in reviewed.points) {
                 val item = card("Point ${point.number} · ${point.outcome.uppercase()}")
@@ -337,11 +342,7 @@ class SurveyWorkspace(
             } catch (_: Exception) { message = "Unable to open the GPS view."; render() }
         }
         button(summary, "View survey dashboard & report") {
-            val snapshot = JSONObject(survey.toString())
-            runJob({
-                val plan = try { JSONObject(context.assets.open("channel-bands.json").bufferedReader().use { it.readText() }) } catch (_: Exception) { null }
-                MobileSurveyReport.build(snapshot, plan)
-            }) { report = it; message = ""; scroll.post { scroll.scrollTo(0, 0) } }
+            openSurveyReport(survey)
         }
         button(summary, if (showMoreActions) "Fewer survey actions ▲" else "More survey actions ▾") {
             showMoreActions = !showMoreActions; render()
@@ -568,6 +569,37 @@ class SurveyWorkspace(
 
     private fun reloadList() {
         runJob({ pendingWrites.awaitAll(); store.list() }) { result -> listing = result; message = "" }
+    }
+
+    /** The survey is reloaded from its journal; pending export bytes are never rebuilt here. */
+    private fun openSurveyReport(survey: JSONObject, restoring: Boolean = false) {
+        if (busy) return
+        val snapshot = JSONObject(survey.toString())
+        buildingReport = true
+        restoreReport = false
+        try {
+            runJob({ runCatching {
+                val plan = try { JSONObject(context.assets.open("channel-bands.json").bufferedReader().use { it.readText() }) } catch (_: Exception) { null }
+                SurveyReportRestoration.restore(true, snapshot, plan)
+            } }) { outcome ->
+                buildingReport = false
+                outcome.fold({ rebuilt ->
+                    report = rebuilt
+                    if (restoring) {
+                        message += " Report rebuilt from the saved survey."
+                        if (pendingDocument?.kind == "report") message += " The pending export retains its original snapshot."
+                    } else message = ""
+                    scroll.post { scroll.scrollTo(0, 0) }
+                }, { error ->
+                    message = "Could not restore the survey report: ${error.message ?: "Please try again."} The saved survey is unchanged."
+                })
+            }
+        } catch (_: Exception) {
+            buildingReport = false
+            busy = false
+            message = "Could not open the survey report. The saved survey is unchanged; please try again."
+            render()
+        }
     }
 
     private fun prepareExport(survey: JSONObject) {
