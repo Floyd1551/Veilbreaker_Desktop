@@ -12,7 +12,9 @@ object CellInventoryModel {
         fun searchText(): String = (listOf(radio, role, subscription, carrier, band, received, age) + identity + metrics)
             .joinToString(" ").lowercase(Locale.ROOT)
     }
-    data class Inventory(val cells: List<Cell>, val total: Int, val omitted: Int, val observationsOmitted: Int = 0)
+    data class Inventory(val cells: List<Cell>, val total: Int, val omitted: Int, val observationsOmitted: Int = 0,
+                         val unreviewedCellEntries: Int = 0, val unorderableObservations: Int = 0,
+                         val unavailableCellLists: Int = 0)
     private const val LIMIT = 128
     private fun text(value: Any?): String? = when (value) {
         null, JSONObject.NULL -> null
@@ -21,6 +23,12 @@ object CellInventoryModel {
         else -> null
     }
     private fun item(obj:JSONObject?, key:String) = text(obj?.opt(key))
+    private fun elapsedMillis(value: Any?): Long? {
+        if (value !is Number) return null
+        return try { value.toString().toBigDecimal().longValueExact().takeIf { it >= 0 } }
+        catch (_: NumberFormatException) { null }
+        catch (_: ArithmeticException) { null }
+    }
     private fun role(row:JSONObject): Pair<Group,String> {
         val registered = row.opt("registered")
         val status = row.optString("connection_status")
@@ -69,21 +77,29 @@ object CellInventoryModel {
     fun build(capture:JSONObject?, plan:JSONObject?): Inventory {
         val observations=capture?.optJSONArray("observations") ?: return Inventory(emptyList(),0,0)
         val latest=linkedMapOf<String,JSONObject>()
+        var unorderable=0
         for (i in 0 until minOf(observations.length(),4096)) {
-            val obs=observations.optJSONObject(i) ?: continue
-            val sub=item(obs,"subscription_key") ?: continue
-            val elapsed=(obs.opt("elapsed_realtime_ms") as? Number)?.toLong()?.takeIf { it>=0 } ?: continue
+            val obs=observations.optJSONObject(i)
+            if (obs == null) { unorderable++; continue }
+            val sub=item(obs,"subscription_key")
+            val elapsed=elapsedMillis(obs.opt("elapsed_realtime_ms"))
+            if (sub == null || elapsed == null) { unorderable++; continue }
             if (latest[sub] == null || elapsed >= latest.getValue(sub).optLong("elapsed_realtime_ms",-1)) latest[sub]=obs
         }
         val subscriptions=capture.optJSONArray("subscriptions")
         val buckets=Group.entries.associateWith { mutableListOf<Cell>() }
         var total=0
+        var unreviewedEntries=0
+        var unavailableLists=0
         for ((sub,obs) in latest) {
             val subscription=if(subscriptions==null) null else (0 until minOf(subscriptions.length(),32))
                 .mapNotNull { subscriptions.optJSONObject(it) }.firstOrNull { item(it,"key")==sub }
-            val cells=obs.optJSONArray("cells") ?: continue
+            val cells=obs.optJSONArray("cells")
+            if (cells == null) { unavailableLists++; continue }
+            unreviewedEntries += (cells.length() - 256).coerceAtLeast(0)
             for (i in 0 until minOf(cells.length(),256)) {
-                val row=cells.optJSONObject(i) ?: continue
+                val row=cells.optJSONObject(i)
+                if (row == null) { unreviewedEntries++; continue }
                 total++
                 val id=row.optJSONObject("identity"); val radio=item(row,"radio") ?: "Unknown radio"
                 val (group,role)=role(row)
@@ -97,7 +113,8 @@ object CellInventoryModel {
             }
         }
         val rows=Group.entries.flatMap { buckets.getValue(it) }.take(LIMIT)
-        return Inventory(rows,total,(total-rows.size).coerceAtLeast(0), (observations.length()-4096).coerceAtLeast(0))
+        return Inventory(rows,total,(total-rows.size).coerceAtLeast(0), (observations.length()-4096).coerceAtLeast(0),
+                         unreviewedEntries, unorderable, unavailableLists)
     }
     fun filter(cells:List<Cell>, group:Group?, query:String): List<Cell> {
         val words=query.trim().lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotEmpty() }

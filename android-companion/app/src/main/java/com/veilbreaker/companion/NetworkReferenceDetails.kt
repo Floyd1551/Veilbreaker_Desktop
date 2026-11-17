@@ -3,6 +3,30 @@ package com.veilbreaker.companion
 /** Offline field context. Examples are illustrative, not captured evidence. */
 internal object NetworkReferenceDetails {
     fun details(id: String): String? = when (id) {
+        "network-ipv6-configuration" -> """
+            DISTINCT INFORMATION SOURCES
+            IPv6 Neighbor Discovery uses router advertisements to communicate router availability and may carry prefix, address-configuration and other options. SLAAC can use an eligible advertised prefix to form an address. DHCPv6 may supply addresses, prefixes or other configuration and can operate independently of or alongside SLAAC. DNS can also be advertised via the RDNSS option; implementations and policies differ.
+
+            FLAG AND LIFETIME CAUTIONS
+            In a router advertisement, M indicates address configuration is available via DHCPv6; O indicates other configuration is available via DHCPv6. The autonomous A flag belongs to a prefix option, not to M or O. These flags do not prove what a client accepted. Address, router and DNS lifetimes can differ; an address remaining present does not establish that a default route or resolver remains valid.
+
+            FIELD METHOD
+            Record the actual interface, link-local and other available addresses, prefixes, selected default route, DNS servers and observation time. Where capture tools expose advertisements, compare flags, lifetimes and source router with client behavior and device policy. Test a local target, a controlled IPv6 address and then name resolution separately. A working address alone does not prove reachability; missing information remains unknown.
+
+            Sources: IETF RFC 4861 (2007), https://www.rfc-editor.org/rfc/rfc4861.html; RFC 4862 (2007), https://www.rfc-editor.org/rfc/rfc4862.html; RFC 8106 (2017), https://www.rfc-editor.org/rfc/rfc8106.html; DHCPv6 RFC 9915 (2026), https://www.rfc-editor.org/rfc/rfc9915.html.
+        """.trimIndent()
+        "network-ipv6-translation" -> """
+            DIFFERENT MECHANISMS
+            DNS64 can synthesize an IPv6 AAAA answer for an IPv4-only destination when its conditions are met. NAT64 translates traffic between IPv6 and IPv4. In the 464XLAT architecture, a client-side translator and a provider-side translator can carry IPv4 traffic across an IPv6 network; 464XLAT does not require DNS64. These describe possible network mechanisms, not a claim that the phone is using them.
+
+            FIELD METHOD — CONTROLLED COMPARISON
+            Record the selected interface and network, target name or IPv4 literal, resolved A/AAAA answers where exposed, timing and application outcome. For an authorized controlled service, compare its name, IPv4 literal and native IPv6 address while accounting for target configuration and DNS caching. A difference can narrow the investigation, but does not prove the presence or failure of a specific translator. Check the actual platform, provider and service configuration before assigning a cause.
+
+            LIMITS
+            Applications may choose different networks or address families, and split DNS, VPNs, caches, firewalls or the service itself can change results. Some literal-address or inbound IPv4 use cases behave differently; 464XLAT is not equivalent to unrestricted native IPv4. Unavailable network or translator details are unknown, not a failed test.
+
+            Sources: IETF RFC 6147 (2011), https://www.rfc-editor.org/rfc/rfc6147.html; RFC 6146 (2011), https://www.rfc-editor.org/rfc/rfc6146.html; RFC 6877 (2013), https://www.rfc-editor.org/rfc/rfc6877.html.
+        """.trimIndent()
         "expanded-ipv4-private" -> """
             VALUE REFERENCE
             RFC 1918 private blocks: 10.0.0.0–10.255.255.255 (/8), 172.16.0.0–172.31.255.255 (/12), and 192.168.0.0–192.168.255.255 (/16). 172.32.0.0 is outside the RFC 1918 172.16/12 block. Other special-purpose blocks have different rules.

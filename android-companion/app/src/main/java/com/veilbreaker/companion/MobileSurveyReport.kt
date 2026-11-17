@@ -6,15 +6,17 @@ import org.json.JSONObject
 object MobileSurveyReport {
     data class Report(val name: String, val surveyId: String, val lifecycle: String,
         val createdUtc: String, val points: List<SurveyComparisonModel.Point>,
-        val completeCount: Int, val partialCount: Int, val locations: Map<Int, GpsSpatialModel.Fix>)
+        val completeCount: Int, val partialCount: Int, val locations: Map<Int, GpsSpatialModel.Fix>,
+        val overview: SurveyEvidenceOverview.Summary)
 
     fun build(survey: JSONObject, plan: JSONObject?): Report {
         MobileSurvey.validate(survey)
         val points = SurveyComparisonModel.build(survey, plan)
+        val locations = GpsSpatialModel.surveyLocations(survey).associate { it.pointNumber to it.fix }
         return Report(survey.getString("name"), survey.getString("survey_id"),
             survey.getString("lifecycle"), survey.getString("created_utc"), points,
             points.count { it.outcome == "complete" }, points.count { it.outcome == "partial" },
-            GpsSpatialModel.surveyLocations(survey).associate { it.pointNumber to it.fix })
+            locations, SurveyEvidenceOverview.summarize(points, locations))
     }
 
     private fun escape(value: String): String = buildString {
@@ -33,6 +35,9 @@ object MobileSurveyReport {
         para("Survey ${report.surveyId} · ${report.lifecycle} · created ${report.createdUtc}")
         para("${report.points.size} captures · ${report.completeCount} complete · ${report.partialCount} partial. Other outcomes remain identified per point.")
         para("Values are saved observations, not live. Cell and location readings can have different times. Compare equivalent technology, SIM, cell, band and receiver settings; no transmitter location or signal coverage is inferred.")
+        append("<h3>Evidence availability</h3>")
+        for (line in report.overview.lines()) para(line)
+        para(report.overview.limitations)
         if (report.points.isEmpty()) para("No captures are saved in this survey.")
         for (point in report.points) {
             append("<section><h2>Point ").append(point.number).append("</h2>")

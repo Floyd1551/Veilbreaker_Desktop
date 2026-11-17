@@ -22,7 +22,9 @@ object SurveyComparisonModel {
             Point(index + 1, capture.getString("capture_id"),
                 capture.optString("created_utc").ifBlank { "Capture time not exposed" },
                 capture.getJSONObject("collection").optString("outcome", "unknown"),
-                location(capture), serving.take(4), (serving.size - 4).coerceAtLeast(0), inventory.omitted > 0 || inventory.observationsOmitted > 0,
+                location(capture), serving.take(4), (serving.size - 4).coerceAtLeast(0),
+                inventory.omitted > 0 || inventory.observationsOmitted > 0 || inventory.unreviewedCellEntries > 0 ||
+                    inventory.unorderableObservations > 0 || inventory.unavailableCellLists > 0,
                 (point.opt("operator_note") as? String)?.takeIf { it.isNotBlank() && it.length <= 500 && it.none { ch -> ch.isISOControl() && ch != '\n' } })
         }
     }

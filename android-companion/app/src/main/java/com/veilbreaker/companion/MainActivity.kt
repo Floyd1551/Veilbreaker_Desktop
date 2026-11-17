@@ -135,9 +135,9 @@ class MainActivity : Activity() {
         else captureDocumentExport.message
         captureExportStatus.visibility = if (captureExportStatus.text.isBlank()) View.GONE else View.VISIBLE
         captureExportRetry.visibility = if (captureDocumentExport.hasPending) View.VISIBLE else View.GONE
-        captureExportRetry.text = "Choose ${captureDocumentExport.pendingFormat} export destination…"
+        captureExportRetry.text = captureDocumentExport.retryText
         captureExportDiscard.visibility = if (captureDocumentExport.hasPending) View.VISIBLE else View.GONE
-        captureExportRetry.isEnabled = externalActionsEnabled() && !captureDocumentExport.busy
+        captureExportRetry.isEnabled = externalActionsEnabled() && !captureDocumentExport.busy && captureDocumentExport.canRetry
         captureExportDiscard.isEnabled = !captureDocumentExport.busy
         val canStart = externalActionsEnabled() && !captureDocumentExport.busy && !captureDocumentExport.hasPending
         if (::exportButton.isInitialized) exportButton.isEnabled = canStart && capture != null
@@ -482,7 +482,7 @@ class MainActivity : Activity() {
                 val outcome=assessment.outcome
                 val notes=assessment.notes.toMutableList()
                 if(useLocation && cellResponseUtc!=null) notes.add("Cell response and phone location were acquired separately; their timestamps may differ.")
-                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.29-dev",
+                val snapshot=CaptureSerializer.envelope(Build.MANUFACTURER,Build.MODEL,Build.VERSION.RELEASE,Build.VERSION.SDK_INT,"0.8.30-dev",
                     source.take(256).map { CellularSnapshot.cell(it,elapsed) },elapsed,outcome,notes,started)
                 val observation=snapshot.getJSONArray("observations").getJSONObject(0)
                 cellResponseUtc?.let { observation.put("cell_response_received_utc",it) }

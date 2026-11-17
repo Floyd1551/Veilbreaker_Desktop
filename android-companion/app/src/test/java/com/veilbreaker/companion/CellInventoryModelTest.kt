@@ -6,6 +6,29 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CellInventoryModelTest {
+    @Test fun disclosesUnreviewedEntriesAndUnorderableObservations() {
+        val rows = JSONArray()
+        repeat(257) { rows.put(row("GSM", false, "none")) }
+        val beyondLimit = CellInventoryModel.build(capture(observation(1, rows)), plan)
+        assertEquals(1, beyondLimit.unreviewedCellEntries)
+        assertEquals(128, beyondLimit.omitted)
+        val noSubscription = JSONObject().put("elapsed_realtime_ms", 2).put("cells", JSONArray().put(row("LTE", true, "primary")))
+        val noElapsed = JSONObject().put("subscription_key", "sim-2").put("cells", JSONArray().put(row("NR", true, "primary")))
+        val noCells = JSONObject().put("subscription_key", "sim-3").put("elapsed_realtime_ms", 3)
+        val malformedCell = observation(4, JSONArray().put(JSONObject.NULL))
+        val fractionalElapsed = JSONObject().put("subscription_key", "sim-4").put("elapsed_realtime_ms", 0.5).put("cells", JSONArray())
+        val negativeElapsed = JSONObject().put("subscription_key", "sim-5").put("elapsed_realtime_ms", -1).put("cells", JSONArray())
+        val result = CellInventoryModel.build(capture(noSubscription, noElapsed, noCells, malformedCell, fractionalElapsed, negativeElapsed), plan)
+        assertEquals(4, result.unorderableObservations)
+        assertEquals(1, result.unavailableCellLists)
+        assertEquals(1, result.unreviewedCellEntries)
+        assertEquals(0, result.total)
+    }
+    @Test fun overflowingElapsedTimeIsUnorderable() {
+        val huge = JSONObject().put("subscription_key", "sim-1")
+            .put("elapsed_realtime_ms", 9223372036854775808.0).put("cells", JSONArray())
+        assertEquals(1, CellInventoryModel.build(capture(huge), plan).unorderableObservations)
+    }
     @Test fun newestServingObservationAfterOneThousandIsNotIgnored() {
         val observations = JSONArray()
         repeat(1001) { observations.put(observation(it.toLong(), JSONArray().put(row("LTE",true,"primary")))) }

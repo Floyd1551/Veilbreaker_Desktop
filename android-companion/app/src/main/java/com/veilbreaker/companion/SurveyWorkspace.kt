@@ -273,6 +273,9 @@ class SurveyWorkspace(
             button(heading, "Export survey report HTML…", externalEnabled && pendingDocument == null) { prepareReportExport(reviewed) }
             text(heading, "The report can contain cell identifiers and location. Export survey JSON separately to retain the original captures.", 12f)
             button(heading, "Back to survey") { report = null; restoreReport = false; render(); scroll.post { scroll.scrollTo(0, 0) } }
+            text(heading, "Evidence availability", 13f, true)
+            text(heading, reviewed.overview.lines().joinToString("\n"), 12f)
+            text(heading, reviewed.overview.limitations, 12f)
             if (reviewed.points.isEmpty()) text(heading, "No captures are saved in this survey.", 12f)
             for (point in reviewed.points) {
                 val item = card("Point ${point.number} · ${point.outcome.uppercase()}")
@@ -289,7 +292,7 @@ class SurveyWorkspace(
                     text(item, cell.metrics.joinToString(" · "), 12f)
                 }
                 if (point.omittedServing > 0) text(item, "${point.omittedServing} additional serving cell(s) not displayed.", 12f)
-                if (point.inventoryIncomplete) text(item, "Some cell or observation data exceeds the review limit. Shown cells may not be latest; inspect the original capture.", 12f)
+                if (point.inventoryIncomplete) text(item, "Some cell or observation data was unavailable, unorderable, or beyond the review limit. Shown cells may not be latest; inspect the original capture.", 12f)
             }
             return
         }

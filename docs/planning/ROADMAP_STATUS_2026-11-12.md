@@ -1,7 +1,7 @@
 # Veilbreaker roadmap status — November 12, 2026
 
 This is a source-code status snapshot, not a release certification. The Desktop
-source reports 0.67.0rc1 and the mobile development source reports 0.8.29-dev.
+source reports 0.67.0rc1 and the mobile development source reports 0.8.30-dev.
 The Windows 0.67.0rc1 installer was rebuilt and installed on November 13 with
 the recent Desktop survey recovery changes. Its source tests were split into
 two processes after a Qt test-order stall; 620 tests and packaged GUI, offline
@@ -36,7 +36,7 @@ and release qualification remain outstanding.
 
 - [x] Unified Android application, public-API cellular capture, explicit SIM
   choice, GPS, cached Wi-Fi inspection, local reports and Desktop USB protocol.
-- [x] Offline toolbox baseline: 38 calculators, two converters, 57 references,
+- [x] Offline toolbox baseline: 38 calculators, two converters, 59 references,
   10 guides, and initial Wi-Fi, FWA and topology planning aids. Models are not
   validated coverage predictions or measured evidence.
 - [x] Initial cellular workflow: readable live metrics, sample/response timing,
@@ -93,6 +93,11 @@ and release qualification remain outstanding.
   dashboard from the saved survey without replacing any staged report snapshot.
   A Samsung check reopened the dashboard after rotation and produced readable
   survey HTML and capture PDF after rotating each document picker.
+- [x] Source implements a bounded private capture-export recovery journal for
+  cold restarts and an evidence-availability overview in survey reports. The
+  recovery workflow still needs physical-device process-death qualification.
+- [x] Cellular inventory indicates when entries, observations or cell lists could
+  not be reviewed, including malformed timestamps and bounded cell lists.
 - [ ] Qualify abrupt process death and interruption during document writes;
   an interrupted destination may be incomplete and require a retry. Validate
   the same workflows on other devices.

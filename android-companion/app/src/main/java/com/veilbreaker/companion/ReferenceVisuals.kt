@@ -61,6 +61,17 @@ internal object ReferenceVisualData {
         "Client link rate" to "Reported current radio rate, not application throughput",
         "Service test" to "Observed performance for its selected path, target and interval"),
         "Sources: Cisco Wi-Fi throughput monitoring guide (2026); Android WifiInfo and ScanResult APIs. These observations are not interchangeable.")
+    private val ipv6Config = t("IPv6 configuration sources", "Mechanism", "Possible information", listOf(
+        "Router advertisement" to "Router availability, prefixes and configuration flags; DNS options may be included",
+        "SLAAC" to "Address configuration using an eligible advertised prefix",
+        "DHCPv6" to "Addresses, prefixes or other configuration according to deployment",
+        "RDNSS option" to "Recursive DNS servers advertised via Neighbor Discovery"),
+        "RFC 4861, 4862, 8106 and 9915. Advertised options are not proof of client acceptance or working connectivity.")
+    private val ipv6Translation = t("IPv6 transition mechanisms", "Mechanism", "What it describes", listOf(
+        "DNS64" to "Can synthesize an IPv6 answer for an IPv4-only destination",
+        "NAT64" to "Translates traffic between IPv6 and IPv4",
+        "464XLAT" to "Client-side and provider-side translation; DNS64 is not required"),
+        "RFC 6146, 6147 and 6877. These are reference mechanisms, not measured evidence of a network configuration.")
 
     fun table(id: String): Table? = when (id) {
         "rf-power", "expanded-dbm-table" -> dbm
@@ -77,6 +88,8 @@ internal object ReferenceVisualData {
         "rf-gnss-satellites" -> satellites
         "wifi-retry-counters" -> wifiCounters
         "wifi-busy-time" -> wifiBusy
+        "network-ipv6-configuration" -> ipv6Config
+        "network-ipv6-translation" -> ipv6Translation
         else -> null
     }
 
