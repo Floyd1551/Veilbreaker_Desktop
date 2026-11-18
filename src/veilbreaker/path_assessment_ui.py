@@ -39,8 +39,15 @@ class PathAssessmentDialog(JobDialog):
         self.store_root=config.root/'regional-packs';self.selected_pack=None;self.selected_packs=None;self.expected_pack_sha256=None
         self.setWindowTitle('Assess selected terrain path');self.resize(1050,800)
         layout=QVBoxLayout(self)
-        note=QLabel('Conditional on the selected cell reference. Enter actual antenna heights above ground; phone altitude and mast height are not substitutes. No network download is performed.')
-        note.setWordWrap(True);layout.addWidget(note)
+        physical = selected_endpoint_context.get('candidate', {}).get('reference_kind') == 'physical structure'
+        if physical:
+            guidance = ('Conditional on the selected physical structure reference. Its record does not establish a serving cell or antenna location. '
+                        'Enter actual antenna heights above ground; phone altitude and mast height are not substitutes. No network download is performed.')
+        else:
+            guidance = ('Conditional on the selected cell reference. Enter actual antenna heights above ground; '
+                        'phone altitude and mast height are not substitutes. No network download is performed.')
+        note=QLabel(guidance)
+        note.setTextFormat(Qt.TextFormat.PlainText);note.setWordWrap(True);layout.addWidget(note)
         form=QFormLayout();layout.addLayout(form)
         self.file=QLineEdit();self.choose=QPushButton('Select regional GeoTIFF…');self.choose.clicked.connect(self.select_file)
         line=QHBoxLayout();line.addWidget(self.file);line.addWidget(self.choose);form.addRow('Elevation file',line)

@@ -20,6 +20,42 @@ def run(*args, **kwargs):
     return subprocess.run(list(map(str, args)), check=True, **kwargs)
 
 
+def source_test_modules(test_root):
+    """Enumerate the same importable test files as unittest discovery."""
+    root = Path(test_root)
+    if not root.is_dir():
+        raise RuntimeError('Source test directory is missing.')
+    names = []
+    def raise_walk_error(error):
+        raise error
+    for folder, directories, files in os.walk(root, onerror=raise_walk_error):
+        # unittest recurses only into Python packages.
+        directories[:] = sorted(name for name in directories if (Path(folder) / name / '__init__.py').is_file())
+        names.extend(name for name in files if name.startswith('test') and name.endswith('.py')
+                     and name[:-3].isidentifier())
+    if not names:
+        raise RuntimeError('No source test modules were discovered.')
+    if len(names) != len(set(names)):
+        raise RuntimeError('Duplicate source test filenames cannot be isolated safely.')
+    return sorted(names)
+
+
+def run_source_tests(test_root):
+    """Isolate modules so Qt state cannot leak between independent suites."""
+    discover = ("import sys, unittest; "
+                "suite = unittest.defaultTestLoader.discover(sys.argv[1], pattern=sys.argv[2]); "
+                "count = suite.countTestCases(); "
+                "result = unittest.TextTestRunner(verbosity=2).run(suite); "
+                "sys.exit(0 if count and result.wasSuccessful() else 1)")
+    names = source_test_modules(test_root)
+    for name in names:
+        print(f'Source tests: {name}', flush=True)
+        run(sys.executable, '-c', discover, test_root, name, timeout=180)
+    if source_test_modules(test_root) != names:
+        raise RuntimeError('Source test modules changed during the release check.')
+    return names
+
+
 def freezer_environment():
     env = os.environ.copy()
     if os.name == "nt":
@@ -35,8 +71,9 @@ def freezer_environment():
 
 def main():
     skip_tests = "--skip-tests" in sys.argv
+    source_modules = []
     if not skip_tests:
-        run(sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v")
+        source_modules = run_source_tests(ROOT / 'tests')
     run(sys.executable, "tools/make_icon.py")
     run(sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "Veilbreaker.spec", env=freezer_environment())
     bundle = ROOT / "dist/Veilbreaker"
@@ -131,6 +168,7 @@ def main():
     manifest = {"version": __version__, "python": platform.python_version(), "platform": platform.platform(),
                 "packages": {d.metadata["Name"]: d.version for d in importlib.metadata.distributions()},
                 "passed": not skip_tests, "tests_skipped": skip_tests, "offline_data": offline_manifest,
+                "source_test_modules": source_modules,
                 "checks": [] if skip_tests else ["source tests", "frozen CLI selftest", "frozen Unicode analysis worker", "frozen GUI seven pages", "frozen offline map rendering and selection", "frozen terrain raster projection and profile"] + (["frozen CONUS map rendering"] if offline_manifest else [])}
     (bundle / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     name = f"Veilbreaker-{__version__}-{platform.system().lower()}-{platform.machine().lower()}"

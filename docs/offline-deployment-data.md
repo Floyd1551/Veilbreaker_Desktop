@@ -52,9 +52,16 @@ import retains its date and SHA-256; filed NAD83 positions
 are displayed as approximate WGS84 without a datum transformation. ASR is
 incomplete and may be stale: a listed structure is not proof of a serving cell,
 carrier, antenna position or current line of sight. Verify the original record
-and field conditions before relying on it. Physical-structure records can be
-inspected in the pack manager; they are not yet automatically matched on the map
-or incorporated into a line-of-sight assessment.
+and field conditions before relying on it. On the survey map, select a qualified
+recorded location or an operator-placed geographic point, then choose **Nearby
+structures / assess path**. Search installed structure packs, explicitly select
+a record and review its source before displaying its bearing or assessing the
+terrain path. This is an operator-selected physical reference, not an automatic
+serving-cell match. Enter actual antenna heights for the path assessment; the
+registered structure height is not an antenna height. A survey assessment retains
+its receiver and structure provenance; operator placement remains separate from
+recorded GPS evidence. Terrain results cover the available terrain data, not
+buildings, vegetation, or proof of radio propagation.
 
 Terrain starter windows are available for the 48 contiguous states, with
 controls to move the search window. They are small editable search areas, not

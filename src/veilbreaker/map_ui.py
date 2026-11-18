@@ -128,7 +128,11 @@ class MapWindow(QDialog):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows);self.table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection);self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch);self.splitter.addWidget(self.table);self.splitter.setSizes([460,180])
         self.details=QLabel('Select a measurement to inspect its location evidence.');self.details.setWordWrap(True);self.details.setTextFormat(Qt.TextFormat.PlainText);outer.addWidget(self.details)
-        self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);outer.addWidget(self.open_button)
+        point_actions=QHBoxLayout();outer.addLayout(point_actions)
+        self.open_button=QPushButton('Open diagnostic');self.open_button.setEnabled(False);self.open_button.clicked.connect(self.open_diagnostic);point_actions.addWidget(self.open_button)
+        self.structures_button=QPushButton('Nearby structures / assess path…');self.structures_button.setEnabled(False)
+        self.structures_button.clicked.connect(self.nearby_structures);point_actions.addWidget(self.structures_button)
+        if not config or pick_callback:self.structures_button.hide()
         if open_run is None: self.open_button.hide()
         self.run_filter.currentIndexChanged.connect(self.change_run);self.questionable.toggled.connect(self.update_view)
         self.metric_selector.currentIndexChanged.connect(self.change_metric)
@@ -210,7 +214,7 @@ class MapWindow(QDialog):
                         f"{scale['minimum']:g} to {scale['maximum']:g} {scale['unit']}")
             count_text=f"{scale['count']} observations" if mobile else f"{scale['count']} saved {'run' if scale['count']==1 else 'runs'}"
             suffix=('One capture and reported cell; each colored fix has a time-checked sample. No interpolation; different times or movement can affect comparison.' if mobile else 'Run metrics are not per-fix readings.')
-            self.metric_legend.setText(f"{scale['label']} · {range_text} across {count_text}. Colors show relative measured values, not a quality verdict. {suffix} Purple outline = operator placement; teal = qualified GPS; amber = questionable GPS; gray fill = value unavailable.")
+            self.metric_legend.setText(f"{scale['label']} · {range_text} across {count_text}. Colors show relative measured values, not a quality verdict. {suffix} Purple outline = operator placement; teal = qualified location; amber = questionable location; gray fill = value unavailable.")
         elif mobile:
             self.metric_legend.setText('Select one mobile capture and a reported cell to show its eligible observations. Other captures and operator placements are not colored.')
         elif metric_key and metric_key.startswith('live_phone_') and self.model.get('auto_live_suppressed'):
@@ -219,7 +223,7 @@ class MapWindow(QDialog):
         elif metric_key and metric_key.startswith('live_phone_') and self.cell_selector.count()>1:
             self.metric_legend.setText('Select a reported cell group to view one run. Each value summarizes fresh samples from that run, not an individual position.')
         else:
-            self.metric_legend.setText('Mobile survey preview · teal = qualified recorded location; amber = questionable location. Select an observation metric, capture and cell for eligible values.' if self.model.get('mobile_survey_preview') else 'Location provenance · teal = qualified GPS; purple = operator placement; amber = questionable GPS. Choose a saved run metric to color positioned scans.')
+            self.metric_legend.setText('Mobile survey preview · teal = qualified recorded location; amber = questionable location. Select an observation metric, capture and cell for eligible values.' if self.model.get('mobile_survey_preview') else 'Location provenance · teal = qualified recorded location; purple = operator placement; amber = questionable location. Choose a saved run metric to color positioned scans.')
             if self.mobile_unfilterable:
                 self.metric_legend.setText(self.metric_legend.text() + ' Mobile readings remain in point details; coloring needs a qualified fix and complete reported cell identity and channel.')
         coordinate_ids={f['id'] for f in self.model['features']['features']}
@@ -230,7 +234,7 @@ class MapWindow(QDialog):
             metric_text=f"{metric['label']} {metric['value']:g} {metric['unit']}" if metric else '—'
             for j,value in enumerate([row['label'],row['observation_id'],row['quality']['label'],row.get('horizontal_accuracy_m'),row.get('fix_age_ms'),metric_text]):
                 self.table.setItem(i,j,QTableWidgetItem('Not exposed' if value is None else str(value)))
-        self.table.blockSignals(False);self.selected=None;self.open_button.setEnabled(False)
+        self.table.blockSignals(False);self.selected=None;self.open_button.setEnabled(False);self.structures_button.setEnabled(False)
         counts=self.model['counts'];unit='points' if self.model.get('mobile_survey_preview') else 'runs'
         self.summary.setText(f"{counts['mapped']} qualified plottable observations · {counts['questionable']} questionable fixes · {counts['unpositioned_runs']} {unit} without a qualified position" + (' · '+ ' '.join(self.model['warnings'][:3]) if self.model['warnings'] else ''))
         if counts.get('manual'):
@@ -272,11 +276,37 @@ class MapWindow(QDialog):
         self.cell_overlay=dict(receiver=a,candidate=b,bounds=map_bounds(features))
         self.update_view()
         self.details.setText('Selected receiver-to-reference bearing; this line does not establish LOS or a physical tower identity.')
+    def nearby_structures(self):
+        if not self.config or not self._structure_receiver_allowed(self.selected):return
+        from .nearby_structures_ui import NearbyStructuresDialog
+        callback=self.save_structure_assessment if self.model.get('survey_path') else None
+        self.structure_dialog=NearbyStructuresDialog(self,self.config,dict(self.selected),self.show_structure_candidate,callback)
+        self.structure_dialog.show()
+    @staticmethod
+    def _structure_receiver_allowed(row):
+        return bool(isinstance(row,dict) and row.get('renderable') and
+                    (row.get('manual') is True or row.get('quality',{}).get('qualified') is True))
+    def show_structure_candidate(self,receiver,candidate):
+        from .map_data import finite
+        if not self._structure_receiver_allowed(receiver):return
+        a=[receiver.get('longitude_deg'),receiver.get('latitude_deg')];b=[candidate.get('lon'),candidate.get('lat')]
+        if not all(finite(value) for value in a+b) or any(abs(point[0])>180 or abs(point[1])>85.05112878 for point in (a,b)):
+            self.details.setText('Selected path is outside the map projection. Numerical context remains available.');return
+        features=[dict(geometry=dict(coordinates=c),properties=dict(renderable=True)) for c in (a,b)]
+        self.cell_overlay=dict(receiver=a,candidate=b,bounds=map_bounds(features),kind='physical_structure',receiver_manual=receiver.get('manual') is True)
+        self.update_view()
+        source='operator placement' if receiver.get('manual') is True else 'qualified recorded receiver position'
+        self.details.setText('Selected '+source+' to physical-structure reference. The dashed line is a bearing, not LOS or a verified serving relationship.')
+    def save_structure_assessment(self,assessment):
+        from .cell_context import append_structure_assessment
+        append_structure_assessment(self.config,self.model['survey_path'],assessment)
+        return 'Physical-structure assessment saved to this survey. Original evidence is unchanged.'
     def select_feature(self,feature_id):
         for i,row in enumerate(self.visible_rows):
             if row['id']==feature_id:
                 self.table.blockSignals(True);self.table.selectRow(i);self.table.blockSignals(False)
                 self.selected=row;self.open_button.setEnabled(self.open_run_callback is not None and row.get('source_kind') != 'mobile_survey_capture')
+                self.structures_button.setEnabled(bool(self.config and not self.pick_callback and self._structure_receiver_allowed(row)))
                 def val(key):return str(row[key]) if row.get(key) is not None else 'Not exposed'
                 metric_key=self.metric_selector.currentData()
                 mobile=isinstance(metric_key,str) and metric_key.startswith(MOBILE_OBSERVATION_PREFIX)

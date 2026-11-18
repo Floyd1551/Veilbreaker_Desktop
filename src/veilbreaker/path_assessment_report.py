@@ -91,6 +91,31 @@ def assessment_html(value):
         parts.append('<p><img width="960" src="data:image/png;base64,'+value['profile_png']+'" alt="Terrain profile"></p>')
     parts.append(table(['Receiver AGL m','Site antenna AGL m','Frequency MHz','Earth factor','Fresnel fraction'],[[profile[k] for k in ('receiver_agl_m','site_agl_m','frequency_mhz','earth_factor','fresnel_fraction')]]))
     parts.append('<p>Prepared: '+text(value.get('prepared_utc'))+'<br>Endpoint: '+text(context['candidate'].get('verification','Estimated reference'))+'; '+text(value['terrain']['endpoints'])+'<br>DEM: '+text(dem['source'])+'; datum '+text(dem['vertical_datum'])+'; units '+text(dem['units'])+'; CRS '+text(dem['crs'])+'<br>DEM SHA-256: '+text(dem['sha256'])+'<br>Sample spacing: '+text(dem['sample_spacing_m'])+' m; nearest-cell sampling.</p>')
+    candidate=context['candidate']
+    if candidate.get('reference_kind') == 'physical structure':
+        parts.append('<h3>Physical structure reference</h3>')
+        receiver=context.get('map_receiver') or {}
+        observation=context.get('observation') or {}
+        location=observation.get('location') or {}
+        position_source=observation.get('position_source')
+        position_label={'operator_map_placement':'Operator map placement (not GPS evidence)',
+                        'qualified_gps':'Qualified recorded location',
+                        'qualified_location':'Qualified recorded location'}.get(position_source,'Not recorded')
+        parts.append(table(['Receiver position source','Run / mobile point','Observation','Latitude / longitude'], [[
+            position_label, receiver.get('run_id'), receiver.get('observation_id'),
+            f"{location.get('latitude_deg')}, {location.get('longitude_deg')}"]]))
+        parts.append(table(['Location source','Location provider','Placement time','Fix time','Received time','Capture source','Mobile capture ID','Mobile survey SHA-256'], [[
+            location.get('source'), location.get('provider'), receiver.get('placed_utc'), location.get('fix_utc'), location.get('received_utc'), receiver.get('source_kind'),
+            receiver.get('mobile_capture_id'), receiver.get('mobile_survey_sha256')]]))
+        parts.append(table(['Structure ID', 'Owner', 'Recorded structure height (m AGL)', 'Selection'], [[
+            candidate.get('structure_id'), candidate.get('owner'), candidate.get('height_agl_m'),
+            'Operator selected' if candidate.get('selection_method') == 'operator_selected' else 'Not recorded']]))
+        parts.append(table(['Pack', 'Pack ID', 'Source', 'Source date', 'License', 'Pack SHA-256'], [[
+            candidate.get('pack_name'), candidate.get('pack_id'), candidate.get('source'),
+            candidate.get('source_date'), candidate.get('license'), candidate.get('sha256')]]))
+        parts.append('<p>Declared bounds: '+text(candidate.get('bounds_wgs84'))+'<br>Coverage: '+text(candidate.get('coverage_note'))+'</p>')
+        parts.append('<p>A physical-structure record does not establish a serving cell, carrier, antenna location, or present-day structure condition. '
+                     'Recorded structure height is not antenna height. For FCC ASR data, filed NAD83 coordinates are used as approximate WGS84 without a datum transformation.</p>')
     if value.get('regional_packs'):
         parts.append('<h3>Installed terrain sources</h3>')
         parts.append(table(['Tile','Source / date','WGS84 bounds','SHA-256','Sample count'],
