@@ -101,7 +101,7 @@ def _search_usgs_job(bounds, cancelled, progress):
     return {'catalog': result}
 
 
-def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress):
+def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, verify_integrity=False):
     from .area_coverage import area_preview
     from .map_catalog import PackCatalog
     from .deployment_data import bundled_map
@@ -113,9 +113,20 @@ def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress):
         maps.append(dict(pack, available=True, source_date='Included map'))
     store=RegionalPackStore(Path(root)/'regional-packs')
     report=area_preview(bounds,store.list_packs(),maps,Path(root)/'cell-references',cancelled)
+    if verify_integrity:
+        from .area_pack_integrity import verify_area_packs
+        report['integrity']=verify_area_packs(store,bounds,cancelled,progress)
+        if cancelled():
+            raise ValueError('Area verification cancelled.')
     if sample_grid is not None:
-        from .terrain_area_sample import sample_area
-        report['terrain']['sample']=sample_area(store,bounds,cancelled,grid_size=sample_grid)
+        integrity=report.get('integrity')
+        unsafe=integrity and (not integrity['complete'] or any(
+            row.get('kind') == 'terrain' and row.get('status') != 'verified' for row in integrity['packs']))
+        if unsafe:
+            report['terrain']['sample']=dict(status='skipped_integrity',note='Terrain sampling skipped because verification was incomplete or a terrain pack failed verification. Repair or remove affected packs and check again.')
+        else:
+            from .terrain_area_sample import sample_area
+            report['terrain']['sample']=sample_area(store,bounds,cancelled,grid_size=sample_grid)
     return {'coverage':report}
 
 
@@ -157,10 +168,13 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_conus_button.clicked.connect(self.coverage_conus)
         self.coverage_check = QPushButton('Check local data')
         self.coverage_check.clicked.connect(self.check_coverage)
+        self.coverage_cancel = QPushButton('Cancel area check')
+        self.coverage_cancel.setEnabled(False)
+        self.coverage_cancel.clicked.connect(self.cancel_coverage)
         self.coverage_save = QPushButton('Save preview report…')
         self.coverage_save.setEnabled(False)
         self.coverage_save.clicked.connect(self.save_coverage_report)
-        coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_conus_button);coverage_actions.addWidget(self.coverage_check);coverage_actions.addWidget(self.coverage_save)
+        coverage_actions.addWidget(self.coverage_preset);coverage_actions.addWidget(self.coverage_conus_button);coverage_actions.addWidget(self.coverage_check);coverage_actions.addWidget(self.coverage_cancel);coverage_actions.addWidget(self.coverage_save)
         coverage_layout.addLayout(coverage_actions)
         self.coverage_sample = QCheckBox('Also sample terrain')
         self.coverage_sample.setToolTip('Optional sparse no-data check; it does not verify every raster cell or the file checksum.')
@@ -171,6 +185,9 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_grid.setEnabled(False)
         self.coverage_sample.toggled.connect(self.coverage_grid.setEnabled)
         sample_row=QHBoxLayout();sample_row.addWidget(self.coverage_sample);sample_row.addWidget(self.coverage_grid);coverage_layout.addLayout(sample_row)
+        self.coverage_verify = QCheckBox('Verify intersecting terrain and structure packs')
+        self.coverage_verify.setToolTip('Optional SHA-256 integrity check. It can take time and does not prove map coverage, data accuracy, or absence of terrain gaps.')
+        coverage_layout.addWidget(self.coverage_verify)
         self.coverage_table = QTableWidget(0, 2)
         self.coverage_table.setHorizontalHeaderLabels(['Layer', 'Result'])
         self.coverage_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -185,9 +202,11 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_details.setPlainText('Select an area and check local data, then select a layer for details.')
         coverage_layout.addWidget(self.coverage_details)
         self.coverage_result = None
+        self.coverage_running = False
         self.coverage_bounds.textChanged.connect(self.invalidate_coverage)
         self.coverage_sample.toggled.connect(self.invalidate_coverage)
         self.coverage_grid.currentIndexChanged.connect(self.invalidate_coverage)
+        self.coverage_verify.toggled.connect(self.invalidate_coverage)
         layout.addWidget(self.workspace_tabs, 1)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(['Kind', 'Pack', 'WGS84 bounds', 'Source / date', 'Size', 'Status'])
@@ -323,7 +342,7 @@ class RegionalPacksDialog(JobDialog):
                          self.batch_button, self.fcc_import_button, self.bundled_structures_button,
                          self.state_picker, self.move_west, self.move_east, self.move_north, self.move_south]
         self.controls.append(self.huntsville_button)
-        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_table])
+        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_verify, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
         self.refresh()
         self.update_kind()
@@ -339,6 +358,7 @@ class RegionalPacksDialog(JobDialog):
 
     def set_busy(self, busy):
         super().set_busy(busy)
+        self.coverage_cancel.setEnabled(bool(busy and self.coverage_running and self.worker and not self.worker.cancelled.is_set()))
         self.coverage_grid.setEnabled(not busy and self.coverage_sample.isChecked())
         self.coverage_save.setEnabled(not busy and self.coverage_result is not None)
         if not busy:
@@ -406,11 +426,12 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_result = None
         self.coverage_save.setEnabled(False)
         self.coverage_table.setRowCount(0)
-        self.coverage_details.setPlainText('Area or sampling options changed. Check local data again before saving a report.')
+        self.coverage_details.setPlainText('Area, sampling, or verification options changed. Check local data again before saving a report.')
         self.status.setText('Area preview needs to be checked again.')
 
     @Slot()
     def check_coverage(self):
+        if self.worker is not None:return
         try:
             from .regional_packs import _bounds
             bounds = _bounds([float(part.strip()) for part in self.coverage_bounds.text().split(',')])
@@ -423,7 +444,15 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_details.setPlainText('Checking the selected area…')
         self.status.setText('Checking local extents and cell records…')
         grid=self.coverage_grid.currentData() if self.coverage_sample.isChecked() else None
-        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, grid))
+        self.coverage_running=True
+        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, grid, verify_integrity=self.coverage_verify.isChecked()))
+
+    @Slot()
+    def cancel_coverage(self):
+        if not self.coverage_running or self.worker is None:return
+        self.worker.cancelled.set()
+        self.coverage_cancel.setEnabled(False)
+        self.status.setText('Cancelling area check; waiting for the current operation to stop…')
 
     @Slot()
     def save_coverage_report(self):
@@ -442,8 +471,18 @@ class RegionalPacksDialog(JobDialog):
     @Slot()
     def show_coverage_details(self):
         index = self.coverage_table.currentRow()
-        if self.coverage_result is None or not 0 <= index < 4:
+        if self.coverage_result is None or not 0 <= index < self.coverage_table.rowCount():
             return
+        if index == 4:
+            value=self.coverage_result.get('integrity') or {}
+            lines=['SHA-256 verifies file integrity at the time checked; it is not coverage, accuracy, or terrain-gap verification. Files may change afterwards; any terrain sample is a separate check.',
+                   'Checked (UTC): '+str(value.get('checked_utc') or 'Unknown')]
+            for row in value.get('packs',[]):
+                lines.append(f"{row.get('name','Unknown')} · {row.get('kind','Unknown')} · {row.get('status','Unknown')} · {row.get('detail','')}")
+                lines.append(f"Source: {row.get('source','Unknown')} · date: {row.get('source_date','Unknown')} · terms: {row.get('license','Unknown')}")
+                lines.append(f"Pack ID: {row.get('pack_id','Unknown')} · SHA-256: {row.get('sha256','Unknown')} · bounds: {row.get('bounds_wgs84','Unknown')} · {row.get('coverage_note','')}")
+            lines.extend(str(warning) for warning in value.get('warnings',[]))
+            self.coverage_details.setPlainText('\n'.join(lines));return
         key = ('map', 'terrain', 'cell', 'structures')[index]
         row = self.coverage_result[key]
         lines = [row['note']]
@@ -469,7 +508,7 @@ class RegionalPacksDialog(JobDialog):
                     lines.append(f"Grid: {sample['grid_size']} × {sample['grid_size']} · valid: {sample['valid']} · missing: {sample['missing']} (outside: {sample['outside']}; no-data: {sample['nodata']}).")
                     lines.append(f"Declared datum: {', '.join(sample['datums'])} · units: {', '.join(sample['units'])} · " + ('consistent declarations' if sample['compatible'] else 'mixed declarations; do not combine for a path assessment'))
                     if sample['examples']:lines.append('Example missing coordinates (longitude, latitude): '+str(sample['examples'][:3]))
-                else:
+                elif sample['status'] != 'skipped_integrity':
                     lines.append('No overlapping available terrain packs were sampled.')
         self.coverage_details.setPlainText('\n'.join(lines))
 
@@ -698,9 +737,10 @@ class RegionalPacksDialog(JobDialog):
             error = next((row.get('error') for row in rows if row['status'] == 'failed'), None)
             self.status.setText(message + (f'. {error}' if error else '') + '. Completed tiles remain installed.')
         elif coverage := result.get('coverage'):
+            if self.worker is not None and self.worker.cancelled.is_set():return
             self.coverage_result = coverage
             self.coverage_save.setEnabled(self.worker is None)
-            self.coverage_table.setRowCount(4)
+            self.coverage_table.setRowCount(5 if 'integrity' in coverage else 4)
             for index, (key, title) in enumerate((('map','Map'),('terrain','Terrain'),('cell','Cell references'),('structures','Structures'))):
                 item=coverage[key]
                 summary=item['status']
@@ -712,6 +752,13 @@ class RegionalPacksDialog(JobDialog):
                     summary += f" · {sample['missing']}/{sample['total']} sampled missing"
                 self.coverage_table.setItem(index,0,QTableWidgetItem(title))
                 self.coverage_table.setItem(index,1,QTableWidgetItem(summary))
+            if 'integrity' in coverage:
+                integrity=coverage['integrity'];packs=integrity.get('packs',[])
+                verified=sum(row.get('status') == 'verified' for row in packs)
+                summary=f"{verified}/{len(packs)} checked packs verified" if packs else 'No intersecting packs checked'
+                if not integrity.get('complete'):summary+=' · check incomplete'
+                self.coverage_table.setItem(4,0,QTableWidgetItem('Pack integrity'))
+                self.coverage_table.setItem(4,1,QTableWidgetItem(summary))
             self.coverage_table.selectRow(0)
             self.show_coverage_details()
             self.status.setText(f"Area {coverage['bounds']} checked. Extents and reference records do not guarantee field coverage.")
@@ -755,5 +802,9 @@ class RegionalPacksDialog(JobDialog):
 
     @Slot()
     def job_finished(self):
+        cancelled = bool(self.coverage_running and self.worker and self.worker.cancelled.is_set())
+        self.coverage_running = False
         self.batch_cancel.hide()
         super().job_finished()
+        if cancelled and not self.closing:
+            self.status.setText('Area check cancelled. Inputs remain available to retry.')

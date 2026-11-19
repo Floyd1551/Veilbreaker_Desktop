@@ -69,6 +69,21 @@ state-wide or CONUS-wide elevation coverage. Download and verify the terrain
 tiles needed for each area; coverage and no-data gaps remain visible in the
 readiness view.
 
+In **Regional terrain and structure packs → Area preview**, optionally select
+**Verify intersecting terrain and structure packs** before checking the area.
+The background check reports each identified pack's result, source, date,
+license, bounds and SHA-256; it can take time for large files. An incomplete
+check or failed terrain verification prevents the optional terrain sampling
+step. Verification compares file bytes with the locally installed manifest; it
+does not establish geographic completeness, data accuracy, or the absence of
+no-data gaps. Maps and cell-reference databases are not part of this check.
+
+Overlapping structure packs can contain identical records from the same
+source, date and terms. Nearby structure search combines identical records
+before applying its display limit, preserving alternate pack provenance in the
+assessment report. Only the selected pack is reverified immediately before an
+assessment; alternate copies are identified as verified at search time.
+
 ## Rebuilding with local downloads
 
 Downloaded data is deliberately excluded from Git. Stage these local files:

@@ -113,6 +113,12 @@ def assessment_html(value):
         parts.append(table(['Pack', 'Pack ID', 'Source', 'Source date', 'License', 'Pack SHA-256'], [[
             candidate.get('pack_name'), candidate.get('pack_id'), candidate.get('source'),
             candidate.get('source_date'), candidate.get('license'), candidate.get('sha256')]]))
+        if candidate.get('alternate_packs'):
+            parts.append('<p>Identical records were also found in these packs, verified at search time. '
+                         'The selected pack was independently verified before assessment.</p>')
+            parts.append(table(['Pack', 'Pack ID', 'Source', 'Source date', 'License', 'Pack SHA-256'], [[
+                pack.get('pack_name'), pack.get('pack_id'), pack.get('source'), pack.get('source_date'),
+                pack.get('license'), pack.get('sha256')] for pack in candidate['alternate_packs']]))
         parts.append('<p>Declared bounds: '+text(candidate.get('bounds_wgs84'))+'<br>Coverage: '+text(candidate.get('coverage_note'))+'</p>')
         parts.append('<p>A physical-structure record does not establish a serving cell, carrier, antenna location, or present-day structure condition. '
                      'Recorded structure height is not antenna height. For FCC ASR data, filed NAD83 coordinates are used as approximate WGS84 without a datum transformation.</p>')

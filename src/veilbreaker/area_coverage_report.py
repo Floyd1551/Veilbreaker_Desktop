@@ -39,7 +39,23 @@ def report_html(model):
                           sample['nodata'],sample['datums'],sample['units'],sample['compatible']]]))
                     if sample.get('examples'):
                         parts.append('<p>Example missing coordinates (longitude, latitude): '+text(sample['examples'])+'</p>')
+                elif sample['status']=='skipped_integrity':
+                    parts.append('<p>'+text(sample.get('note','Terrain sampling skipped because pack integrity was not verified.'))+'</p>')
                 else:
                     parts.append('<p>No overlapping available terrain packs were sampled.</p>')
+    integrity=model.get('integrity')
+    if integrity is not None:
+        packs=integrity.get('packs',[])
+        parts.append('<h2>Regional pack integrity</h2><p>SHA-256 checks file integrity at the time checked; it is not coverage, accuracy, or absence of terrain gaps. Files may change afterwards; any terrain sample is a separate check.<br>Checked (UTC): '+text(integrity.get('checked_utc'))+
+                     '<br>Verification: '+text('complete' if integrity.get('complete') else 'incomplete')+
+                     '; intersecting packs identified: '+text(integrity.get('total_intersecting'))+'</p>')
+        if packs:
+            parts.append(table(['Name / pack ID','Kind','Status / detail','Source / date','License / terms','SHA-256','Bounds / coverage note'],
+                [[str(p.get('name','Unknown'))+' · '+str(p.get('pack_id','Unknown')),p.get('kind'),str(p.get('status','Unknown'))+' · '+str(p.get('detail','')),
+                  str(p.get('source','Unknown'))+' · '+str(p.get('source_date','Unknown')),p.get('license'),p.get('sha256'),
+                  str(p.get('bounds_wgs84'))+' · '+str(p.get('coverage_note',''))] for p in packs]))
+        else:
+            parts.append('<p>No intersecting packs were verified.</p>')
+        for warning in integrity.get('warnings',[]):parts.append('<p>'+text(warning)+'</p>')
     parts.append('</body></html>')
     return '\n'.join(parts)

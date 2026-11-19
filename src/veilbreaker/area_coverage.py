@@ -20,7 +20,7 @@ def _rectangles(rows, key, target, available):
             continue
         try:
             extent = _bounds(row.get(key))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             continue
         if clipped := _intersection(target, extent):
             found.append((row, clipped))
@@ -44,7 +44,10 @@ def _gaps(area, rectangles):
 
 
 def area_preview(bounds, regional_rows, map_rows, cell_root, cancelled=lambda: False):
-    area = _bounds(bounds)
+    try:
+        area = _bounds(bounds)
+    except OverflowError as exc:
+        raise ValueError('Enter finite WGS84 bounds: west, south, east, north.') from exc
     if cancelled():
         raise ValueError('Area preview cancelled.')
     terrain = _rectangles([r for r in regional_rows if r.get('kind') == 'terrain'], 'bounds_wgs84', area,
@@ -75,21 +78,22 @@ def area_preview(bounds, regional_rows, map_rows, cell_root, cancelled=lambda: F
         reference = None
         result['cell'].update(status='reference unavailable', note='The active cell reference could not be opened. Repair or select a reference before relying on cell counts.')
     if reference:
-        database = _folder(cell_root, reference['dataset_id']) / 'cells.sqlite'
-        with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
-            db.set_progress_handler(lambda: 1 if cancelled() else 0, 10000)
-            try:
+        try:
+            database = _folder(cell_root, reference['dataset_id']) / 'cells.sqlite'
+            with closing(sqlite3.connect(database.as_uri() + '?mode=ro', uri=True)) as db:
+                db.set_progress_handler(lambda: 1 if cancelled() else 0, 10000)
                 rows = db.execute("SELECT radio,mcc,mnc,COUNT(*) FROM cells WHERE "
                     "json_extract(payload,'$.lon') BETWEEN ? AND ? AND json_extract(payload,'$.lat') BETWEEN ? AND ? "
                     "GROUP BY radio,mcc,mnc ORDER BY radio,mcc,mnc", (area[0], area[2], area[1], area[3])).fetchall()
-            except sqlite3.OperationalError as exc:
-                if cancelled():
-                    raise ValueError('Area preview cancelled.') from exc
-                raise ValueError('Cell reference could not be inspected: ' + str(exc)) from exc
-        groups = [dict(radio=r[0],mcc=r[1],mnc=r[2],count=r[3]) for r in rows]
-        result['cell'].update(status='records found' if groups else 'no records found', count=sum(r['count'] for r in groups),
-                              groups=groups, source=reference.get('source'), date=reference.get('date'),
-                              attribution=reference.get('attribution'), sha256=reference.get('sha256'))
+            groups = [dict(radio=r[0],mcc=r[1],mnc=r[2],count=r[3]) for r in rows]
+            result['cell'].update(status='records found' if groups else 'no records found', count=sum(r['count'] for r in groups),
+                                  groups=groups, source=reference.get('source'), date=reference.get('date'),
+                                  attribution=reference.get('attribution'), sha256=reference.get('sha256'))
+        except (sqlite3.Error, OSError, ValueError, KeyError, TypeError) as exc:
+            if cancelled():
+                raise ValueError('Area preview cancelled.') from exc
+            result['cell'].update(status='reference unavailable', count=None, groups=[],
+                note='The active cell reference could not be inspected. Repair or select a reference before relying on cell counts.')
     if cancelled():
         raise ValueError('Area preview cancelled.')
     return result

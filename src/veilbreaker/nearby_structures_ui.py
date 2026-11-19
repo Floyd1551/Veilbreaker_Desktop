@@ -151,7 +151,11 @@ class NearbyStructuresDialog(JobDialog):
                 ' · License: ' + str(candidate.get('license')) + '\nPack SHA-256: ' + str(candidate.get('sha256')) +
                 '\nPack coverage: ' + str(candidate.get('coverage_note') or 'Not reported') +
                 '\nPosition reference: ' + str(candidate.get('position_source') or 'Not reported') +
-                '\nReported structure height is not an antenna height. The serving relationship is unverified.')
+                '\nReported structure height is not an antenna height. The serving relationship is unverified.' +
+                (('\nIdentical reference also found in these packs, verified at search time: ' +
+                  '; '.join(str(p.get('pack_name') or p.get('pack_id') or 'Unknown') for p in candidate['alternate_packs'][:8]) +
+                  (f"; {len(candidate['alternate_packs']) - 8} more" if len(candidate['alternate_packs']) > 8 else ''))
+                 if candidate.get('alternate_packs') else ''))
         else:
             self.details.setText('Select a physical structure to inspect its reference provenance.')
 
@@ -192,6 +196,8 @@ class NearbyStructuresDialog(JobDialog):
                 for j, item in enumerate(values):
                     self.table.setItem(i, j, QTableWidgetItem(str(item)))
             message = f"{result['total_matches']} structure record(s) within {self.radius.value():g} km; showing {len(self.candidates)}."
+            if result.get('duplicate_records'):
+                message += f" {result['duplicate_records']} duplicate pack record(s) combined."
             if result.get('declared_coverage'):
                 message += ' Declared pack extent coverage: ' + result['declared_coverage'] + '. Extents do not imply a complete inventory.'
             if result.get('truncated'):

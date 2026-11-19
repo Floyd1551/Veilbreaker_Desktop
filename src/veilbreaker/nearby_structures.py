@@ -14,6 +14,7 @@ from .regional_packs import MAX_STRUCTURES_BYTES, _bounds
 MAX_PACKS = 128
 MAX_FEATURES = 1_000_000
 MAX_RESULTS = 200
+MAX_IDENTITIES = 100_000
 _EARTH_RADIUS_M = 6371008.8
 
 
@@ -117,8 +118,9 @@ def _optional_text(value, maximum):
 def nearby_structures(store, latitude, longitude, radius_km=10, limit=30, cancelled=lambda: False):
     """Search verified nearby structure records; results never claim a cell match.
 
-    ``total_matches`` counts only verified records examined. If limits or pack
-    errors prevent a complete search, ``search_incomplete`` and warnings say so.
+    ``total_matches`` counts distinct verified records examined; identical copies
+    from the same source and date are counted in ``duplicate_records``. If limits
+    or pack errors prevent a complete search, ``search_incomplete`` and warnings say so.
     Pack extents describe supplied data, not completeness of physical towers.
     """
     latitude = _number(latitude, -90, 90, 'receiver latitude')
@@ -157,7 +159,11 @@ def nearby_structures(store, latitude, longitude, radius_km=10, limit=30, cancel
         warnings.append(f'More than {MAX_PACKS} structure packs intersect the search; remaining packs were not checked and closer records may be omitted.')
         incomplete = True
     heap = []
-    total = scanned = sequence = 0
+    # Store fixed-size digests for all distinct in-radius records. Only retained
+    # heap candidates keep their full output and alternate pack metadata.
+    identities = {}
+    total = duplicates = scanned = sequence = 0
+    identity_limit_reached = False
     inspected = relevant[:MAX_PACKS]
     for pack_index, (row, bounds) in enumerate(inspected):
         _check(cancelled)
@@ -216,20 +222,52 @@ def nearby_structures(store, latitude, longitude, radius_km=10, limit=30, cancel
             distance, bearing = distance_bearing(longitude, latitude, lon, lat)
             if distance > radius * 1000.:
                 continue
+            try:
+                # Compare the complete raw properties, including fields this UI
+                # deliberately does not expose. Preserve source/date/license;
+                # a similarly named entry from another dataset is not identical.
+                identity = json.dumps([row['source'], row['source_date'], row['license'],
+                                       coordinates, properties], sort_keys=True,
+                                      ensure_ascii=True, allow_nan=False, separators=(',', ':')).encode('ascii')
+                identity = hashlib.sha256(identity).digest()
+            except (TypeError, ValueError, RecursionError, OverflowError):
+                incomplete = True
+                if 'A structure entry was invalid and omitted.' not in warnings:
+                    warnings.append('A structure entry was invalid and omitted.')
+                continue
+            if identity in identities:
+                duplicates += 1
+                existing = identities[identity]
+                if existing is not None and existing['pack_id'] != row['pack_id'] and not any(
+                        copy['pack_id'] == row['pack_id'] for copy in existing['alternate_packs']):
+                    existing['alternate_packs'].append(dict(provenance))
+                continue
+            if len(identities) >= MAX_IDENTITIES:
+                incomplete = identity_limit_reached = True
+                warnings.append(f'Search stopped after {MAX_IDENTITIES:,} distinct records; results may omit closer records.')
+                break
             total += 1
             candidate = dict(provenance, structure_id=ident, owner=owner, height_agl_m=height,
                              lon=lon, lat=lat, distance_m=distance, bearing_deg=bearing,
                              reference_kind='physical structure',
                              verification='Physical structure reference; serving relationship unverified',
+                             alternate_packs=[],
                              position_source=_optional_text(properties.get('position_source'), 200),
                              registration_number=_optional_text(properties.get('registration_number'), 80),
                              registration_status=_optional_text(properties.get('registration_status'), 80))
             sequence += 1
-            item = (-distance, sequence, candidate)
+            item = (-distance, sequence, identity, candidate)
             if len(heap) < limit:
                 heapq.heappush(heap, item)
+                identities[identity] = candidate
             elif distance < -heap[0][0]:
-                heapq.heapreplace(heap, item)
+                _, _, removed_identity, _ = heapq.heapreplace(heap, item)
+                identities[removed_identity] = None
+                identities[identity] = candidate
+            else:
+                identities[identity] = None
+        if identity_limit_reached:
+            break
         if scanned >= MAX_FEATURES:
             if pack_index < len(inspected) - 1 and not any('Search stopped after' in warning for warning in warnings):
                 incomplete = True
@@ -241,6 +279,6 @@ def nearby_structures(store, latitude, longitude, radius_km=10, limit=30, cancel
     if coverage != 'full':
         incomplete = True
         warnings.append('Verified pack extents do not cover the full search bounding area; structures outside those extents were not checked.')
-    candidates = sorted((item[2] for item in heap), key=lambda item: (item['distance_m'], item['pack_id'], item['structure_id']))
-    return dict(candidates=candidates, packs=packs, total_matches=total, truncated=total > limit,
+    candidates = sorted((item[3] for item in heap), key=lambda item: (item['distance_m'], item['pack_id'], item['structure_id']))
+    return dict(candidates=candidates, packs=packs, total_matches=total, duplicate_records=duplicates, truncated=total > limit,
                 declared_coverage=coverage, search_incomplete=incomplete, warnings=warnings)

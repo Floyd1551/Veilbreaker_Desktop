@@ -32,3 +32,20 @@ Before a 1.0 field release, the remaining gates include:
   installer and its lifecycle on clean machines.
 
 Automated and packaged checks do not substitute for these field gates.
+
+## November 19 local-data workflow check
+
+An isolated temporary survey used a public downtown Huntsville fixture position,
+two overlapping installed FCC ASR packs and the USGS 3DEP 1/3-arc-second
+`n35w087` terrain pack dated 2026-10-20. The pack declares NAVD88 and metre
+elevations; its SHA-256 was verified during sampling. A selected structure path
+produced 417 terrain samples with no missing samples. Its assessment was saved,
+reopened and exported with the alternate structure-pack provenance retained.
+
+The receiver capture and position, 2 m receiver height, 30 m site antenna
+height, 1900 MHz frequency and 4/3 Earth factor were test assumptions, not
+field measurements. The workflow invoked local search, raster and export
+operations with PROJ networking disabled and made no explicit network requests;
+the host was not disconnected or monitored. This is a useful integration check,
+not a live field test or proof of a serving relationship, real antenna heights,
+complete area coverage, physical visibility or radio propagation.
