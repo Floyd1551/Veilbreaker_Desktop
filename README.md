@@ -1,10 +1,10 @@
 # Veilbreaker Desktop + CLI
 
-An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.69.0rc1** adds area-based integrity checks for offline terrain and structure packs and combines identical nearby structure records from overlapping packs. Offline data is optional at build time; see [offline deployment data](docs/offline-deployment-data.md) for staging, coverage and provenance. Community-estimated cell positions and FCC structures do not establish the serving tower.
+An explainable field diagnostic workspace for Windows and Linux, rebuilt from the recovered **0.9.3 multimodem** source. Version **0.70.0rc1** adds separate integrity checks for derived cell-reference databases in area previews. Offline data is optional at build time; see [offline deployment data](docs/offline-deployment-data.md) for staging, coverage and provenance. Community-estimated cell positions and FCC structures do not establish the serving tower.
 
 ## Windows installation
 
-Run `Veilbreaker-0.69.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
+Run `Veilbreaker-0.70.0rc1-Setup-x64.exe` from `dist`. Setup installs for your account, adds a Start menu shortcut, optionally adds a desktop shortcut, and registers an uninstaller. Python and administrator rights are not required. The installer is unsigned.
 
 The portable ZIP contains `VeilbreakerDesktop.exe`, the `veilbreaker.exe` CLI, and their shared `_internal` folder. Keep the whole folder together. Start with **Explore demo** for synthetic evidence; **Import metrics** analyzes a JSON snapshot without collecting live data.
 

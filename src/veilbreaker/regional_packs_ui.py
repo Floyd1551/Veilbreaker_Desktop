@@ -101,7 +101,7 @@ def _search_usgs_job(bounds, cancelled, progress):
     return {'catalog': result}
 
 
-def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, verify_integrity=False):
+def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, verify_integrity=False, verify_cell=False):
     from .area_coverage import area_preview
     from .map_catalog import PackCatalog
     from .deployment_data import bundled_map
@@ -112,7 +112,37 @@ def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, 
         pack = inspect_pack(included)
         maps.append(dict(pack, available=True, source_date='Included map'))
     store=RegionalPackStore(Path(root)/'regional-packs')
-    report=area_preview(bounds,store.list_packs(),maps,Path(root)/'cell-references',cancelled)
+    cell_root = Path(root)/'cell-references'
+    dataset_id = before = None
+    if verify_cell:
+        from .cell_reference import active_reference, reference_database_signature
+        try:
+            reference = active_reference(cell_root)
+            if reference:
+                dataset_id = reference['dataset_id']
+                before = reference_database_signature(cell_root, dataset_id)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
+    report=area_preview(bounds,store.list_packs(),maps,cell_root,cancelled)
+    if verify_cell:
+        from .cell_reference import verify_reference_database
+        report['cell_integrity'] = verify_reference_database(cell_root, dataset_id=dataset_id, cancelled=cancelled)
+        if cancelled():
+            raise ValueError('Area verification cancelled.')
+        try:
+            current = active_reference(cell_root)
+            after = reference_database_signature(cell_root, dataset_id) if dataset_id else None
+        except (OSError, ValueError, KeyError, TypeError):
+            current = after = None
+        stable = (dataset_id and report['cell'].get('dataset_id') == dataset_id and current and current == reference and current.get('dataset_id') == dataset_id and before is not None
+                  and before == after == report['cell_integrity'].get('file_signature')
+                  and report['cell_integrity']['status'] == 'verified')
+        report['cell_integrity']['counts_status'] = 'stable' if stable else 'unverified'
+        if not stable and report['cell'].get('count') is not None:
+            report['cell']['count'] = None
+            report['cell']['groups'] = []
+            report['cell']['status'] = 'counts withheld'
+            report['cell']['note'] += ' Counts withheld because the database check and query could not be tied to the same stable active reference.'
     if verify_integrity:
         from .area_pack_integrity import verify_area_packs
         report['integrity']=verify_area_packs(store,bounds,cancelled,progress)
@@ -188,6 +218,9 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_verify = QCheckBox('Verify intersecting terrain and structure packs')
         self.coverage_verify.setToolTip('Optional SHA-256 integrity check. It can take time and does not prove map coverage, data accuracy, or absence of terrain gaps.')
         coverage_layout.addWidget(self.coverage_verify)
+        self.coverage_verify_cell = QCheckBox('Verify active cell reference database')
+        self.coverage_verify_cell.setToolTip('Compare the derived SQLite database against its saved checksum. Older references without a database checksum remain unverified. This can take time.')
+        coverage_layout.addWidget(self.coverage_verify_cell)
         self.coverage_table = QTableWidget(0, 2)
         self.coverage_table.setHorizontalHeaderLabels(['Layer', 'Result'])
         self.coverage_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -207,6 +240,7 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_sample.toggled.connect(self.invalidate_coverage)
         self.coverage_grid.currentIndexChanged.connect(self.invalidate_coverage)
         self.coverage_verify.toggled.connect(self.invalidate_coverage)
+        self.coverage_verify_cell.toggled.connect(self.invalidate_coverage)
         layout.addWidget(self.workspace_tabs, 1)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(['Kind', 'Pack', 'WGS84 bounds', 'Source / date', 'Size', 'Status'])
@@ -342,7 +376,7 @@ class RegionalPacksDialog(JobDialog):
                          self.batch_button, self.fcc_import_button, self.bundled_structures_button,
                          self.state_picker, self.move_west, self.move_east, self.move_north, self.move_south]
         self.controls.append(self.huntsville_button)
-        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_verify, self.coverage_table])
+        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_verify, self.coverage_verify_cell, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
         self.refresh()
         self.update_kind()
@@ -445,7 +479,10 @@ class RegionalPacksDialog(JobDialog):
         self.status.setText('Checking local extents and cell records…')
         grid=self.coverage_grid.currentData() if self.coverage_sample.isChecked() else None
         self.coverage_running=True
-        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, grid, verify_integrity=self.coverage_verify.isChecked()))
+        options = {'verify_integrity': self.coverage_verify.isChecked()}
+        if self.coverage_verify_cell.isChecked():
+            options['verify_cell'] = True
+        self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, grid, **options))
 
     @Slot()
     def cancel_coverage(self):
@@ -487,9 +524,25 @@ class RegionalPacksDialog(JobDialog):
         row = self.coverage_result[key]
         lines = [row['note']]
         if key == 'cell':
+            check = self.coverage_result.get('cell_integrity')
+            if check is None:
+                lines.append('Cell database integrity: not checked. Reference counts are unverified.')
+            else:
+                lines.append(f"Cell database integrity: {check.get('status', 'unknown')} · checked (UTC): {check.get('checked_utc') or 'Unknown'}")
+                lines.append('Checked dataset ID: '+str(check.get('dataset_id') or 'Unavailable'))
+                lines.append(str(check.get('detail') or ''))
+                lines.append('The database check is a point-in-time result; files may change afterwards. Count query and checksum are separate operations.')
+                lines.append('Count query: ' + ('same stable active database' if check.get('counts_status') == 'stable' else 'unverified'))
+                if check.get('counts_status') != 'stable':
+                    lines.append('This verification is not applicable to the preview counts.')
+                lines.append(f"Derived database SHA-256: expected {check.get('expected_sha256') or 'Unavailable'} · actual {check.get('actual_sha256') or 'Unavailable'}")
             if row.get('source'):
                 lines.append(f"Source: {row['source']} · date: {row.get('date','Unknown')} · {row.get('attribution','')}")
-                lines.append('Records: '+(', '.join(f"{v['radio']} {v['mcc']}/{v['mnc']}: {v['count']:,}" for v in row['groups']) or 'None in area'))
+                lines.append('Queried dataset ID: '+str(row.get('dataset_id') or 'Unavailable'))
+                lines.append('Source file SHA-256: '+str(row.get('sha256') or 'Unavailable'))
+                records = ('withheld / unavailable' if row.get('count') is None else
+                           ', '.join(f"{v['radio']} {v['mcc']}/{v['mnc']}: {v['count']:,}" for v in row['groups']) or 'None in area')
+                lines.append('Records: '+records)
         else:
             for pack in row['packs'][:8]:
                 detail=f"{pack.get('name','Unnamed')} · source date: {pack.get('source_date') or 'Unknown'}"
@@ -746,6 +799,8 @@ class RegionalPacksDialog(JobDialog):
                 summary=item['status']
                 if key == 'cell' and item['count'] is not None:
                     summary += f" · {item['count']:,} records"
+                    if 'cell_integrity' not in coverage:
+                        summary += ' · integrity not checked'
                 if key == 'terrain' and item['gap_count']:
                     summary += f" · {item['gap_count']} extent gaps"
                 if key == 'terrain' and (sample := item.get('sample')) and sample['status'] == 'sampled':

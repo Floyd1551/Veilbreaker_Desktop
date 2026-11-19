@@ -15,11 +15,25 @@ def report_html(model):
         row=model[key]
         parts.append('<h2>'+title+'</h2><p><b>'+text(row['status'])+'</b><br>'+text(row['note'])+'</p>')
         if key=='cell':
+            check=model.get('cell_integrity')
+            if check is None:
+                parts.append('<p>Cell database integrity: not checked. Reference counts are unverified.</p>')
+            else:
+                parts.append('<h3>Cell database integrity</h3><p>Status: '+text(check.get('status'))+
+                    '<br>Checked dataset ID: '+text(check.get('dataset_id') or 'Unavailable')+
+                    '<br>Checked (UTC): '+text(check.get('checked_utc'))+'<br>'+text(check.get('detail'))+
+                    '<br>Derived database SHA-256, expected: '+text(check.get('expected_sha256') or 'Unavailable')+
+                    '<br>Derived database SHA-256, actual: '+text(check.get('actual_sha256') or 'Unavailable')+
+                    '<br>This is a point-in-time database check; files may change afterwards. The count query and checksum are separate operations.'+
+                    '<br>Count query: '+text('same stable active database' if check.get('counts_status') == 'stable' else 'unverified; verification not applicable to preview counts')+'</p>')
             if row.get('source'):
                 parts.append('<p>Source: '+text(row['source'])+' · Date: '+text(row.get('date'))+'<br>'+text(row.get('attribution'))+
-                             '<br>Source snapshot SHA-256: '+text(row.get('sha256'))+'</p>')
+                             '<br>Queried dataset ID: '+text(row.get('dataset_id') or 'Unavailable')+
+                             '<br>Source file SHA-256: '+text(row.get('sha256'))+'</p>')
             if row.get('groups'):
                 parts.append(table(['Radio','MCC','MNC','Records'],[[r.get(k) for k in ('radio','mcc','mnc','count')] for r in row['groups']]))
+            elif row.get('source') and row.get('count') is None:
+                parts.append('<p>Records: withheld / unavailable.</p>')
         else:
             packs=row.get('packs') or []
             if packs:

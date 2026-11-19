@@ -78,6 +78,18 @@ step. Verification compares file bytes with the locally installed manifest; it
 does not establish geographic completeness, data accuracy, or the absence of
 no-data gaps. Maps and cell-reference databases are not part of this check.
 
+To check the separate active cell-reference database, select **Verify active
+cell reference database** in the same preview. Newly imported snapshots retain
+both the original source-file SHA-256 and a separate checksum of the derived
+SQLite database. The optional check compares the installed database to that
+recorded checksum and withholds cell counts if the database is unverified,
+changed or cannot be tied to the same stable reference. Checksums establish
+integrity against local metadata, not authenticity, coverage or serving-cell
+identity. Older snapshots without a database checksum remain usable as
+unverified references; reimporting the original source creates a separate
+checksummed snapshot without overwriting or automatically replacing the old
+one. Select the new snapshot explicitly if you wish to use it.
+
 Overlapping structure packs can contain identical records from the same
 source, date and terms. Nearby structure search combines identical records
 before applying its display limit, preserving alternate pack provenance in the

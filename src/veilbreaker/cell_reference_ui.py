@@ -1,5 +1,6 @@
 """Offline reference management and observation-specific inspection."""
 import json
+import re
 from functools import partial
 from PySide6.QtCore import Slot,Qt
 from PySide6.QtWidgets import (QVBoxLayout,QHBoxLayout,QPushButton,QLabel,QComboBox,QLineEdit,
@@ -77,7 +78,11 @@ class CellReferenceDialog(JobDialog):
         try:
             active=active_reference(self.root)
             for row in list_references(self.root):
-                self.datasets.addItem(f"{row['source']} · {row['date']} · {row['accepted']:,} records"+(' · Active' if active and active['dataset_id']==row['dataset_id'] else ''),row['dataset_id'])
+                digest=row.get('database_sha256');size=row.get('database_bytes')
+                if digest is None and size is None: integrity='Legacy · database unverified'
+                elif isinstance(digest,str) and re.fullmatch(r'[a-f0-9]{64}',digest) and type(size) is int and size>0: integrity='Database checksum recorded'
+                else: integrity='Invalid database checksum metadata'
+                self.datasets.addItem(f"{row['source']} · {row['date']} · {row['accepted']:,} records · {integrity}"+(' · Active' if active and active['dataset_id']==row['dataset_id'] else ''),row['dataset_id'])
                 self.datasets.setItemData(self.datasets.count()-1,row,Qt.ItemDataRole.UserRole+1)
             self.show_dataset_details()
         except (OSError,ValueError,KeyError) as exc:self.status.setText(str(exc))
@@ -113,7 +118,10 @@ class CellReferenceDialog(JobDialog):
     def job_ready(self,value):
         if self.closing:return
         if 'imported' in value:
-            row=value['imported'];self.refresh();self.status.setText(f"Imported {row['accepted']:,}; rejected {row['rejected']:,}; unsupported {row['unsupported']:,}. Select it and choose Use selected reference.")
+            row=value['imported'];self.refresh()
+            index=self.datasets.findData(row['dataset_id'])
+            if index>=0:self.datasets.setCurrentIndex(index)
+            self.status.setText(f"Imported {row['accepted']:,}; rejected {row['rejected']:,}; unsupported {row['unsupported']:,}. Choose Use selected reference to activate it.")
         else:
             result=value['matched'];self.matches[result['run_id']]=result;self.populate()
             self.status.setText(f"Showing selected test (up to 200 observation/candidate rows). {result.get('omitted',0)} observations omitted. Select a candidate to inspect its bearing or assess a conditional terrain path.")

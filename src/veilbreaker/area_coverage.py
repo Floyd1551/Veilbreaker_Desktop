@@ -87,7 +87,7 @@ def area_preview(bounds, regional_rows, map_rows, cell_root, cancelled=lambda: F
                     "GROUP BY radio,mcc,mnc ORDER BY radio,mcc,mnc", (area[0], area[2], area[1], area[3])).fetchall()
             groups = [dict(radio=r[0],mcc=r[1],mnc=r[2],count=r[3]) for r in rows]
             result['cell'].update(status='records found' if groups else 'no records found', count=sum(r['count'] for r in groups),
-                                  groups=groups, source=reference.get('source'), date=reference.get('date'),
+                                  groups=groups, dataset_id=reference.get('dataset_id'), source=reference.get('source'), date=reference.get('date'),
                                   attribution=reference.get('attribution'), sha256=reference.get('sha256'))
         except (sqlite3.Error, OSError, ValueError, KeyError, TypeError) as exc:
             if cancelled():

@@ -49,3 +49,14 @@ operations with PROJ networking disabled and made no explicit network requests;
 the host was not disconnected or monitored. This is a useful integration check,
 not a live field test or proof of a serving relationship, real antenna heights,
 complete area coverage, physical visibility or radio propagation.
+
+## Windows installer check
+
+On November 19, an isolated-identity test of the 0.69.0rc1 release payload
+passed per-user installation and registration, shortcuts, installed CLI and
+GUI smoke checks, reinstall with preserved test configuration, and uninstall
+with preserved test data. It used a separate validation app identity and did
+not replace the existing installation. The initial attempt used an unusually
+deep temporary destination and failed on a Windows path-length limit; rerunning
+the same lifecycle from a shorter isolated directory passed. This is local
+validation of that preview, not a clean-machine or signed-release test.
