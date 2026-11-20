@@ -100,6 +100,9 @@ app-private local storage, not a backup; export important evidence separately.
 An open survey can add an archived capture as a separate point. Attachment checks
 the archive and survey again together and respects the survey's duplicate and
 20-point limits; it does not replace the latest phone capture.
+An open survey can also remove an individual point after confirmation. Removal
+deletes the survey's copy and its observation; that copy may be the only one if
+the capture was not archived or exported. Independent copies are unchanged.
 
 The cellular view shows gauges for captured serving-cell measurements and a
 trend only when there are multiple distinct modem-receipt timestamps for the same
@@ -139,7 +142,10 @@ possible neighbors rather than confirmed neighbor identities. It offers the same
 cellular measurement explanations as the live monitor.
 Its signal fields are shown separately and stack at narrow widths or large font sizes.
 Wi-Fi inspection filters and sorts previously cached results without starting a
-new scan; the frequency chart is not affected by the list filters.
+new scan; the frequency chart is not affected by the list filters. Recognized
+advertised security modes have a readable label alongside the raw capabilities;
+unrecognized or incomplete data is marked unknown, not treated as open. These
+labels are not a security assessment or verification of the active connection.
 
 Diagnose → Cellular includes an explicitly started, foreground-only live monitor.
 Android may return cached samples; each response shows its modem age at receipt.

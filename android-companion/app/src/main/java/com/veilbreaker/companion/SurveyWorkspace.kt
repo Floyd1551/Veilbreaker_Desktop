@@ -415,7 +415,33 @@ class SurveyWorkspace(
                     .setNegativeButton("Keep draft", null)
                     .setPositiveButton("Discard draft") { _, _ -> noteDrafts.remove(pointId); render() }.show()
             }
+            if (state == "open") button(pointPanel, "Remove point ${i + 1} from survey…") {
+                confirmRemovePoint(survey.getString("survey_id"), pointId,
+                    capture.optString("created_utc", "Time unavailable"), i + 1)
+            }
         }
+    }
+
+    private fun confirmRemovePoint(surveyId: String, captureId: String, capturedAt: String, number: Int) {
+        val draftNotice = if (captureId in noteDrafts) " Its unsaved note draft will also be discarded after removal succeeds." else ""
+        val exportNotice = if (pendingDocument != null) " A prepared export retains its original snapshot." else ""
+        AlertDialog.Builder(context).setTitle("Remove point from survey?")
+            .setMessage("Remove point $number, captured $capturedAt (capture $captureId), and its survey observation? This permanently removes the survey's copy. It may be the only copy unless you saved the capture to the archive or exported the survey.$draftNotice$exportNotice")
+            .setNegativeButton("Keep point", null)
+            .setPositiveButton("Remove point") { _, _ ->
+                if (busy || capturing || current?.optString("survey_id") != surveyId) {
+                    message = "Survey state changed. Review the point before trying again."
+                    render()
+                } else runSurveyMutation(surveyId, {
+                    store.update(surveyId) { latest -> MobileSurvey.removePoint(latest, captureId) }
+                }) { updated ->
+                    noteDrafts.remove(captureId)
+                    current = updated
+                    report = null
+                    restoreReport = false
+                    message = "Point removed from this survey. Any independently archived or exported copies remain unchanged."
+                }
+            }.show()
     }
 
     private fun pickArchivedCapture(surveyId: String) {

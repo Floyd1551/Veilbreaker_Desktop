@@ -75,6 +75,20 @@ object MobileSurvey {
         return addCapture(survey, capture, now)
     }
 
+    /** Remove only the survey's copy of one point; archived and latest captures are independent. */
+    fun removePoint(survey: JSONObject, captureId: String): JSONObject {
+        validate(survey)
+        require(survey.getString("lifecycle") == "open") { "Reopen the survey before removing captures." }
+        require(idPattern.matches(captureId)) { "Capture ID is invalid." }
+        val points = survey.getJSONArray("points")
+        val index = (0 until points.length()).firstOrNull {
+            points.getJSONObject(it).getJSONObject("capture").getString("capture_id") == captureId
+        } ?: throw IllegalArgumentException("Survey point is unavailable.")
+        val copy = JSONObject(survey.toString())
+        copy.getJSONArray("points").remove(index)
+        return validate(copy)
+    }
+
     /** An operator observation belongs to the survey point, never the original capture. */
     fun setPointNote(survey: JSONObject, captureId: String, note: String): JSONObject {
         validate(survey)
