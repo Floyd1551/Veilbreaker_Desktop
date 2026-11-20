@@ -40,6 +40,20 @@ def report_html(model):
                 parts.append(table(['Name','Source','Source date','Bounds','License / terms','Attribution / SHA-256'],
                     [[p.get('name'),p.get('source','Map catalog'),p.get('source_date'),
                       p.get('bounds_wgs84',p.get('bounds')),p.get('license'),p.get('attribution',p.get('sha256'))] for p in packs]))
+            if key=='map' and model.get('map_inspection') is not None:
+                inspection=model['map_inspection']
+                parts.append('<h3>Map archive inspection</h3><p>Headers were inspected at check time. Checksums may be not checked or unavailable. '
+                             'These checks are not coverage, complete tile, or authenticity guarantees; files may change afterwards. '
+                             'A local-looking path may be a mapped network drive, so offline availability is not guaranteed.<br>Checked (UTC): '
+                             +text(inspection.get('checked_utc'))+'<br>Inspection: '+text('complete' if inspection.get('complete') else 'incomplete')+'</p>')
+                if inspection.get('entries'):
+                    parts.append(table(['Map','Header','Checksum','Checksum source','Expected SHA-256','Actual SHA-256'], [[
+                        p.get('name'),p.get('header_status'),p.get('checksum_status'),p.get('checksum_source'),
+                        p.get('expected_sha256'),p.get('actual_sha256')] for p in inspection['entries']]))
+                if inspection.get('rejected'):
+                    parts.append(table(['Excluded map','Status','Detail'], [[p.get('name'),p.get('status'),p.get('detail')]
+                                                                            for p in inspection['rejected']]))
+                for warning in inspection.get('warnings', []):parts.append('<p>'+text(warning)+'</p>')
             if key=='terrain':
                 if row.get('gaps'):
                     parts.append('<p>Extent gap count: '+text(row.get('gap_count',len(row['gaps'])))+'<br>Example extent gaps (west, south, east, north): '+text(row['gaps'][:10])+'</p>')

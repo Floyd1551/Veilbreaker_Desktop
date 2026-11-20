@@ -7,7 +7,9 @@ import sys
 import uuid
 from pathlib import Path
 
-from .cell_reference import active_reference, activate_reference
+from .cell_reference import (active_reference, activate_reference, list_references,
+                             reference_database_signature, verify_reference_database,
+                             _json, _link_or_reparse)
 
 
 def deployment_root():
@@ -26,6 +28,110 @@ def _sha256(path):
         while chunk := stream.read(1024 * 1024):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _copy_bundled_database(source, destination, expected_size, cancelled, progress):
+    """Copy a bounded database into an unpublished staging directory."""
+    count = 0
+    with source.open('rb') as src, destination.open('xb') as dst:
+        while chunk := src.read(1024 * 1024):
+            if cancelled(): raise ValueError('Bundled reference installation cancelled.')
+            count += len(chunk)
+            if count > expected_size: raise ValueError('Bundled database changed during copy.')
+            dst.write(chunk)
+            progress(f'Copying included reference: {count / 1024**2:.1f} / {expected_size / 1024**2:.1f} MiB')
+    if count != expected_size:
+        raise ValueError('Bundled database changed during copy.')
+
+
+def _verify_copied_database(path, cancelled):
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        while chunk := stream.read(1024 * 1024):
+            if cancelled(): raise ValueError('Bundled reference installation cancelled.')
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def install_bundled_reference(user_root, base=None, cancelled=lambda: False, progress=lambda _: None):
+    """Install a verified bundled cell snapshot without changing the active selection.
+
+    Source and destination are checked independently. A legacy active reference
+    remains intact until the operator explicitly selects a replacement.
+    """
+    if not callable(cancelled) or not callable(progress):
+        raise ValueError('Invalid installation callback.')
+    def check():
+        if cancelled(): raise ValueError('Bundled reference installation cancelled.')
+    check()
+    included = Path(base) if base is not None else deployment_root()
+    source_root = included / 'cell-reference'
+    if not source_root.exists():
+        return {'status': 'unavailable', 'dataset_id': None}
+    if _link_or_reparse(source_root) or not source_root.is_dir():
+        raise ValueError('Bundled cell reference storage is invalid.')
+    entries = [p for p in source_root.iterdir() if re.fullmatch(r'[a-f0-9]{32}', p.name)]
+    if len(entries) != 1 or _link_or_reparse(entries[0]) or not entries[0].is_dir():
+        raise ValueError('Bundled cell reference must contain exactly one snapshot.')
+    source = entries[0]
+    index_path = included / 'manifest.json'
+    if _link_or_reparse(index_path): raise ValueError('Bundled cell index is invalid.')
+    index = _json(index_path)
+    if not isinstance(index, dict): raise ValueError('Bundled cell index is invalid.')
+    checksum = index.get('cell_database_sha256')
+    manifest_path = source / 'manifest.json'
+    if _link_or_reparse(manifest_path): raise ValueError('Bundled cell manifest is invalid.')
+    manifest = _json(manifest_path)
+    if not isinstance(manifest, dict) or manifest.get('dataset_id') != source.name or manifest.get('format') != 'opencellid':
+        raise ValueError('Bundled cell reference manifest is invalid.')
+    fields = {'cell_dataset_id':'dataset_id', 'cell_source_sha256':'sha256',
+              'cell_source':'source', 'cell_license':'license', 'cell_date':'date',
+              'cell_rows':'accepted', 'cell_rejected':'rejected', 'cell_unsupported':'unsupported',
+              'cell_coverage':'coverage', 'cell_attribution':'attribution'}
+    for index_key, manifest_key in fields.items():
+        if index_key in index and (type(index[index_key]) is not type(manifest.get(manifest_key)) or
+                                   index[index_key] != manifest.get(manifest_key)):
+            raise ValueError('Bundled cell reference provenance metadata conflicts with its index.')
+    if (not isinstance(checksum, str) or not re.fullmatch(r'[a-f0-9]{64}', checksum)
+            or manifest.get('database_sha256') != checksum
+            or type(manifest.get('database_bytes')) is not int or manifest['database_bytes'] <= 0):
+        raise ValueError('Bundled cell database checksum metadata is missing or inconsistent.')
+    progress('Verifying the included cell reference…')
+    source_check = verify_reference_database(source_root, source.name, cancelled)
+    if source_check['status'] != 'verified' or source_check['actual_sha256'] != checksum:
+        raise ValueError('Bundled cell reference checksum verification failed.')
+    check()
+    user_root = Path(user_root)
+    target = user_root / source.name
+    # A matching source and database with the same provenance can be reused even
+    # when a later build assigned a different snapshot ID.
+    ignored = {'dataset_id', 'imported_utc'}
+    for entry in list_references(user_root):
+        check()
+        if {k:v for k,v in entry.items() if k not in ignored} != {k:v for k,v in manifest.items() if k not in ignored}:
+            continue
+        if verify_reference_database(user_root, entry['dataset_id'], cancelled)['status'] == 'verified':
+            return {'status': 'existing', 'dataset_id': entry['dataset_id']}
+    if target.exists() or _link_or_reparse(target):
+        raise ValueError('Existing reference ID collision; the current files were not changed.')
+    user_root.mkdir(parents=True, exist_ok=True)
+    staging = user_root / ('.staging-' + uuid.uuid4().hex)
+    try:
+        staging.mkdir()
+        (staging / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False), encoding='utf-8')
+        _copy_bundled_database(source / 'cells.sqlite', staging / 'cells.sqlite', manifest['database_bytes'], cancelled, progress)
+        check()
+        progress('Verifying the copied reference…')
+        if (_verify_copied_database(staging / 'cells.sqlite', cancelled) != checksum or _json(manifest_path) != manifest
+                or _json(index_path) != index or reference_database_signature(source_root, source.name) != source_check['file_signature']):
+            raise ValueError('Bundled reference changed or copied database checksum does not match.')
+        if target.exists() or _link_or_reparse(target):
+            raise ValueError('Existing reference ID collision; the current files were not changed.')
+        check()
+        staging.rename(target)
+        return {'status': 'installed', 'dataset_id': source.name}
+    finally:
+        if staging.exists(): shutil.rmtree(staging)
 
 
 def seed_reference(user_root, base=None):

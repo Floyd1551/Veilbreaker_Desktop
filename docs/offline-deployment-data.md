@@ -86,9 +86,20 @@ recorded checksum and withholds cell counts if the database is unverified,
 changed or cannot be tied to the same stable reference. Checksums establish
 integrity against local metadata, not authenticity, coverage or serving-cell
 identity. Older snapshots without a database checksum remain usable as
-unverified references; reimporting the original source creates a separate
-checksummed snapshot without overwriting or automatically replacing the old
-one. Select the new snapshot explicitly if you wish to use it.
+unverified references. In **Cell references and path assessment**, choose
+**Install included cell reference** to copy the checksummed snapshot already
+included in a prepared build, or reimport the original source to create a
+separate checksummed snapshot. Neither action overwrites or automatically
+replaces an active reference. Select the new snapshot explicitly if you wish
+to use it.
+
+Area Preview inspects the current header and metadata of registered and included
+maps instead of relying solely on saved catalog bounds. Optionally select
+**Verify map archive checksums** to compare map bytes against available local
+manifest or sidecar checksums. A missing checksum is reported as unavailable,
+and mismatched or unreadable maps are excluded from the preview. These checks
+do not authenticate the map source, inspect every tile or guarantee network-free
+availability (for example, a mapped drive may require a network).
 
 Overlapping structure packs can contain identical records from the same
 source, date and terms. Nearby structure search combines identical records

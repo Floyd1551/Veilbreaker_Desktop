@@ -101,16 +101,21 @@ def _search_usgs_job(bounds, cancelled, progress):
     return {'catalog': result}
 
 
-def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, verify_integrity=False, verify_cell=False):
+def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, verify_integrity=False, verify_cell=False, verify_map=False):
     from .area_coverage import area_preview
-    from .map_catalog import PackCatalog
     from .deployment_data import bundled_map
-    from .map_pack import inspect_pack
-    maps = PackCatalog(catalog_path).entries()
-    included = bundled_map()
-    if included and not any(row['path'] == str(included.resolve()) for row in maps):
-        pack = inspect_pack(included)
-        maps.append(dict(pack, available=True, source_date='Included map'))
+    from .area_map_readiness import check_catalog_maps
+    try:
+        included = bundled_map()
+        included_error = None
+    except (OSError, ValueError) as exc:
+        included = None
+        included_error = 'Included map could not be inspected: ' + str(exc)
+    map_inspection = check_catalog_maps(catalog_path, included, bounds, cancelled, progress, verify_checksum=verify_map)
+    if included_error:
+        map_inspection['complete'] = False
+        map_inspection['warnings'].append(included_error)
+    maps = map_inspection['entries']
     store=RegionalPackStore(Path(root)/'regional-packs')
     cell_root = Path(root)/'cell-references'
     dataset_id = before = None
@@ -124,6 +129,7 @@ def _coverage_job(root, catalog_path, bounds, sample_grid, cancelled, progress, 
         except (OSError, ValueError, KeyError, TypeError):
             pass
     report=area_preview(bounds,store.list_packs(),maps,cell_root,cancelled)
+    report['map_inspection']=map_inspection
     if verify_cell:
         from .cell_reference import verify_reference_database
         report['cell_integrity'] = verify_reference_database(cell_root, dataset_id=dataset_id, cancelled=cancelled)
@@ -221,6 +227,9 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_verify_cell = QCheckBox('Verify active cell reference database')
         self.coverage_verify_cell.setToolTip('Compare the derived SQLite database against its saved checksum. Older references without a database checksum remain unverified. This can take time.')
         coverage_layout.addWidget(self.coverage_verify_cell)
+        self.coverage_verify_map = QCheckBox('Verify map archive checksums')
+        self.coverage_verify_map.setToolTip('Optional checksum comparison when a local source checksum is available. Map headers are inspected on every area check. Checksums do not prove map detail or authenticity.')
+        coverage_layout.addWidget(self.coverage_verify_map)
         self.coverage_table = QTableWidget(0, 2)
         self.coverage_table.setHorizontalHeaderLabels(['Layer', 'Result'])
         self.coverage_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -241,6 +250,7 @@ class RegionalPacksDialog(JobDialog):
         self.coverage_grid.currentIndexChanged.connect(self.invalidate_coverage)
         self.coverage_verify.toggled.connect(self.invalidate_coverage)
         self.coverage_verify_cell.toggled.connect(self.invalidate_coverage)
+        self.coverage_verify_map.toggled.connect(self.invalidate_coverage)
         layout.addWidget(self.workspace_tabs, 1)
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(['Kind', 'Pack', 'WGS84 bounds', 'Source / date', 'Size', 'Status'])
@@ -376,7 +386,7 @@ class RegionalPacksDialog(JobDialog):
                          self.batch_button, self.fcc_import_button, self.bundled_structures_button,
                          self.state_picker, self.move_west, self.move_east, self.move_north, self.move_south]
         self.controls.append(self.huntsville_button)
-        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_verify, self.coverage_verify_cell, self.coverage_table])
+        self.controls.extend([self.coverage_bounds, self.coverage_preset, self.coverage_conus_button, self.coverage_check, self.coverage_save, self.coverage_sample, self.coverage_grid, self.coverage_verify, self.coverage_verify_cell, self.coverage_verify_map, self.coverage_table])
         self.kind.currentIndexChanged.connect(self.update_kind)
         self.refresh()
         self.update_kind()
@@ -482,6 +492,8 @@ class RegionalPacksDialog(JobDialog):
         options = {'verify_integrity': self.coverage_verify.isChecked()}
         if self.coverage_verify_cell.isChecked():
             options['verify_cell'] = True
+        if self.coverage_verify_map.isChecked():
+            options['verify_map'] = True
         self.start_job(partial(_coverage_job, self.store.root.parent, catalog, bounds, grid, **options))
 
     @Slot()
@@ -523,6 +535,14 @@ class RegionalPacksDialog(JobDialog):
         key = ('map', 'terrain', 'cell', 'structures')[index]
         row = self.coverage_result[key]
         lines = [row['note']]
+        if key == 'map' and (inspection := self.coverage_result.get('map_inspection')) is not None:
+            lines.append('Map headers were inspected at check time. Checksums do not establish authenticity, complete tiles, or coverage; files may change afterwards. A local-looking path may be a mapped network drive, so offline availability is not guaranteed.')
+            for pack in inspection.get('entries', []):
+                checksum_source=pack.get('checksum_source') or ('Checksum source not inspected' if pack.get('checksum_status')=='not_checked' else 'No checksum source available')
+                lines.append(f"{pack.get('name','Unknown')} · header: {pack.get('header_status','checked')} · checksum: {pack.get('checksum_status','not checked')} · {checksum_source}")
+            for pack in inspection.get('rejected', []):
+                lines.append(f"{pack.get('name','Unknown')} · {pack.get('status','unavailable')} · {pack.get('detail','')}")
+            lines.extend(str(warning) for warning in inspection.get('warnings', []))
         if key == 'cell':
             check = self.coverage_result.get('cell_integrity')
             if check is None:
@@ -797,6 +817,8 @@ class RegionalPacksDialog(JobDialog):
             for index, (key, title) in enumerate((('map','Map'),('terrain','Terrain'),('cell','Cell references'),('structures','Structures'))):
                 item=coverage[key]
                 summary=item['status']
+                if key == 'map' and coverage.get('map_inspection') and not coverage['map_inspection'].get('complete'):
+                    summary += ' · inspection incomplete'
                 if key == 'cell' and item['count'] is not None:
                     summary += f" · {item['count']:,} records"
                     if 'cell_integrity' not in coverage:

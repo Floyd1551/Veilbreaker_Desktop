@@ -15,6 +15,11 @@ def import_job(root,source,metadata,cancelled,progress):
     return {'imported':import_reference(root,source,metadata,cancelled,progress)}
 
 
+def included_reference_job(root,cancelled,progress):
+    from .deployment_data import install_bundled_reference
+    return {'included_reference':install_bundled_reference(root,cancelled=cancelled,progress=progress)}
+
+
 def match_job(config,run_id,cancelled,progress):
     if cancelled():raise ValueError('Cancelled')
     return {'matched':load_run_matches(config,run_id,cancelled)}
@@ -41,6 +46,7 @@ class CellReferenceDialog(JobDialog):
         for title,widget in [('Source',self.source),('License',self.license),('Dataset date',self.date)]:
             line=QHBoxLayout();line.addWidget(QLabel(title));line.addWidget(widget);layout.addLayout(line)
         self.import_button=QPushButton('Import full OpenCellID CSV/GZIP or operator JSON…');self.import_button.clicked.connect(self.import_file);layout.addWidget(self.import_button)
+        self.included_reference_button=QPushButton('Install included cell reference');self.included_reference_button.clicked.connect(self.install_included_reference);layout.addWidget(self.included_reference_button)
         self.runs=QComboBox()
         for run_id in dict.fromkeys(run_ids):self.runs.addItem(str(run_id),str(run_id))
         layout.addWidget(self.runs)
@@ -55,7 +61,7 @@ class CellReferenceDialog(JobDialog):
         self.report_button=QPushButton('View context report');self.report_button.clicked.connect(self.view_report);bottom.addWidget(self.report_button)
         self.save_button=QPushButton('Save context to survey' if survey_path else 'Save context JSON…');self.save_button.clicked.connect(self.save);bottom.addWidget(self.save_button)
         self.status=QLabel('Import or select a reference snapshot, then choose a diagnostic.');self.status.setWordWrap(True);self.status.setTextFormat(Qt.TextFormat.PlainText);layout.addWidget(self.status)
-        self.controls=[self.datasets,self.use,self.clear,self.source,self.license,self.date,self.import_button,self.runs,self.match_button,self.map_button,self.path_button,self.report_button,self.save_button]
+        self.controls=[self.datasets,self.use,self.clear,self.source,self.license,self.date,self.import_button,self.included_reference_button,self.runs,self.match_button,self.map_button,self.path_button,self.report_button,self.save_button]
         try:
             from .deployment_data import seed_reference
             seed_reference(self.root)
@@ -111,9 +117,19 @@ class CellReferenceDialog(JobDialog):
         path,_=QFileDialog.getOpenFileName(self,'Import full reference snapshot','','Reference files (*.csv *.gz *.json)')
         if path:self.start_job(partial(import_job,self.root,path,dict(source=self.source.text(),license=self.license.text(),date=self.date.text())))
     @Slot()
+    def install_included_reference(self):
+        self.status.setText('Checking included reference and preparing a separate snapshot…')
+        self.start_job(partial(included_reference_job,self.root))
+    @Slot()
     def match(self):
         run=self.runs.currentData()
         if run:self.start_job(partial(match_job,self.config,run))
+    @Slot(object)
+    def job_progress(self,value):
+        if isinstance(value,dict) and 'copied_bytes' in value and 'total_bytes' in value:
+            self.status.setText(f"Copying included reference: {value['copied_bytes']/1048576:.1f} / {value['total_bytes']/1048576:.1f} MiB")
+        else:
+            super().job_progress(value)
     @Slot(object)
     def job_ready(self,value):
         if self.closing:return
@@ -122,6 +138,14 @@ class CellReferenceDialog(JobDialog):
             index=self.datasets.findData(row['dataset_id'])
             if index>=0:self.datasets.setCurrentIndex(index)
             self.status.setText(f"Imported {row['accepted']:,}; rejected {row['rejected']:,}; unsupported {row['unsupported']:,}. Choose Use selected reference to activate it.")
+        elif 'included_reference' in value:
+            result=value['included_reference']
+            if result['status']=='unavailable':
+                self.status.setText('No included cell reference is available in this build.')
+            else:
+                self.refresh();index=self.datasets.findData(result['dataset_id'])
+                if index>=0:self.datasets.setCurrentIndex(index)
+                self.status.setText('Included reference installed or already present. Choose Use selected reference to activate it; your existing choice is unchanged.')
         else:
             result=value['matched'];self.matches[result['run_id']]=result;self.populate()
             self.status.setText(f"Showing selected test (up to 200 observation/candidate rows). {result.get('omitted',0)} observations omitted. Select a candidate to inspect its bearing or assess a conditional terrain path.")
