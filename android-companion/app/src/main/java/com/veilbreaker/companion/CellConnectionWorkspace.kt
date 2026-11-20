@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.telephony.TelephonyManager
 import android.widget.Button
 import android.widget.LinearLayout
@@ -20,19 +21,22 @@ class CellConnectionWorkspace(context: Context, private val selectedSubscription
     init {
         orientation = VERTICAL
         addView(TextView(context).apply {
-            text = "CONNECTION DETAILS"; textSize = 16f; setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.parseColor("#63d6ee")); setPadding(0, dp(10), 0, dp(6))
+            text = "Connection details"; textSize = 17f; setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#edf5f8")); setPadding(0, dp(14), 0, dp(6))
         })
         addView(TextView(context).apply {
             text = "Read the selected SIM's current public Android connection state. This is separate from a saved capture."
-            textSize = 13f; setTextColor(Color.parseColor("#b8cbd9"))
+            textSize = 13f; setTextColor(Color.parseColor("#b4c8d1")); setPadding(0, 0, 0, dp(8))
         })
         refreshButton = Button(context).apply {
             text = "Refresh cellular connection"; styleFieldButton(); setOnClickListener { refresh() }
         }
         addView(refreshButton)
-        output.textSize = 13f; output.setTextColor(Color.parseColor("#e8f5fa")); output.setPadding(0, dp(8), 0, dp(8))
-        output.text = "Choose a SIM, grant phone permission, then refresh."; addView(output)
+        output.textSize = 13f; output.setTextColor(Color.parseColor("#edf5f8")); output.setPadding(dp(14), dp(12), dp(14), dp(12))
+        output.setLineSpacing(dp(3).toFloat(), 1f)
+        output.background = GradientDrawable().apply { setColor(Color.parseColor("#10212d")); cornerRadius = dp(14).toFloat() }
+        output.text = "Choose a SIM, grant phone permission, then refresh."
+        addView(output, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
     }
     fun selectionChanged() {
         requestGeneration++

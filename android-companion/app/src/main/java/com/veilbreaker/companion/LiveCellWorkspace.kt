@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
@@ -69,16 +70,22 @@ class LiveCellWorkspace(
         }
     }
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
+    private fun group(): LinearLayout = LinearLayout(context).apply {
+        orientation = VERTICAL
+        setPadding(dp(14), dp(12), dp(14), dp(14))
+        background = GradientDrawable().apply { setColor(Color.parseColor("#10212d")); cornerRadius = dp(14).toFloat() }
+        this@LiveCellWorkspace.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+    }
 
     init {
         orientation = VERTICAL
         addView(TextView(context).apply {
-            text = "LIVE CELLULAR MONITOR"; textSize = 16f; setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.parseColor("#63d6ee")); setPadding(0, dp(12), 0, dp(6))
+            text = "Live cellular"; textSize = 17f; setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#edf5f8")); setPadding(0, dp(14), 0, dp(6))
         })
         addView(TextView(context).apply {
             text = "Foreground only · Requests every five seconds; Android may return cached or incomplete readings. Stops after five minutes; readings are not saved."
-            textSize = 13f; setTextColor(Color.parseColor("#b8cbd9"))
+            textSize = 13f; setTextColor(Color.parseColor("#b4c8d1")); setPadding(0, 0, 0, dp(8))
         })
         button.apply { text = "Start live cellular"; styleFieldButton(primary = true); setOnClickListener { if (active) stop() else start() } }
         addView(button)
@@ -87,47 +94,53 @@ class LiveCellWorkspace(
         addView(status)
         metricPanel.visibility = View.GONE; addView(metricPanel)
         trendView.visibility = View.GONE; addView(trendView)
-        addView(TextView(context).apply {
-            text = "SERVING CELL CHANGES"; textSize = 14f; setTypeface(null, Typeface.BOLD)
-            setTextColor(Color.parseColor("#63d6ee")); setPadding(0, dp(12), 0, dp(4))
-        })
-        addView(TextView(context).apply {
-            text = "Optional foreground log of reported LTE/NR identity changes. Times are response receipts, not exact transition times. This does not confirm a physical tower change or handover cause. Cleared when the live monitor stops."
-            textSize = 12f; setTextColor(Color.parseColor("#b8cbd9"))
-        })
-        changeButton.apply {
-            text = "Start cell change log"; styleFieldButton(); isEnabled = false
-            setOnClickListener { toggleChangeLog() }
-        }
-        addView(changeButton)
-        changeStatus.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(4), 0, dp(4)) }
-        addView(changeStatus)
-        changeEvents.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); visibility = View.GONE }
-        addView(changeEvents)
-        changeExpand.apply {
-            text = "Show all cell changes"; styleFieldButton(); visibility = View.GONE
-            setOnClickListener { changeExpanded = !changeExpanded; renderChangeLog() }
-        }
-        addView(changeExpand)
-        renderChangeLog()
         addView(details)
         detailsButton.apply {
             text = "Show more cell reports"; styleFieldButton(); visibility = View.GONE
             setOnClickListener { detailsExpanded = !detailsExpanded; renderDetails() }
         }
         addView(detailsButton)
-        addView(TextView(context).apply {
+        val changes = group()
+        changes.addView(TextView(context).apply {
+            text = "Serving cell changes"; textSize = 15f; setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#edf5f8")); setPadding(0, 0, 0, dp(5))
+        })
+        changes.addView(TextView(context).apply {
+            text = "Optional foreground log of reported LTE/NR identity changes. Times are response receipts, not exact transition times. This does not confirm a physical tower change or handover cause. Cleared when the live monitor stops."
+            textSize = 12f; setTextColor(Color.parseColor("#b4c8d1")); setPadding(0, 0, 0, dp(7))
+        })
+        changeButton.apply {
+            text = "Start cell change log"; styleFieldButton(); isEnabled = false
+            setOnClickListener { toggleChangeLog() }
+        }
+        changes.addView(changeButton)
+        changeStatus.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(4), 0, dp(4)) }
+        changes.addView(changeStatus)
+        changeEvents.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); visibility = View.GONE }
+        changes.addView(changeEvents)
+        changeExpand.apply {
+            text = "Show all cell changes"; styleFieldButton(); visibility = View.GONE
+            setOnClickListener { changeExpanded = !changeExpanded; renderChangeLog() }
+        }
+        changes.addView(changeExpand)
+        renderChangeLog()
+        val saved = group()
+        saved.addView(TextView(context).apply {
+            text = "Saved capture"; textSize = 15f; setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#edf5f8")); setPadding(0, 0, 0, dp(5))
+        })
+        saved.addView(TextView(context).apply {
             text = "A snapshot stops the live monitor and replaces the latest capture. Archive or export earlier evidence to keep it."
-            textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(5), 0, dp(3))
+            textSize = 12f; setTextColor(Color.parseColor("#b4c8d1")); setPadding(0, 0, 0, dp(7))
         })
         captureButton.apply { text = "Take new snapshot"; styleFieldButton(); isEnabled = false; setOnClickListener { captureSnapshot() } }
-        addView(captureButton)
+        saved.addView(captureButton)
         captureReadiness.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE }
-        addView(captureReadiness)
+        saved.addView(captureReadiness)
         captureStatus.apply { textSize = 13f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE }
-        addView(captureStatus)
+        saved.addView(captureStatus)
         reviewButton.apply { text = "Review latest saved capture"; styleFieldButton(); isEnabled = false; setOnClickListener { reviewCapture() } }
-        addView(reviewButton)
+        saved.addView(reviewButton)
         addView(CellularReferencePanel(context))
     }
 

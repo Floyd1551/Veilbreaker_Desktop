@@ -39,6 +39,7 @@ import java.util.Date
 class WifiSnapshotActivity : Activity() {
     private lateinit var results: LinearLayout
     private lateinit var connectedHolder: LinearLayout
+    private lateinit var permissionButton: Button
     private var visible = false
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var callbackEpoch = 0
@@ -58,7 +59,7 @@ class WifiSnapshotActivity : Activity() {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun color(value: String) = Color.parseColor(value)
 
-    private fun label(parent: LinearLayout, value: String, size: Float = 14f, tone: String = "#b8c9da", bold: Boolean = false): TextView =
+    private fun label(parent: LinearLayout, value: String, size: Float = 14f, tone: String = "#b4c8d1", bold: Boolean = false): TextView =
         TextView(this).apply {
             text = value; textSize = size; setTextColor(color(tone)); setPadding(0, dp(3), 0, dp(3))
             if (bold) setTypeface(null, Typeface.BOLD)
@@ -66,10 +67,10 @@ class WifiSnapshotActivity : Activity() {
         }
 
     private fun card(parent: LinearLayout, title: String): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(14))
-        background = GradientDrawable().apply { setColor(color("#152435")); cornerRadius = dp(12).toFloat(); setStroke(dp(1), color("#294055")) }
+        orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(16))
+        background = GradientDrawable().apply { setColor(color("#142532")); cornerRadius = dp(16).toFloat(); setStroke(dp(1), color("#263c49")) }
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
-        label(this, title, 12f, "#63dec8", true)
+        label(this, title, 16f, "#edf5f8", true)
     }
 
     private fun signalMeter(parent: LinearLayout, rssi: Int?) {
@@ -93,24 +94,22 @@ class WifiSnapshotActivity : Activity() {
             filterBand = WifiObservationFilter.Band.entries.getOrElse(state.getInt("wifi_filter_band", 0)) { WifiObservationFilter.Band.ALL }
             filterOrder = WifiObservationFilter.Order.entries.getOrElse(state.getInt("wifi_filter_order", 0)) { WifiObservationFilter.Order.SIGNAL }
         }
-        window.statusBarColor = Color.parseColor("#0d1520")
-        window.navigationBarColor = Color.parseColor("#0d1520")
-        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#0d1520")); isFillViewport = true }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(24), dp(20), dp(24)) }
+        window.statusBarColor = Color.parseColor("#09141f")
+        window.navigationBarColor = Color.parseColor("#09141f")
+        val scroll = ScrollView(this).apply { setBackgroundColor(Color.parseColor("#09141f")); isFillViewport = true }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(24)) }
         scroll.addView(content); setContentView(scroll)
         SystemBarInsets.apply(scroll)
-        fun button(value: String, action: () -> Unit) = Button(this).apply {
-            this.text = value; isAllCaps = false; minHeight = dp(48)
-            backgroundTintList = ColorStateList.valueOf(color("#243b50")); setTextColor(color("#e9f5f9"))
-            setOnClickListener { action() }; content.addView(this)
+        fun button(value: String, primary: Boolean = false, action: () -> Unit) = Button(this).apply {
+            this.text = value; styleFieldButton(primary)
+            setOnClickListener { action() }; content.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         }
-        label(content, "VEILBREAKER  /  WI-FI", 12f, "#63dec8", true)
+        button("‹  Back to workspace") { finish() }
         label(content, "Wi-Fi environment", 24f, "#eef7fc", true)
         label(content, "Read-only view. Nearby entries are cached Android results, not a new scan. Names and addresses are not saved or exported here.")
-        button("Grant Wi-Fi permissions") { requestWifiPermissions() }
-        button("Refresh cached results") { refresh() }
+        permissionButton = button("Grant Wi-Fi permissions") { requestWifiPermissions() }
+        button("Refresh cached results", true) { refresh() }
         results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; content.addView(this) }
-        button("Back to field workspace") { finish() }
         refresh()
     }
 
@@ -218,23 +217,24 @@ class WifiSnapshotActivity : Activity() {
         cancelScheduledRefresh()
         cancelListRender()
         results.removeAllViews()
+        lastPermission = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        permissionButton.visibility = if (lastPermission) View.GONE else View.VISIBLE
         val wifi = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
-        if (wifi == null) { label(card(results, "WI-FI"), "Wi-Fi is not available on this device."); return }
+        if (wifi == null) { label(card(results, "Wi-Fi"), "Wi-Fi is not available on this device."); return }
         val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM).format(Date())
         label(results, "Cached list read at $time · Wi-Fi ${if (wifi.isWifiEnabled) "enabled" else "off"}", 12f, "#9eb4c4")
-        lastPermission = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         lastLocationEnabled = getSystemService(LocationManager::class.java)?.isLocationEnabled == true
         lastWifiEnabled = wifi.isWifiEnabled
         if (!lastPermission) {
-            label(card(results, "PERMISSION NEEDED"), "Precise location permission is needed for Wi-Fi details and nearby cached scans. Grant permission above; no scan will be started.")
+            label(card(results, "Permission needed"), "Precise location permission is needed for Wi-Fi details and nearby cached scans. Grant permission above; no scan will be started.")
             return
         }
         if (!lastLocationEnabled) {
-            label(card(results, "LOCATION SERVICES OFF"), "Wi-Fi identities and nearby cached results may be unavailable.")
+            label(card(results, "Location services off"), "Wi-Fi identities and nearby cached results may be unavailable.")
         }
         connectedHolder = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; results.addView(this) }
         renderConnected(wifi)
-        val nearby = card(results, "NEARBY NETWORKS")
+        val nearby = card(results, "Nearby networks")
         label(nearby, "Cached observations · not a live scan or coverage survey", 12f, "#9eb4c4")
         val scans = try { wifi.scanResults } catch (_: SecurityException) { null } catch (_: IllegalStateException) { null }
         if (scans == null) {
@@ -262,7 +262,7 @@ class WifiSnapshotActivity : Activity() {
     }
 
     private fun showObservationFilters(rows: List<WifiObservationFilter.Row>, total: Int) {
-        val filter = card(results, "FIND CACHED NETWORKS")
+        val filter = card(results, "Find cached networks")
         label(filter, "Filter this cached list by network name, BSSID, or band. Changing a filter does not refresh the observations.", 12f)
         label(filter, "Widths and security capabilities are Android-reported cached details, not a security assessment or proof of channel authorization.", 12f)
         val search = EditText(this).apply {
@@ -291,7 +291,7 @@ class WifiSnapshotActivity : Activity() {
             summary.text = "${selected.size} matching cached entries${if (total > rows.size) " · ${total - rows.size} beyond filter limit" else ""}; showing up to 80."
             if (selected.isEmpty()) label(list, "No matching cached entries. This does not mean the network or band is absent.", 13f)
             for (row in selected.take(80)) {
-                val entry = card(list, "CACHED WI-FI")
+                val entry = card(list, "Cached Wi-Fi")
                 label(entry, row.ssid ?: "SSID not exposed / hidden", 17f, "#eef7fc", true)
                 label(entry, "BSSID · ${row.bssid ?: "Not exposed / redacted"}", 12f)
                 signalMeter(entry, row.rssiDbm)
@@ -352,7 +352,7 @@ class WifiSnapshotActivity : Activity() {
                 (wifiNetwork?.let { connectivity?.getNetworkCapabilities(it)?.transportInfo } as? WifiInfo)
             WifiSnapshotFormat.association(wifiNetwork != null, bound) { wifi.connectionInfo }
         } catch (_: SecurityException) { null }
-        val connected = card(connectedHolder, "CONNECTED WI-FI")
+        val connected = card(connectedHolder, "Connected Wi-Fi")
         val time = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM).format(Date())
         label(connected, "Read at $time · system sample age not exposed", 12f, "#9eb4c4")
         if (wifiNetwork == null && (info == null || info.networkId == -1)) {
