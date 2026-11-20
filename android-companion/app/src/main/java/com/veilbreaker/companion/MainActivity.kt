@@ -8,7 +8,6 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.content.res.ColorStateList
 import android.text.Editable
 import android.text.TextWatcher
 import android.os.*
@@ -77,10 +76,7 @@ class MainActivity : Activity() {
     private val channelPlan by lazy { JSONObject(assets.open("channel-bands.json").bufferedReader().use { it.readText() }) }
     private val permissions=arrayOf(Manifest.permission.READ_PHONE_STATE,Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION)
     private fun dp(n:Int)=(n*resources.displayMetrics.density).toInt()
-    private fun background(color:String)=GradientDrawable().apply { setColor(Color.parseColor(color)); cornerRadius=dp(12).toFloat() }
-    private fun buttonColors(enabled:String, disabled:String)=ColorStateList(
-        arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
-        intArrayOf(Color.parseColor(disabled),Color.parseColor(enabled)))
+    private fun background(color:String)=GradientDrawable().apply { setColor(Color.parseColor(color)); cornerRadius=dp(14).toFloat() }
 
     private fun showPage(page: WorkspacePage) {
         if(currentPage==WorkspacePage.DIAGNOSE && page!=WorkspacePage.DIAGNOSE && ::networkTestWorkspace.isInitialized) networkTestWorkspace.cancel()
@@ -89,9 +85,9 @@ class MainActivity : Activity() {
         pages.forEachIndexed { index, view -> view.visibility=if(index==page.ordinal) View.VISIBLE else View.GONE }
         navItems.forEachIndexed { index, item ->
             val selected=index==page.ordinal
-            item.background=background(if(selected) "#153c4a" else "#0a1b29")
-            navLabels[index].setTextColor(Color.parseColor(if(selected) "#62e2ed" else "#a6bdcc"))
-            navIcons[index].setColorFilter(Color.parseColor(if(selected) "#62e2ed" else "#a6bdcc"))
+            item.background=background(if(selected) "#1b3c47" else "#0d1b26")
+            navLabels[index].setTextColor(Color.parseColor(if(selected) "#8de2e1" else "#b0c1ca"))
+            navIcons[index].setColorFilter(Color.parseColor(if(selected) "#8de2e1" else "#b0c1ca"))
             item.isSelected=selected
             item.contentDescription=navLabels[index].text.toString() + if(selected) ", selected" else ""
         }
@@ -106,8 +102,8 @@ class MainActivity : Activity() {
         diagnoseSections.forEachIndexed { i, view -> view.visibility=if(i==index) View.VISIBLE else View.GONE }
         diagnoseTabs.forEachIndexed { i, tab ->
             val selected=i==index
-            tab.background=background(if(selected) "#2179ce" else "#1b3042")
-            tab.setTextColor(Color.parseColor(if(selected) "#ffffff" else "#b3c7d5"))
+            tab.background=background(if(selected) "#28505b" else "#172c38")
+            tab.setTextColor(Color.parseColor(if(selected) "#f1fbfb" else "#b6c9d1"))
             tab.isSelected=selected
             tab.contentDescription=tab.text.toString()+" diagnostics"+if(selected) ", selected" else ""
         }
@@ -162,42 +158,39 @@ class MainActivity : Activity() {
         setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(state)
         location=PhoneLocation(this)
-        window.statusBarColor=Color.parseColor("#07131f")
-        window.navigationBarColor=Color.parseColor("#07131f")
-        val shell=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setBackgroundColor(Color.parseColor("#07131f")) }
+        window.statusBarColor=Color.parseColor("#09141f")
+        window.navigationBarColor=Color.parseColor("#09141f")
+        val shell=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setBackgroundColor(Color.parseColor("#09141f")) }
         setContentView(shell)
         SystemBarInsets.apply(shell)
-        val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(10),dp(4),dp(10),dp(4));setBackgroundColor(Color.parseColor("#0c1d2c")) }
+        val header=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL;gravity=Gravity.CENTER_VERTICAL;setPadding(dp(14),dp(7),dp(14),dp(7));setBackgroundColor(Color.parseColor("#0d1c27")) }
         header.addView(ImageView(this).apply { setImageResource(R.drawable.ic_launcher_foreground);contentDescription=null },LinearLayout.LayoutParams(dp(38),dp(38)))
         val branding=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL }
-        branding.addView(TextView(this).apply { text="VEILBREAKER";textSize=16f;letterSpacing=0.06f;setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) })
+        branding.addView(TextView(this).apply { text="Veilbreaker";textSize=17f;letterSpacing=0.01f;setTypeface(null,Typeface.BOLD);setTextColor(Color.parseColor("#edf5f8")) })
         val installedVersion=runCatching { packageManager.getPackageInfo(packageName,0).versionName }.getOrNull() ?: "unknown"
-        branding.addView(TextView(this).apply { text="MOBILE  /  $installedVersion";textSize=10f;letterSpacing=0.04f;setTextColor(Color.parseColor("#62d5ee")) })
+        branding.addView(TextView(this).apply { text="Mobile  ·  $installedVersion";textSize=10f;setTextColor(Color.parseColor("#b2c7ce")) })
         header.addView(branding);shell.addView(header)
         val content=FrameLayout(this)
         shell.addView(content,LinearLayout.LayoutParams(-1,0,1f))
         fun text(parent:LinearLayout,value:String,size:Float=14f)=TextView(this).apply {
-            text=value;textSize=size;setTextColor(Color.parseColor("#b8c9da"));setPadding(0,dp(4),0,dp(6));parent.addView(this)
+            text=value;textSize=size;setTextColor(Color.parseColor("#b4c8d1"));setPadding(0,dp(4),0,dp(6));parent.addView(this)
         }
         fun page(title:String, description:String, scrollable:Boolean=true):LinearLayout {
-            val body=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(7),dp(12),dp(8)) }
+            val body=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(12),dp(16),dp(12)) }
             val screen: View = if(scrollable) ScrollView(this).apply { isFillViewport=true;addView(body) } else body
             content.addView(screen);pages.add(screen)
-            text(body,title,19f).apply { setTypeface(null,Typeface.BOLD);setTextColor(Color.WHITE) }
+            text(body,title,23f).apply { setTypeface(null,Typeface.BOLD);setTextColor(Color.parseColor("#edf5f8")) }
             text(body,description,13f)
             return body
         }
         fun card(parent:LinearLayout,title:String):LinearLayout {
-            val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(12),dp(10),dp(12),dp(12));background=GradientDrawable().apply { setColor(Color.parseColor("#102638"));setStroke(dp(1),Color.parseColor("#29495a"));cornerRadius=dp(10).toFloat() } }
-            parent.addView(box,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(10) })
-            text(box,title,16f).apply { setTextColor(Color.parseColor("#63d6ee"));setTypeface(null,Typeface.BOLD) }
+            val box=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(16),dp(14),dp(16),dp(16));background=GradientDrawable().apply { setColor(Color.parseColor("#142532"));setStroke(dp(1),Color.parseColor("#263c49"));cornerRadius=dp(16).toFloat() } }
+            parent.addView(box,LinearLayout.LayoutParams(-1,-2).apply { topMargin=dp(12) })
+            text(box,title,16f).apply { setTextColor(Color.parseColor("#edf5f8"));setTypeface(null,Typeface.BOLD) }
             return box
         }
         fun button(parent:LinearLayout,title:String,primary:Boolean=false,action:()->Unit)=Button(this).apply {
-            text=title;isAllCaps=false;minHeight=dp(48);textSize=13f
-            background=GradientDrawable().apply { setColor(Color.WHITE);cornerRadius=dp(9).toFloat() }
-            backgroundTintList=buttonColors(if(primary) "#43d7e3" else "#233e51", "#1b2935")
-            setTextColor(buttonColors(if(primary) "#06232a" else "#ffffff", "#8ca0ae"));elevation=0f;setOnClickListener { action() };parent.addView(this)
+            text=title;styleFieldButton(primary);setOnClickListener { action() };parent.addView(this)
         }
         // Allow labels to remain legible with large system text or a narrow window.
         // Rows wrap instead of hiding tabs in a horizontally scrolling strip.
@@ -369,13 +362,13 @@ class MainActivity : Activity() {
         showTools = { selected ->
             workspaces.forEachIndexed { i, workspace -> workspace.visibility=if(i==selected) View.VISIBLE else View.GONE }
             tabs.forEachIndexed { i, tab ->
-                tab.background=background(if(i==selected) "#2179ce" else "#1b3042")
-                tab.setTextColor(Color.WHITE);tab.isSelected=i==selected
+                tab.background=background(if(i==selected) "#28505b" else "#172c38")
+                tab.setTextColor(Color.parseColor(if(i==selected) "#f1fbfb" else "#b6c9d1"));tab.isSelected=i==selected
                 tab.contentDescription=tab.text.toString()+" tools"+if(i==selected) ", selected" else ""
             }
         }
         tabs.forEachIndexed { i, tab -> tab.setOnClickListener { showTools(i) } };showTools(0)
-        val bar=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(4),dp(4),dp(4),dp(4));setBackgroundColor(Color.parseColor("#0a1b29")) }
+        val bar=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL;setPadding(dp(6),dp(6),dp(6),dp(6));setBackgroundColor(Color.parseColor("#0d1b26")) }
         val navColumns=WorkspaceNavigation.bottomColumns(resources.configuration.screenWidthDp,resources.configuration.fontScale)
         var navRow:LinearLayout?=null
         val labels=listOf("Live","Diagnose","Survey","Reports","Tools")

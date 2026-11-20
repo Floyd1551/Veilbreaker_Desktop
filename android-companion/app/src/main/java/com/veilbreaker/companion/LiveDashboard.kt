@@ -3,7 +3,6 @@ package com.veilbreaker.companion
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -58,29 +57,30 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun color(value: String) = Color.parseColor(value)
 
-    private fun text(parent: LinearLayout, value: String, size: Float = 13f, tone: String = "#b8cbd9", bold: Boolean = false): TextView =
+    private fun text(parent: LinearLayout, value: String, size: Float = 13f, tone: String = "#b4c8d1", bold: Boolean = false): TextView =
         TextView(context).apply {
             text = value; textSize = size; setTextColor(color(tone)); setPadding(0, dp(1), 0, dp(1))
             if (bold) setTypeface(null, Typeface.BOLD)
             parent.addView(this)
         }
 
-    private fun surface(fill: String, border: String, radius: Int = 10) = GradientDrawable().apply {
-        setColor(color(fill)); setStroke(dp(1), color(border)); cornerRadius = dp(radius).toFloat()
+    private fun surface(fill: String, radius: Int = 16) = GradientDrawable().apply {
+        setColor(color(fill)); cornerRadius = dp(radius).toFloat()
     }
 
-    private fun panel(title: String): LinearLayout = LinearLayout(context).apply {
-        orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12))
-        background = surface("#101e2c", "#294052")
-        this@LiveDashboard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
-        text(this, title, 12f, "#83cde3", true).apply { letterSpacing = 0.06f }
+    private fun panel(title: String, contextLabel: String): LinearLayout = LinearLayout(context).apply {
+        orientation = VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16))
+        background = surface("#142532", 16)
+        this@LiveDashboard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        text(this, title, 18f, "#edf5f8", true)
+        text(this, contextLabel, 12f, "#a7c5d3").apply { setPadding(0, dp(2), 0, dp(4)) }
     }
 
     // A saved capture is separate from the current network state. Do not imply that
     // these values are live measurements or assign a quality grade to them.
     private fun cellPanel(parent: LinearLayout): LinearLayout = LinearLayout(context).apply {
-        orientation = VERTICAL; setPadding(dp(12), dp(10), dp(12), dp(10))
-        background = surface("#142737", "#304a5c", 8)
+        orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12))
+        background = surface("#1b3040", 14)
         parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
     }
 
@@ -94,27 +94,24 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
 
     private fun metric(parent: LinearLayout, value: LiveOverviewModel.Value) {
         val metric = LinearLayout(context).apply {
-            orientation = VERTICAL; setPadding(dp(8), dp(6), dp(6), dp(6))
-            background = surface("#0d1c29", "#294152", 6)
+            orientation = VERTICAL; setPadding(dp(10), dp(8), dp(8), dp(8))
+            background = surface("#132838", 10)
             parent.addView(this, if (parent.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(4)
             } else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
         }
-        text(metric, value.label, 11f, "#a8c2d1", true)
+        text(metric, value.label, 12f, "#aec6d3")
         text(metric, displayValue(value), if (value.value == null) 12f else 16f,
-            if (value.value == null) "#a8bdca" else "#f2f8fc", value.value != null)
+            if (value.value == null) "#a8bdca" else "#edf5f8", value.value != null)
     }
 
     private fun action(parent: LinearLayout, title: String, action: () -> Unit): Button =
         Button(context).apply {
-            text = title; isAllCaps = false; minHeight = dp(48); gravity = Gravity.CENTER
-            val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
-            backgroundTintList = ColorStateList(states, intArrayOf(color("#1b2935"), color("#254e7f")))
-            setTextColor(ColorStateList(states, intArrayOf(color("#8ca0ae"), color("#ffffff"))))
+            text = title; styleFieldButton(); gravity = Gravity.CENTER
             setOnClickListener { action() }; isEnabled = navigationEnabled
             parent.addView(this, if (parent.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(4)
-            } else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+            } else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
 
     fun setNavigationEnabled(enabled: Boolean) {
@@ -125,15 +122,15 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     fun showCapture(capture: JSONObject?, plan: JSONObject?) {
         removeAllViews(); wifiButton = null; gpsButton = null; navigationStatus = null; wifiSummary = null; wifiName = null; wifiFrequency = null; wifiValues.clear(); wifiChecked = null
         val model = runCatching { LiveOverviewModel.build(capture, plan) }.getOrElse { LiveOverviewModel.Overview(null, emptyList(), null) }
-        val overview = panel("CELLULAR  /  LATEST CAPTURE")
+        val overview = panel("Cellular", "Latest saved capture")
         text(overview, model.receivedUtc?.let { "Received $it · sample ages at receipt" }
             ?: "No recorded phone capture yet. Select Capture to collect.", 12f, "#9ab3c3")
         if (model.cells.isEmpty()) text(overview, "No registered LTE or NR cells in the latest capture.", 13f)
         for (cell in model.cells) {
             val card = cellPanel(overview)
-            text(card, cell.title, 15f, "#f2f8fc", true)
-            text(card, "${cell.carrier} · ${cell.band}", 13f, "#91d9ed")
-            text(card, "Channel ${cell.channel} · PCI ${cell.pci}", 12f, "#b8cbd9")
+            text(card, cell.title, 15f, "#edf5f8", true)
+            text(card, "${cell.carrier} · ${cell.band}", 13f, "#78d8db")
+            text(card, "Channel ${cell.channel} · PCI ${cell.pci}", 12f, "#b4c8d1")
             val metrics = LinearLayout(context).apply {
                 orientation = if (stackedLayout()) VERTICAL else HORIZONTAL
                 card.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
@@ -143,31 +140,31 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
             if (cell.receivedUtc != null && cell.receivedUtc != model.receivedUtc)
                 text(card, "Received ${cell.receivedUtc}", 11f, "#a8bfcd")
         }
-        val wifi = panel("WI-FI  /  CURRENT STATUS")
+        val wifi = panel("Wi-Fi", "Current connection")
         val wifiCard = cellPanel(wifi)
-        wifiSummary = text(wifiCard, wifiDetails.status, 15f, "#f2f8fc", true)
-        wifiName = text(wifiCard, wifiDetails.name, 13f, "#91d9ed")
-        wifiFrequency = text(wifiCard, "Frequency ${wifiDetails.frequency}", 12f, "#b8cbd9")
+        wifiSummary = text(wifiCard, wifiDetails.status, 15f, "#edf5f8", true)
+        wifiName = text(wifiCard, wifiDetails.name, 13f, "#78d8db")
+        wifiFrequency = text(wifiCard, "Frequency ${wifiDetails.frequency}", 12f, "#b4c8d1")
         val wifiMetrics = LinearLayout(context).apply {
             orientation = if (stackedLayout()) VERTICAL else HORIZONTAL
             wifiCard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
         for ((label, value) in listOf("Signal" to wifiDetails.signal, "Channel" to wifiDetails.channel, "Link rate" to wifiDetails.linkRate)) {
             val box = LinearLayout(context).apply {
-                orientation = VERTICAL; setPadding(dp(8), dp(6), dp(6), dp(6)); background = surface("#0d1c29", "#294152", 6)
+                orientation = VERTICAL; setPadding(dp(10), dp(8), dp(8), dp(8)); background = surface("#132838", 10)
                 wifiMetrics.addView(this, if (wifiMetrics.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(4) }
                     else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
             }
-            text(box, label, 11f, "#a8c2d1", true)
-            wifiValues.add(text(box, value, 14f, "#f2f8fc", true))
+            text(box, label, 12f, "#aec6d3")
+            wifiValues.add(text(box, value, 14f, "#edf5f8", true))
         }
-        text(wifiCard, "Channel derived from reported frequency. Link rate is negotiated, not measured throughput; sample age not exposed.", 11f, "#a8bfcd")
+        text(wifiCard, "Channel is derived from frequency. Link rate is negotiated, not measured throughput; sample age is not exposed.", 12f, "#b4c9d4").apply { setPadding(0, dp(8), 0, 0) }
         wifiChecked = text(wifi, wifiCheckedText, 11f, "#a8bfcd").apply {
             visibility = if (wifiCheckedText.isEmpty()) View.GONE else View.VISIBLE
         }
         wifiButton = action(wifi, "Open Wi-Fi", onWifi)
 
-        val gps = panel("GPS  /  LATEST CAPTURE")
+        val gps = panel("Location", "Latest saved capture and live GPS")
         text(gps, model.gps ?: "No location in the latest saved capture.", 13f, "#e0edf5").apply {
             setPadding(0, dp(6), 0, dp(4))
         }

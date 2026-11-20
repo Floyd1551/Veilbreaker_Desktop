@@ -3,7 +3,6 @@ package com.veilbreaker.companion
 import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -24,9 +23,9 @@ import java.util.Locale
 /** Searchable offline calculations. Results remain separate from captured evidence. */
 class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
-    private val bright = Color.parseColor("#e8f5fa")
+    private val bright = Color.parseColor("#edf5f8")
     private val muted = Color.parseColor("#b8cbd9")
-    private val cyan = Color.parseColor("#63d6ee")
+    private val cyan = Color.parseColor("#78d8db")
     private lateinit var selector: Spinner
     private lateinit var editor: LinearLayout
     private lateinit var count: TextView
@@ -37,7 +36,7 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
 
     init {
         orientation = VERTICAL
-        label(this, "ENGINEERING CALCULATORS", 12f, cyan, true)
+        label(this, "Engineering calculators", 16f, bright, true)
         label(this, "Search offline tools by name or subject. Calculations use entered values and are not captured measurements.", 13f)
         val search = EditText(context).apply {
             hint = "Search calculators"; contentDescription = "Search calculators"; setSingleLine(true)
@@ -92,9 +91,9 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         editor.removeAllViews()
         displayedToolId = tool.id
         val card = LinearLayout(context).apply {
-            orientation = VERTICAL; setPadding(dp(14), dp(10), dp(14), dp(12))
+            orientation = VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(16))
             background = GradientDrawable().apply {
-                setColor(Color.parseColor("#102638")); setStroke(dp(1), Color.parseColor("#29495a")); cornerRadius = dp(10).toFloat()
+                setColor(Color.parseColor("#142532")); setStroke(dp(1), Color.parseColor("#263c49")); cornerRadius = dp(16).toFloat()
             }
             editor.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
@@ -119,11 +118,7 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         var calculatedInputs: List<String>? = null
         var worksheetText: String? = null
         val copy = Button(context).apply {
-            text = "Copy worksheet"; isAllCaps = false; minHeight = dp(48); isEnabled = false
-            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(9).toFloat() }
-            val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
-            backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1b2935"), Color.parseColor("#233e51")))
-            setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#8ca0ae"), bright)))
+            text = "Copy worksheet"; styleFieldButton(); isEnabled = false
             setOnClickListener {
                 val currentInputs = fields.map { it.text.toString().trim() }
                 val textToCopy = worksheetText
@@ -143,9 +138,7 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
             worksheet.removeAllViews(); worksheet.visibility = View.GONE; visual?.clearCalculation()
         }) }
         Button(context).apply {
-            text = "Calculate"; isAllCaps = false; minHeight = dp(48); setTextColor(Color.parseColor("#06232a"))
-            background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(9).toFloat() }
-            backgroundTintList = ColorStateList.valueOf(Color.parseColor("#43d7e3"))
+            text = "Calculate"; styleFieldButton(primary = true)
             setOnClickListener {
                 calculatedInputs = null; worksheetText = null; copy.isEnabled = false
                 val inputText = fields.map { it.text.toString().trim() }
@@ -158,7 +151,7 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
                 else {
                     val safeValues = values.filterNotNull()
                     visual?.showCalculation(safeValues)
-                    label(worksheet, "CALCULATION WORKSHEET", 11f, cyan, true)
+                    label(worksheet, "Calculation worksheet", 12f, cyan, true)
                     fun row(name: String, value: String) {
                         val line = LinearLayout(context).apply { orientation = HORIZONTAL; setPadding(0, dp(3), 0, dp(3)) }
                         worksheet.addView(line, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))

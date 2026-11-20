@@ -162,35 +162,66 @@ class SurveyWorkspace(
     }
 
     private fun text(parent: LinearLayout, value: String, size: Float = 14f, bright: Boolean = false): TextView = TextView(context).apply {
-        text = value; textSize = size; setTextColor(Color.parseColor(if (bright) "#e8f3fa" else "#b1c5d3"))
+        text = value; textSize = size; setTextColor(Color.parseColor(if (bright) "#edf5f8" else "#b4c8d1"))
         if (bright) setTypeface(null, Typeface.BOLD)
         setLineSpacing(dp(2).toFloat(), 1f)
         setPadding(0, dp(3), 0, dp(4)); parent.addView(this)
     }
 
     private fun card(title: String): LinearLayout = LinearLayout(context).apply {
-        orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(14))
-        background = GradientDrawable().apply { setColor(Color.parseColor("#0d1e2c")); cornerRadius = dp(10).toFloat(); setStroke(dp(1), Color.parseColor("#263e50")) }
-        content.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
-        text(this, title, 16f, true)
+        orientation = VERTICAL; setPadding(dp(16), dp(15), dp(16), dp(16))
+        background = GradientDrawable().apply { setColor(Color.parseColor("#142532")); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.parseColor("#263c49")) }
+        content.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
+        text(this, title, 17f, true)
     }
 
     private fun button(parent: LinearLayout, title: String, enabled: Boolean = true, primary: Boolean = false, action: () -> Unit): Button = Button(context).apply {
         text = title; isAllCaps = false; minHeight = dp(48); isEnabled = enabled && !busy && !capturing
         textSize = 14f
         setTypeface(null, Typeface.BOLD)
-        background = GradientDrawable().apply { cornerRadius = dp(8).toFloat(); setColor(Color.WHITE) }
+        background = GradientDrawable().apply { cornerRadius = dp(12).toFloat(); setColor(Color.WHITE) }
         val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
-        backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1a2c3a"), Color.parseColor(if (primary) "#58d5eb" else "#1c374b")))
+        backgroundTintList = ColorStateList(states, intArrayOf(Color.parseColor("#1a2c3a"), Color.parseColor(if (primary) "#78d8db" else "#1c374b")))
         setTextColor(ColorStateList(states, intArrayOf(Color.parseColor("#93a8b6"), Color.parseColor(if (primary) "#08202b" else "#e5f5fa"))))
         setOnClickListener { action() }
-        parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(5) })
+        parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(7) })
+    }
+
+    private fun surveyRow(parent: LinearLayout, row: MobileSurveyStore.Summary, action: () -> Unit) {
+        val stateLabel = if (row.state == "open") "Open" else "Completed"
+        val rowView = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(14), dp(10), dp(14), dp(10))
+            minimumHeight = dp(64)
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1a3241")); cornerRadius = dp(12).toFloat()
+            }
+            isEnabled = !busy && !capturing
+            alpha = if (isEnabled) 1f else 0.55f
+            isClickable = true; isFocusable = true
+            contentDescription = "${row.name}, $stateLabel, ${row.count} of ${MobileSurvey.MAX_POINTS} captures. Open survey."
+            accessibilityDelegate = object : View.AccessibilityDelegate() {
+                override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                    super.onInitializeAccessibilityNodeInfo(host, info)
+                    info.className = Button::class.java.name
+                }
+            }
+            setOnClickListener { if (isEnabled) action() }
+            parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+        }
+        text(rowView, row.name, 15f, true).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        text(rowView, "$stateLabel  ·  ${row.count}/${MobileSurvey.MAX_POINTS} captures", 13f)
+            .importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        text(rowView, "Open survey  ›", 13f, true).apply {
+            setTextColor(Color.parseColor("#78d8db"))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
     }
 
     private fun render() {
         content.removeAllViews()
-        text(content, "PHONE SURVEYS", 12f, true).apply {
-            setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.08f
+        text(content, "Your surveys", 22f, true).apply {
+            setPadding(0, dp(2), 0, dp(8))
         }
         if (message.isNotBlank()) text(content, message, 12f).apply {
             setPadding(dp(10), dp(8), dp(10), dp(8))
@@ -255,12 +286,12 @@ class SurveyWorkspace(
                 button(create, "Cancel") { creating = false; message = ""; render() }
             } else {
                 val list = card("Saved on this phone · ${listing.surveys.size}")
-                if (listing.surveys.isEmpty()) text(list, "No mobile surveys yet.", 13f)
-                for (row in listing.surveys) button(list, "${row.name}\n${row.state} · ${row.count}/20 captures") {
+                if (listing.surveys.isEmpty()) text(list, "Start a survey to group captures and review them together.", 13f)
+                button(list, "New survey", primary = true) { creating = true; message = ""; render() }
+                for (row in listing.surveys) surveyRow(list, row) {
                     runJob({ store.load(row.id) }) { loaded -> current = loaded; showMoreActions = false; showAllPoints = false; message = "Opened phone-only survey." }
                 }
                 if (listing.unavailable > 0) text(list, "${listing.unavailable} survey file(s) could not be read; they were preserved.")
-                button(list, "New survey", primary = true) { creating = true; message = ""; render() }
             }
             return
         }
@@ -297,7 +328,7 @@ class SurveyWorkspace(
             return
         }
         val summary = card(survey.getString("name"))
-        text(summary, "${state.uppercase()} · ${points.length()}/20 captures · Created ${survey.getString("created_utc")}")
+        text(summary, "${if (state == "open") "Open" else "Completed"} · ${points.length()}/20 captures\nCreated ${survey.getString("created_utc")}")
         if (state != "open") text(summary, "This survey is complete. Open More survey actions to reopen it before adding points.", 12f)
         button(summary, "All surveys") {
             fun leave() {
@@ -386,8 +417,8 @@ class SurveyWorkspace(
         for (i in 0 until (if (showAllPoints) points.length() else minOf(points.length(), 4))) {
             val point = points.getJSONObject(i); val capture = point.getJSONObject("capture")
             val pointPanel = LinearLayout(context).apply {
-                orientation = VERTICAL; setPadding(dp(10), dp(8), dp(10), dp(10))
-                background = GradientDrawable().apply { setColor(Color.parseColor("#102635")); cornerRadius = dp(8).toFloat(); setStroke(dp(1), Color.parseColor("#264253")) }
+                orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(14))
+                background = GradientDrawable().apply { setColor(Color.parseColor("#1a3241")); cornerRadius = dp(12).toFloat() }
                 pointCard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(9) })
             }
             val fixes = GpsSpatialModel.savedFixes(capture); val lastFix = fixes.lastOrNull()
@@ -397,9 +428,9 @@ class SurveyWorkspace(
                 "Last reported fix: ${lastFix.latitude}, ${lastFix.longitude} · ±$accuracy m · $age · ${lastFix.mockLabel()}\n" +
                     "Location observation received ${lastFix.receivedUtc ?: "not exposed"} · Fix time ${lastFix.fixUtc ?: "not exposed"}"
             }
-            text(pointPanel, "POINT ${i + 1}", 12f, true).apply { setTextColor(Color.parseColor("#65d7ea")); letterSpacing = 0.06f }
-            text(pointPanel, "${capture.optString("created_utc", "Time unavailable")}\n$location", 13f, true)
-            text(pointPanel, MobileSurvey.signalSummary(capture), 12f)
+            text(pointPanel, "Point ${i + 1}", 15f, true)
+            text(pointPanel, MobileSurvey.signalSummary(capture), 13f, true)
+            text(pointPanel, "${capture.optString("created_utc", "Time unavailable")}\n$location", 13f)
             text(pointPanel, "Capture ${capture.getString("capture_id")} · ${capture.getJSONObject("collection").optString("outcome")} · added ${point.getString("attached_utc")}", 12f)
             val operatorNote = (point.opt("operator_note") as? String)?.takeIf { it.length <= 500 && it.none { ch -> ch.isISOControl() && ch != '\n' } }
             if (!operatorNote.isNullOrBlank()) text(pointPanel, "Operator observation · not a measured value\n$operatorNote", 12f)

@@ -11,12 +11,12 @@ internal fun Button.styleFieldButton(primary: Boolean = false) {
     val states = arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf())
     background = GradientDrawable().apply {
         setColor(Color.WHITE)
-        cornerRadius = 9 * density
+        cornerRadius = 14 * density
     }
     backgroundTintList = ColorStateList(states, intArrayOf(
-        Color.parseColor("#1b2935"), Color.parseColor(if (primary) "#43d7e3" else "#233e51")))
+        Color.parseColor("#1b2933"), Color.parseColor(if (primary) "#78d8db" else "#29414d")))
     setTextColor(ColorStateList(states, intArrayOf(
-        Color.parseColor("#8ca0ae"), Color.parseColor(if (primary) "#06232a" else "#ffffff"))))
+        Color.parseColor("#91a5af"), Color.parseColor(if (primary) "#09272c" else "#edf5f8"))))
     isAllCaps = false
     minHeight = (48 * density).toInt()
     textSize = 13f

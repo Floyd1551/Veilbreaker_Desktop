@@ -22,13 +22,13 @@ class WirelessReferenceWorkspace(context: Context) : LinearLayout(context) {
     private fun dp(n: Int) = (n * resources.displayMetrics.density).toInt()
     private fun text(value: String, size: Float = 13f, bright: Boolean = false) = TextView(context).apply {
         this.text = value; textSize = size
-        setTextColor(Color.parseColor(if (bright) "#e8f5fa" else "#b8cbd9"))
+        setTextColor(Color.parseColor(if (bright) "#edf5f8" else "#b8cbd9"))
         if (bright) setTypeface(null, Typeface.BOLD)
         setPadding(0, dp(4), 0, dp(4))
     }
     init {
         orientation = VERTICAL
-        addView(text("FIELD REFERENCE LIBRARY", 16f, true))
+        addView(text("Field reference library", 16f, true))
         addView(text("Search offline notes by metric, technology, equipment or material. Reference context is not measured evidence.", 12f))
         search.apply {
             hint = "Search: RSRP, BSSID, SINR, concrete…"
@@ -63,12 +63,12 @@ class WirelessReferenceWorkspace(context: Context) : LinearLayout(context) {
         results.addView(text(if (found.isEmpty()) "No matching references or guides. Try another term or category." else "${found.size} ${if (found.size == 1) "entry" else "entries"} · open a reference to read", 12f))
         found.forEach { entry ->
             val card = LinearLayout(context).apply {
-                orientation = VERTICAL; setPadding(dp(12), dp(8), dp(12), dp(10))
-                background = GradientDrawable().apply { setColor(Color.parseColor("#112335")); cornerRadius = dp(10).toFloat(); setStroke(dp(1), Color.parseColor("#294052")) }
+                orientation = VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(14))
+                background = GradientDrawable().apply { setColor(Color.parseColor("#142532")); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.parseColor("#263c49")) }
                 setOnClickListener { ReferenceReaderDialog(context, entry).show() }
             }
             results.addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
-            card.addView(text(entry.category.uppercase(), 11f, true).apply { setTextColor(Color.parseColor("#63d6ee")) })
+            card.addView(text(entry.category, 12f, true).apply { setTextColor(Color.parseColor("#78d8db")) })
             card.addView(text(entry.title, 15f, true))
             card.addView(text(entry.summary, 13f))
             val open = Button(context).apply {
