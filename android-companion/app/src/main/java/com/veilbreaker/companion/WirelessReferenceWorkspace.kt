@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
+import android.content.res.ColorStateList
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
@@ -64,20 +66,24 @@ class WirelessReferenceWorkspace(context: Context) : LinearLayout(context) {
         found.forEach { entry ->
             val card = LinearLayout(context).apply {
                 orientation = VERTICAL; setPadding(dp(16), dp(12), dp(16), dp(14))
-                background = GradientDrawable().apply { setColor(Color.parseColor("#142532")); cornerRadius = dp(16).toFloat(); setStroke(dp(1), Color.parseColor("#263c49")) }
+                val shape = GradientDrawable().apply { setColor(Color.parseColor("#142a39")); cornerRadius = dp(16).toFloat() }
+                background = RippleDrawable(ColorStateList.valueOf(Color.parseColor("#365b66")), shape, null)
+                isClickable = true; isFocusable = true
+                contentDescription = "${entry.title}, ${entry.category}. ${entry.summary}. ${if (entry.category == "Guides") "Open field guide" else "Open reference"}."
+                accessibilityDelegate = object : View.AccessibilityDelegate() {
+                    override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                        super.onInitializeAccessibilityNodeInfo(host, info); info.className = Button::class.java.name
+                    }
+                }
                 setOnClickListener { ReferenceReaderDialog(context, entry).show() }
             }
             results.addView(card, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
-            card.addView(text(entry.category, 12f, true).apply { setTextColor(Color.parseColor("#78d8db")) })
-            card.addView(text(entry.title, 15f, true))
-            card.addView(text(entry.summary, 13f))
-            val open = Button(context).apply {
-                this.text = if (entry.category == "Guides") "Open field guide" else "Open reference"
-                contentDescription = "${this.text}: ${entry.title}"
-                styleFieldButton()
-                setOnClickListener { ReferenceReaderDialog(context, entry).show() }
-            }
-            card.addView(open, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+            card.addView(text(entry.category, 12f, true).apply { setTextColor(Color.parseColor("#78d8db")); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
+            card.addView(text(entry.title, 15f, true).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
+            card.addView(text(entry.summary, 13f).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO })
+            card.addView(text(if (entry.category == "Guides") "Read guide  ›" else "Read reference  ›", 13f, true).apply {
+                setTextColor(Color.parseColor("#78d8db")); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            })
         }
     }
 }

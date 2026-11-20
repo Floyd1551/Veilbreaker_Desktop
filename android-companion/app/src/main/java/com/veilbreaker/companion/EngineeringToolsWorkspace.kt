@@ -5,17 +5,22 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
+import android.content.res.ColorStateList
 import android.text.Editable
 import android.text.InputFilter
 import android.text.InputType
 import android.text.TextWatcher
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.AdapterView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.Locale
@@ -26,40 +31,42 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
     private val bright = Color.parseColor("#edf5f8")
     private val muted = Color.parseColor("#b8cbd9")
     private val cyan = Color.parseColor("#78d8db")
-    private lateinit var selector: Spinner
+    private lateinit var browser: LinearLayout
+    private lateinit var search: EditText
+    private lateinit var results: LinearLayout
     private lateinit var editor: LinearLayout
     private lateinit var count: TextView
-    private var matches: List<EngineeringToolCatalog.Tool> = emptyList()
+    private var category = "All categories"
     private val state = ToolWorkspaceState()
-    private var displayedToolId: String? = null
-    private var changingSelection = false
 
     init {
         orientation = VERTICAL
         label(this, "Engineering calculators", 16f, bright, true)
-        label(this, "Search offline tools by name or subject. Calculations use entered values and are not captured measurements.", 13f)
-        val search = EditText(context).apply {
+        label(this, "Find an offline calculator for the task at hand.", 13f)
+        browser = LinearLayout(context).apply { orientation = VERTICAL; this@EngineeringToolsWorkspace.addView(this) }
+        search = EditText(context).apply {
             hint = "Search calculators"; contentDescription = "Search calculators"; setSingleLine(true)
             setTextColor(bright); setHintTextColor(muted); filters = arrayOf(InputFilter.LengthFilter(100))
-            this@EngineeringToolsWorkspace.addView(this)
+            browser.addView(this)
         }
-        count = label(this, "", 12f)
-        selector = Spinner(context).apply { contentDescription = "Choose engineering calculator"; this@EngineeringToolsWorkspace.addView(this) }
-        editor = LinearLayout(context).apply { orientation = VERTICAL; this@EngineeringToolsWorkspace.addView(this) }
-        selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                if (matches.isEmpty()) { editor.removeAllViews(); displayedToolId = null }
-            }
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                if (changingSelection) return
-                matches.getOrNull(position)?.let { tool ->
-                    state.select(tool.id)
-                    if (displayedToolId != tool.id) showTool(tool)
+        val categories = listOf("All categories") + EngineeringToolCatalog.tools.map { it.category }.distinct().sorted()
+        Spinner(context).apply {
+            contentDescription = "Calculator category"
+            adapter = FieldSpinnerAdapter(context, categories)
+            onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(parent: AdapterView<*>?) {}
+                override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                    category = categories.getOrElse(position) { "All categories" }
+                    refresh()
                 }
             }
+            browser.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
         }
-        search.addTextChangedListener(watcher { refresh(search.text.toString()) })
-        refresh("")
+        count = label(browser, "", 12f)
+        results = LinearLayout(context).apply { orientation = VERTICAL; browser.addView(this) }
+        editor = LinearLayout(context).apply { orientation = VERTICAL; visibility = View.GONE; this@EngineeringToolsWorkspace.addView(this) }
+        search.addTextChangedListener(watcher { refresh() })
+        refresh()
     }
 
     private fun label(parent: LinearLayout, value: String, size: Float, color: Int = muted, bold: Boolean = false): TextView =
@@ -74,22 +81,78 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
         override fun afterTextChanged(s: Editable?) {}
     }
 
-    private fun refresh(query: String) {
-        matches = EngineeringToolCatalog.search(query)
-        count.text = if (matches.isEmpty()) "No calculators match. Try another term." else "${matches.size} calculator${if (matches.size == 1) "" else "s"} available"
-        selector.visibility = if (matches.isEmpty()) View.GONE else View.VISIBLE
-        val selectedIndex = state.indexFor(matches.map { it.id })
-        changingSelection = true
-        selector.adapter = FieldSpinnerAdapter(context, matches.map { "${it.category} · ${it.title}" })
-        if (selectedIndex >= 0) selector.setSelection(selectedIndex)
-        changingSelection = false
-        if (selectedIndex < 0) { editor.removeAllViews(); displayedToolId = null }
-        else if (displayedToolId != matches[selectedIndex].id) showTool(matches[selectedIndex])
+    private fun revealWorkspace() {
+        post {
+            var ancestor = parent
+            while (ancestor != null && ancestor !is ScrollView) ancestor = ancestor.parent
+            (ancestor as? ScrollView)?.let { scroll ->
+                val bounds = Rect(0, 0, width, height)
+                scroll.offsetDescendantRectToMyCoords(this, bounds)
+                scroll.smoothScrollTo(0, bounds.top)
+            }
+        }
+    }
+
+    private fun refresh() {
+        if (!::results.isInitialized) return
+        val matches = EngineeringToolCatalog.search(search.text.toString())
+            .filter { category == "All categories" || it.category == category }
+        count.text = if (matches.isEmpty()) "No calculators found. Try another search or category."
+            else "${matches.size} calculator${if (matches.size == 1) "" else "s"} · tap to open"
+        results.removeAllViews()
+        matches.forEach { tool ->
+            val categoryColor = Color.parseColor(when (tool.category) {
+                "Cellular" -> "#a8c9ff"
+                "Wi-Fi" -> "#8ce0d5"
+                "Networking" -> "#c1b9f5"
+                "Fiber & Power" -> "#e9c58b"
+                else -> "#78d8db"
+            })
+            val tile = LinearLayout(context).apply {
+                orientation = VERTICAL; setPadding(dp(16), dp(10), dp(16), dp(10)); minimumHeight = dp(64)
+                val shape = GradientDrawable().apply { setColor(Color.parseColor("#142a39")); cornerRadius = dp(16).toFloat() }
+                background = RippleDrawable(ColorStateList.valueOf(Color.parseColor("#365b66")), shape, null)
+                isClickable = true; isFocusable = true
+                contentDescription = "${tool.title}, ${tool.category} calculator. ${tool.description} Open calculator."
+                accessibilityDelegate = object : View.AccessibilityDelegate() {
+                    override fun onInitializeAccessibilityNodeInfo(host: View, info: android.view.accessibility.AccessibilityNodeInfo) {
+                        super.onInitializeAccessibilityNodeInfo(host, info); info.className = Button::class.java.name
+                    }
+                }
+                setOnClickListener {
+                    (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(search.windowToken, 0)
+                    search.clearFocus(); state.select(tool.id); browser.visibility = View.GONE; editor.visibility = View.VISIBLE
+                    showTool(tool); revealWorkspace()
+                }
+                results.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+            }
+            label(tile, tool.category, 11f, categoryColor, true).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            label(tile, "${tool.title}  ›", 15f, bright, true).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            label(tile, tool.description, 12f).apply {
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }
+        }
+    }
+
+    fun closeDetail(): Boolean {
+        if (!::editor.isInitialized || editor.visibility != View.VISIBLE) return false
+        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(editor.windowToken, 0)
+        editor.findFocus()?.clearFocus()
+        editor.visibility = View.GONE; browser.visibility = View.VISIBLE; revealWorkspace()
+        return true
     }
 
     private fun showTool(tool: EngineeringToolCatalog.Tool) {
         editor.removeAllViews()
-        displayedToolId = tool.id
+        Button(context).apply {
+            text = "‹  All calculators"; styleFieldButton()
+            contentDescription = "Back to calculator list"
+            setOnClickListener { closeDetail() }
+            editor.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        }
         val card = LinearLayout(context).apply {
             orientation = VERTICAL; setPadding(dp(16), dp(14), dp(16), dp(16))
             background = GradientDrawable().apply {
@@ -97,7 +160,8 @@ class EngineeringToolsWorkspace(context: Context) : LinearLayout(context) {
             }
             editor.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
-        label(card, tool.title, 17f, bright, true)
+        label(card, tool.category.uppercase(Locale.ROOT), 11f, cyan, true)
+        label(card, tool.title, 20f, bright, true)
         label(card, tool.description, 13f)
         val visual = ToolVisualModel.forTool(tool.id)?.let { spec ->
             val diagram = EngineeringToolDiagram(context, tool.id, spec)

@@ -29,6 +29,7 @@ class MainActivity : Activity() {
     private lateinit var cellInventory: CellInventoryWorkspace
     private lateinit var liveDashboard: LiveDashboard
     private lateinit var surveyWorkspace: SurveyWorkspace
+    private lateinit var engineeringTools: EngineeringToolsWorkspace
     private lateinit var captureArchive: CaptureArchiveWorkspace
     private lateinit var networkTestWorkspace: NetworkTestWorkspace
     private lateinit var detailsButton: Button
@@ -154,6 +155,13 @@ class MainActivity : Activity() {
         super.onSaveInstanceState(outState)
     }
 
+    @Deprecated("Android back dispatch")
+    override fun onBackPressed() {
+        if (currentPage == WorkspacePage.TOOLS && ::engineeringTools.isInitialized &&
+            engineeringTools.isShown && engineeringTools.closeDetail()) return
+        super.onBackPressed()
+    }
+
     override fun onCreate(state:Bundle?) {
         setTheme(android.R.style.Theme_Material_NoActionBar)
         super.onCreate(state)
@@ -214,9 +222,23 @@ class MainActivity : Activity() {
                 }
             }
         }
-        val live=page("Live", "Captured measurements and field equipment at a glance.")
-        captureButton=button(live,"Capture on phone",true) { takeSnapshot(null) }
-        status=text(live,"").apply {
+        val live=page("Live", "Your connections and latest field evidence.")
+        val captureCard=card(live,"Phone capture")
+        text(captureCard,"Collect cellular and optional GPS evidence on this device.",12f)
+        inputReadiness=text(captureCard,"Checking phone inputs…",12f).apply {
+            setTextColor(Color.parseColor("#b9d5d9"))
+        }
+        val captureActions=LinearLayout(this).apply {
+            orientation=if(resources.configuration.screenWidthDp / resources.configuration.fontScale.coerceAtLeast(1f) >= 320f) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+            captureCard.addView(this,LinearLayout.LayoutParams(-1,-2))
+        }
+        captureButton=button(captureActions,"Capture",true) { takeSnapshot(null) }
+        val configureButton=button(captureActions,"Input settings") { showPage(WorkspacePage.DIAGNOSE);showDiagnoseSection(0) }
+        if(captureActions.orientation==LinearLayout.HORIZONTAL) {
+            captureButton.layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply { marginEnd=dp(6) }
+            configureButton.layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        }
+        status=text(captureCard,"").apply {
             visibility=View.GONE
             addTextChangedListener(object:TextWatcher {
                 override fun beforeTextChanged(s:CharSequence?,start:Int,count:Int,after:Int) {}
@@ -224,8 +246,6 @@ class MainActivity : Activity() {
                 override fun afterTextChanged(s:Editable?) {}
             })
         }
-        inputReadiness=text(live,"Checking phone inputs…",12f)
-        button(live,"Configure cellular & GPS") { showPage(WorkspacePage.DIAGNOSE);showDiagnoseSection(0) }
         liveDashboard=LiveDashboard(this,::openWifi,::openGps);live.addView(liveDashboard)
 
         val diagnose=page("Diagnose", "Choose an area to configure or test.",false)
@@ -336,7 +356,6 @@ class MainActivity : Activity() {
         tools.addView(tabRows(tabs))
         val calculatorWorkspace=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL
-            addView(EngineeringToolsWorkspace(this@MainActivity))
             val converters=WirelessToolsWorkspace(this@MainActivity).apply { visibility=View.GONE }
             lateinit var converterToggle:Button
             converterToggle=button(this,"Show two-way Wi-Fi and power converters") {
@@ -345,6 +364,8 @@ class MainActivity : Activity() {
                 converterToggle.text=if(show) "Hide two-way converters" else "Show two-way Wi-Fi and power converters"
             }
             addView(converters)
+            engineeringTools=EngineeringToolsWorkspace(this@MainActivity)
+            addView(engineeringTools)
         }
         val planningWorkspace=PlanningModelsWorkspace(this) { capture }
         lateinit var showTools:(Int)->Unit
@@ -432,9 +453,9 @@ class MainActivity : Activity() {
         inputReadiness.text=when {
             connection!=null -> "Desktop session active."
             pending -> "Capture in progress."
-            noInput -> "Choose cellular or GPS in Configure inputs."
-            !allowed() -> "Grant the required phone permissions in Configure inputs."
-            missingSim -> "Choose a SIM in Configure inputs before capturing cellular data."
+            noInput -> "Choose cellular or GPS in Input settings."
+            !allowed() -> "Grant the required phone permissions in Input settings."
+            missingSim -> "Choose a SIM in Input settings before capturing cellular data."
             else -> "Inputs ready for capture."
         }
         captureButton.isEnabled=connection==null && !pending && !noInput && allowed() && !missingSim

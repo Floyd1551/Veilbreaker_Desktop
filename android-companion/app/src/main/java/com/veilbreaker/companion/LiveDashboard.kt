@@ -3,7 +3,10 @@ package com.veilbreaker.companion
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.ConnectivityManager
@@ -68,20 +71,67 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         setColor(color(fill)); cornerRadius = dp(radius).toFloat()
     }
 
-    private fun panel(title: String, contextLabel: String): LinearLayout = LinearLayout(context).apply {
+    /** Decorative section icon; measurement values remain in accessible text. */
+    private class SectionIcon(context: Context, private val kind: String, private val accent: Int) : View(context) {
+        private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accent; style = Paint.Style.STROKE; strokeWidth = 1.7f
+            strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
+        }
+        private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent; alpha = 28 }
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val scale = minOf(width, height) / 36f
+            canvas.save(); canvas.scale(scale, scale)
+            canvas.drawCircle(18f, 18f, 18f, fill)
+            when (kind) {
+                "cellular" -> {
+                    canvas.drawLine(11f, 23f, 11f, 20f, stroke)
+                    canvas.drawLine(15.5f, 23f, 15.5f, 17f, stroke)
+                    canvas.drawLine(20f, 23f, 20f, 14f, stroke)
+                    canvas.drawLine(24.5f, 23f, 24.5f, 10.5f, stroke)
+                }
+                "wifi" -> {
+                    canvas.drawArc(8f, 9f, 28f, 29f, 225f, 90f, false, stroke)
+                    canvas.drawArc(12f, 13f, 24f, 25f, 225f, 90f, false, stroke)
+                    canvas.drawPoint(18f, 22f, stroke)
+                }
+                else -> {
+                    val pin = Path().apply {
+                        moveTo(18f, 27f); cubicTo(15.2f, 23.1f, 11.7f, 19.8f, 11.7f, 16.1f)
+                        cubicTo(11.7f, 12.6f, 14.5f, 9.8f, 18f, 9.8f)
+                        cubicTo(21.5f, 9.8f, 24.3f, 12.6f, 24.3f, 16.1f)
+                        cubicTo(24.3f, 19.8f, 20.8f, 23.1f, 18f, 27f); close()
+                    }
+                    canvas.drawPath(pin, stroke); canvas.drawCircle(18f, 16f, 2.1f, stroke)
+                }
+            }
+            canvas.restore()
+        }
+    }
+
+    private fun panel(title: String, contextLabel: String, kind: String, accent: String): LinearLayout = LinearLayout(context).apply {
         orientation = VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16))
         background = surface("#142532", 16)
         this@LiveDashboard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(12) })
-        text(this, title, 18f, "#edf5f8", true)
-        text(this, contextLabel, 12f, "#a7c5d3").apply { setPadding(0, dp(2), 0, dp(4)) }
+        val header = LinearLayout(context).apply {
+            orientation = HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+        }
+        addView(header, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        header.addView(SectionIcon(context, kind, color(accent)).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LayoutParams(dp(36), dp(36)).apply { marginEnd = dp(10) })
+        val titles = LinearLayout(context).apply {
+            orientation = VERTICAL; header.addView(this, LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f))
+        }
+        text(titles, title, 17f, "#edf5f8", true)
+        text(titles, contextLabel, 12f, "#a7c5d3")
     }
 
     // A saved capture is separate from the current network state. Do not imply that
     // these values are live measurements or assign a quality grade to them.
-    private fun cellPanel(parent: LinearLayout): LinearLayout = LinearLayout(context).apply {
-        orientation = VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12))
-        background = surface("#1b3040", 14)
-        parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
+    private fun details(parent: LinearLayout): LinearLayout = LinearLayout(context).apply {
+        orientation = VERTICAL
+        parent.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(10) })
     }
 
     private fun stackedLayout() = resources.configuration.screenWidthDp < 360 || resources.configuration.fontScale > 1.15f
@@ -92,17 +142,18 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         return "$number ${value.unit}"
     }
 
-    private fun metric(parent: LinearLayout, value: LiveOverviewModel.Value) {
+    private fun metric(parent: LinearLayout, label: String, value: String, available: Boolean = true): TextView {
         val metric = LinearLayout(context).apply {
             orientation = VERTICAL; setPadding(dp(10), dp(8), dp(8), dp(8))
-            background = surface("#132838", 10)
+            background = surface("#10212d", 10)
             parent.addView(this, if (parent.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(4)
             } else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
         }
-        text(metric, value.label, 12f, "#aec6d3")
-        text(metric, displayValue(value), if (value.value == null) 12f else 16f,
-            if (value.value == null) "#a8bdca" else "#edf5f8", value.value != null)
+        val reading = text(metric, value, if (available) 16f else 12f,
+            if (available) "#edf5f8" else "#a8bdca", available)
+        text(metric, label, 12f, "#aec6d3")
+        return reading
     }
 
     private fun action(parent: LinearLayout, title: String, action: () -> Unit): Button =
@@ -122,12 +173,14 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
     fun showCapture(capture: JSONObject?, plan: JSONObject?) {
         removeAllViews(); wifiButton = null; gpsButton = null; navigationStatus = null; wifiSummary = null; wifiName = null; wifiFrequency = null; wifiValues.clear(); wifiChecked = null
         val model = runCatching { LiveOverviewModel.build(capture, plan) }.getOrElse { LiveOverviewModel.Overview(null, emptyList(), null) }
-        val overview = panel("Cellular", "Latest saved capture")
+        val overview = panel("Cellular", "Latest saved capture", "cellular", "#86baff")
         text(overview, model.receivedUtc?.let { "Received $it · sample ages at receipt" }
-            ?: "No recorded phone capture yet. Select Capture to collect.", 12f, "#9ab3c3")
+            ?: "No recorded phone capture yet. Select Capture to collect.", 12f, "#a7c0cc").apply { setPadding(0, dp(10), 0, dp(2)) }
         if (model.cells.isEmpty()) text(overview, "No registered LTE or NR cells in the latest capture.", 13f)
-        for (cell in model.cells) {
-            val card = cellPanel(overview)
+        for ((index, cell) in model.cells.withIndex()) {
+            if (index > 0) overview.addView(View(context).apply { setBackgroundColor(color("#2b424e")) },
+                LayoutParams(LayoutParams.MATCH_PARENT, dp(1)).apply { topMargin = dp(12) })
+            val card = details(overview)
             text(card, cell.title, 15f, "#edf5f8", true)
             text(card, "${cell.carrier} · ${cell.band}", 13f, "#78d8db")
             text(card, "Channel ${cell.channel} · PCI ${cell.pci}", 12f, "#b4c8d1")
@@ -135,13 +188,13 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
                 orientation = if (stackedLayout()) VERTICAL else HORIZONTAL
                 card.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
             }
-            cell.values.forEach { metric(metrics, it) }
+            cell.values.forEach { metric(metrics, it.label, displayValue(it), it.value != null) }
             text(card, cell.age, 11f, "#a8bfcd").apply { setPadding(0, dp(6), 0, 0) }
             if (cell.receivedUtc != null && cell.receivedUtc != model.receivedUtc)
                 text(card, "Received ${cell.receivedUtc}", 11f, "#a8bfcd")
         }
-        val wifi = panel("Wi-Fi", "Current connection")
-        val wifiCard = cellPanel(wifi)
+        val wifi = panel("Wi-Fi", "Current connection", "wifi", "#78d8db")
+        val wifiCard = details(wifi)
         wifiSummary = text(wifiCard, wifiDetails.status, 15f, "#edf5f8", true)
         wifiName = text(wifiCard, wifiDetails.name, 13f, "#78d8db")
         wifiFrequency = text(wifiCard, "Frequency ${wifiDetails.frequency}", 12f, "#b4c8d1")
@@ -150,13 +203,7 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
             wifiCard.addView(this, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { topMargin = dp(8) })
         }
         for ((label, value) in listOf("Signal" to wifiDetails.signal, "Channel" to wifiDetails.channel, "Link rate" to wifiDetails.linkRate)) {
-            val box = LinearLayout(context).apply {
-                orientation = VERTICAL; setPadding(dp(10), dp(8), dp(8), dp(8)); background = surface("#132838", 10)
-                wifiMetrics.addView(this, if (wifiMetrics.orientation == HORIZONTAL) LayoutParams(0, LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(4) }
-                    else LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(4) })
-            }
-            text(box, label, 12f, "#aec6d3")
-            wifiValues.add(text(box, value, 14f, "#edf5f8", true))
+            wifiValues.add(metric(wifiMetrics, label, value))
         }
         text(wifiCard, "Channel is derived from frequency. Link rate is negotiated, not measured throughput; sample age is not exposed.", 12f, "#b4c9d4").apply { setPadding(0, dp(8), 0, 0) }
         wifiChecked = text(wifi, wifiCheckedText, 11f, "#a8bfcd").apply {
@@ -164,7 +211,7 @@ class LiveDashboard(context: Context, private val onWifi: () -> Unit, private va
         }
         wifiButton = action(wifi, "Open Wi-Fi", onWifi)
 
-        val gps = panel("Location", "Latest saved capture and live GPS")
+        val gps = panel("Location", "Latest saved capture and live GPS", "location", "#c0b5ff")
         text(gps, model.gps ?: "No location in the latest saved capture.", 13f, "#e0edf5").apply {
             setPadding(0, dp(6), 0, dp(4))
         }
