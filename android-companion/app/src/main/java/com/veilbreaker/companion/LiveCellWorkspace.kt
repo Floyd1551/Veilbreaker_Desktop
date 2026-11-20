@@ -18,6 +18,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONObject
+import java.time.Instant
 
 /** Explicit, foreground-only display of Android cell callbacks; never saves evidence. */
 class LiveCellWorkspace(
@@ -40,6 +41,14 @@ class LiveCellWorkspace(
     private val trend = LiveCellTrend()
     private val trendView = LiveCellTrendView(context)
     private val metricPanel = LiveCellMetricsPanel(context)
+    private val changeButton = Button(context)
+    private val changeStatus = TextView(context)
+    private val changeEvents = TextView(context)
+    private val changeExpand = Button(context)
+    private var changeTracker: ServingCellChangeTracker? = null
+    private var changeLogging = false
+    private var changeExpanded = false
+    private var changeIssue: String? = null
     private var active = false
     private var collectionBlocked = false
     private var generation = 0L
@@ -78,6 +87,29 @@ class LiveCellWorkspace(
         addView(status)
         metricPanel.visibility = View.GONE; addView(metricPanel)
         trendView.visibility = View.GONE; addView(trendView)
+        addView(TextView(context).apply {
+            text = "SERVING CELL CHANGES"; textSize = 14f; setTypeface(null, Typeface.BOLD)
+            setTextColor(Color.parseColor("#63d6ee")); setPadding(0, dp(12), 0, dp(4))
+        })
+        addView(TextView(context).apply {
+            text = "Optional foreground log of reported LTE/NR identity changes. Times are response receipts, not exact transition times. This does not confirm a physical tower change or handover cause. Cleared when the live monitor stops."
+            textSize = 12f; setTextColor(Color.parseColor("#b8cbd9"))
+        })
+        changeButton.apply {
+            text = "Start cell change log"; styleFieldButton(); isEnabled = false
+            setOnClickListener { toggleChangeLog() }
+        }
+        addView(changeButton)
+        changeStatus.apply { textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); setPadding(0, dp(4), 0, dp(4)) }
+        addView(changeStatus)
+        changeEvents.apply { textSize = 13f; setTextColor(Color.parseColor("#e8f5fa")); setTextIsSelectable(true); visibility = View.GONE }
+        addView(changeEvents)
+        changeExpand.apply {
+            text = "Show all cell changes"; styleFieldButton(); visibility = View.GONE
+            setOnClickListener { changeExpanded = !changeExpanded; renderChangeLog() }
+        }
+        addView(changeExpand)
+        renderChangeLog()
         addView(details)
         detailsButton.apply {
             text = "Show more cell reports"; styleFieldButton(); visibility = View.GONE
@@ -123,6 +155,43 @@ class LiveCellWorkspace(
     private fun clearDetails() { fullDetails = ""; detailsExpanded = false; renderDetails(); metricPanel.visibility = View.GONE; metricPanel.removeAllViews() }
     private fun clearFreshness() { handler.removeCallbacks(freshnessTicker); responseReceivedAt = null }
 
+    private fun toggleChangeLog() {
+        if (!active) return
+        if (changeLogging) {
+            changeLogging = false
+        } else {
+            val id = subscriptionId ?: return
+            changeTracker = ServingCellChangeTracker(id.toString())
+            changeLogging = true; changeExpanded = false; changeIssue = null
+        }
+        renderChangeLog()
+    }
+
+    private fun renderChangeLog() {
+        val tracker = changeTracker
+        val events = tracker?.events.orEmpty()
+        changeButton.isEnabled = active
+        changeButton.text = if (changeLogging) "Stop cell change log" else if (tracker == null) "Start cell change log" else "Start new cell change log"
+        changeStatus.text = when {
+            tracker == null -> if (active) "Start the change log when ready. Nothing is saved." else "Start the live monitor, then start the change log. Nothing is saved."
+            changeLogging -> listOfNotNull(changeIssue, tracker.status, "${events.size} reported change(s) · up to 50 retained in memory.").joinToString("\n")
+            else -> "Log stopped · ${events.size} reported change(s) retained until the live monitor stops."
+        }
+        val shown = events.asReversed().let { if (changeExpanded) it else it.take(5) }
+        changeEvents.text = shown.joinToString("\n\n", transform = CellChangeLogText::event)
+        changeEvents.visibility = if (shown.isEmpty()) View.GONE else View.VISIBLE
+        changeExpand.visibility = if (events.size > 5) View.VISIBLE else View.GONE
+        changeExpand.text = if (changeExpanded) "Show recent cell changes" else "Show all ${events.size} cell changes"
+        changeExpand.contentDescription = changeExpand.text
+    }
+
+    private fun breakChangeContinuity(id: Int, now: Long, message: String) {
+        if (!changeLogging) return
+        changeTracker?.accept(id.toString(), emptyList(), now, Instant.now().toString())
+        changeIssue = message
+        renderChangeLog()
+    }
+
     fun selectionChanged() {
         val selected = selectedSubscriptionId()
         if (active && selected != subscriptionId) stop("SIM changed. Start the live monitor again for the selected SIM.")
@@ -141,6 +210,7 @@ class LiveCellWorkspace(
         nextRequest = null; timeout = null; endSession = null
         clearFreshness(); clearDetails(); shownSubscriptionId = null
         trend.reset(); trendView.show(trend); trendView.visibility = View.GONE
+        changeTracker = null; changeLogging = false; changeExpanded = false; changeIssue = null; renderChangeLog()
         button.text = "Start live cellular"; status.text = message
     }
 
@@ -159,6 +229,7 @@ class LiveCellWorkspace(
         if (id == null) { status.text = "Choose a SIM in Phone inputs before starting."; return }
         if (!ready(id)) { status.text = "Choose an active SIM, grant phone and precise location permissions, enable location services, and stop other collection first."; return }
         active = true; subscriptionId = id; val token = ++generation
+        renderChangeLog()
         button.text = "Stop live cellular"; status.text = "Requesting a cell update…"; clearFreshness(); clearDetails(); shownSubscriptionId = null
         trend.reset(); trendView.show(trend); trendView.visibility = View.VISIBLE
         endSession = Runnable { if (active && token == generation) stop("Five-minute limit reached. No live readings were saved.") }.also { handler.postDelayed(it, MAX_DURATION_MS) }
@@ -179,12 +250,22 @@ class LiveCellWorkspace(
             if (selectedSubscriptionId() != id || !ready(id)) { stop("Live monitor stopped because the SIM, permissions, screen, or collection state changed."); return }
             val now = SystemClock.elapsedRealtime()
             if (error != null) {
+                breakChangeContinuity(id, now, "Cell response unavailable; no change was inferred across the gap.")
                 clearFreshness()
                 status.text = "$error · retrying while this screen remains open."
                 clearDetails(); shownSubscriptionId = null
                 trend.reset("Cell response unavailable; history cleared."); trendView.show(trend)
             } else {
                 val values = cells.orEmpty().take(MAX_CELLS).mapNotNull { runCatching { CellularSnapshot.cell(it, now) }.getOrNull() }
+                if (changeLogging) {
+                    if (cells == null || cells.size > MAX_CELLS || values.size != cells.size) {
+                        breakChangeContinuity(id, now, "Cell response incomplete; no change was inferred across the gap.")
+                    } else {
+                        changeIssue = null
+                        changeTracker?.accept(id.toString(), values, now, Instant.now().toString())
+                        renderChangeLog()
+                    }
+                }
                 trend.accept(values, now); trendView.show(trend)
                 metricPanel.show(runCatching { LiveCellMetrics.build(values, channelPlan()) }.getOrNull())
                 metricPanel.visibility = View.VISIBLE

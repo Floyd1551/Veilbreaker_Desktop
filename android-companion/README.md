@@ -150,6 +150,21 @@ when other collection begins. It never saves evidence. Survey point review shows
 recorded metrics and location provenance individually without averaging them.
 A capture requested with location but without a usable fix is marked partial.
 
+Within the live cellular monitor, **Start cell change log** begins a separate,
+optional in-memory timeline for the selected SIM. It retains at most 50 changes
+between complete, recent Android-reported LTE/NR identities; ambiguous, stale,
+cached, incomplete and out-of-order responses break or pause comparison. The
+display identifies response receipt time and whether Android reported a primary
+role. A reported identity change does not establish a physical tower change, an
+exact transition time or the cause. Stopping the monitor clears the timeline.
+
+The foreground GPS view includes a north-up GNSS sky plot using reported
+satellite azimuth and elevation. Filled and outlined markers distinguish
+satellites used and not used in the last fix. The plot is hidden when status is
+stale or usable angles are unavailable. It adds no location permission, does
+not infer receiver accuracy from satellite signal levels, and does not save
+readings.
+
 The live cellular monitor includes a short foreground-only trend for distinct,
 recent samples of one fully identified LTE/NR serving cell. It clears on ambiguity,
 cell changes, gaps or stop; it is not saved. The live monitor also shows compact

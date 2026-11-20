@@ -28,6 +28,8 @@ class LiveGpsWorkspace(context: Context) : LinearLayout(context) {
     private val status = TextView(context)
     private val satellites = TextView(context)
     private val satelliteToggle = Button(context)
+    private val skySummary = TextView(context)
+    private val skyPlot = GnssSkyPlot(context)
     private var running = false
     private var epoch = 0
     private var locationListener: LocationListener? = null
@@ -65,6 +67,13 @@ class LiveGpsWorkspace(context: Context) : LinearLayout(context) {
             setTextColor(Color.parseColor("#e0edf5")); setPadding(0, dp(6), 0, dp(4))
         }
         addView(status)
+        skySummary.apply {
+            textSize = 12f; setTextColor(Color.parseColor("#b8cbd9")); visibility = View.GONE
+            setPadding(0, dp(4), 0, dp(2))
+        }
+        addView(skySummary)
+        skyPlot.visibility = View.GONE
+        addView(skyPlot, LayoutParams(LayoutParams.MATCH_PARENT, dp(220)))
         satelliteToggle.apply {
             text = "Show satellite details"; styleFieldButton(); visibility = View.GONE
             setOnClickListener { expanded = !expanded; render() }
@@ -159,6 +168,18 @@ class LiveGpsWorkspace(context: Context) : LinearLayout(context) {
             else "${satelliteRows!!.size} satellites reported · ${satelliteRows!!.count { it.used }} used in last fix"
         val satelliteAge = lastSatelliteReceipt?.let { " · status received ${(now - it).coerceAtLeast(0) / 1000} s ago" } ?: ""
         status.text = "$position\n$counts$satelliteAge\nSatellite use and signal strength are Android reports, not saved evidence."
+        val sky = GnssSkyModel.frame(satelliteRows, lastSatelliteReceipt, now, gnssAvailable)
+        skySummary.visibility = View.VISIBLE
+        skySummary.text = when (sky.state) {
+            GnssSkyModel.State.UNAVAILABLE -> "SKY VIEW · Satellite status unavailable."
+            GnssSkyModel.State.WAITING -> "SKY VIEW · Waiting for satellite positions."
+            GnssSkyModel.State.EMPTY -> "SKY VIEW · No satellites reported."
+            GnssSkyModel.State.NO_POSITIONS -> "SKY VIEW · Satellite angles are unavailable or outside the reported range."
+            GnssSkyModel.State.STALE -> "SKY VIEW · Satellite status is stale or its timing is unavailable; the plot is hidden until refreshed."
+            GnssSkyModel.State.READY -> "SKY VIEW · ${sky.points.size} plotted${if (sky.omitted > 0) " · ${sky.omitted} positions unavailable or omitted" else ""}\nNorth is up; rings mark horizon, 30° and 60° elevation; centre is overhead. Filled cyan: used in fix. Outlined amber: not used."
+        }
+        skyPlot.show(sky)
+        skyPlot.visibility = if (sky.state == GnssSkyModel.State.READY) View.VISIBLE else View.GONE
         satelliteToggle.visibility = if (satelliteRows != null) View.VISIBLE else View.GONE
         satelliteToggle.text = if (expanded) "Hide satellite details" else "Show satellite details"
         satelliteToggle.isSelected = expanded
@@ -173,6 +194,8 @@ class LiveGpsWorkspace(context: Context) : LinearLayout(context) {
         try { gnssCallback?.let { receiver?.unregisterGnssStatusCallback(it) } } catch (_: RuntimeException) {}
         locationListener = null; gnssCallback = null; lastFix = null; satelliteRows = null; lastSatelliteReceipt = null
         action.text = "Start live GPS"; status.text = message
+        skyPlot.show(GnssSkyModel.Frame(GnssSkyModel.State.WAITING))
+        skyPlot.visibility = View.GONE; skySummary.visibility = View.GONE
         satelliteToggle.visibility = View.GONE; satellites.visibility = View.GONE; expanded = false
     }
 
